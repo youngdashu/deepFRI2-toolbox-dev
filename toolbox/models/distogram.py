@@ -14,5 +14,5 @@ class Distogram(BaseModel):
 
 
 
-    def generate_contact_map(self):
+    def generate(self):
         pass

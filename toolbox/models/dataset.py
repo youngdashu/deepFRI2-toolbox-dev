@@ -10,11 +10,12 @@ from toolbox.models.proteinType import ProteinType
 class Dataset(BaseModel):
     name: str
     proteins: List[Protein]
-    n: int = len(proteins)
+    n_proteins: int = len(proteins)
     type: ProteinType
+    n_batches: int # number of batches max 1k-10k proteins and max 10k subfolders
     api_link: str
-    structure_location: Path
-    distance_location: Path
+    struct_location: Path
+    disto_location: Path
 
     def fetch_structures(self, overwrite: bool = False):
         pass

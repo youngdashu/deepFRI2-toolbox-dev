@@ -11,44 +11,21 @@ class Sequence(BaseModel):
     header: str
 
 class Structure(BaseModel):
-    atom_coordinates: List[List[float]]
+    atom_coordinates: dict[str, tuple[float]]
 
 class Metadata(BaseModel):
     origin: str
     proteinType: ProteinType
     location: Path
 
+class Annotation(BaseModel):
+    pass
+
 class Protein(BaseModel):
     name: str
     sequence: Sequence
     structure: Structure
     metadata: Metadata
-    annotation: str
+    annotation: Annotation
     distogram: Distogram
-
-
-
-    # def __init__(self, name: str, sequence: str, header: str, structure: List, metadata: dict, origin: str, protein_type: ProteinType, location: Path, annotation: Union[callable, None] = None):
-    #     self.name = name
-    #     self.sequence = sequence
-    #     self.amino_acids = sequence  # Assuming sequence is a string of amino acids
-    #     self.header = header
-    #     self.structure = structure
-    #     self.metadata = metadata
-    #     self.origin = origin
-    #     self.type = protein_type
-    #     self.location = location
-    #     self.annotation = annotation if annotation is not None else self.default_annotation
-    #     self.distogram = None  # Placeholder, as generating a distogram would require further details
-
-    def default_annotation(self):
-        # Placeholder method for annotation
-        pass
-
-
-
-
-
-
-
 
