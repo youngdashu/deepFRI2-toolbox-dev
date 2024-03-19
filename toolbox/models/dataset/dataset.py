@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import List
 from pathlib import Path
 
@@ -22,3 +23,7 @@ class Dataset(BaseModel):
 
     def generate_distograms(self, overwrite: bool = False):
         pass
+
+
+
+
