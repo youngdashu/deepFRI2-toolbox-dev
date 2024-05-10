@@ -7,6 +7,9 @@ from Bio.PDB import PDBList
 import foldcomp
 from foldcomp.setup import download
 
+pdir = "../../../data"
+repo_path = pdir + "/repo"
+dataset_path = pdir + "/dataset"
 
 class DatasetOriginBase:
     pdir = "../../../data"
@@ -16,11 +19,12 @@ class DatasetOriginBase:
 
 
 class PDB(DatasetOriginBase):
-    def fetch(self):
+    def fetch(self, outdir):
         pdb_list = PDBList()
         ids = pdb_list.get_all_entries()
+        ids = ids[:10]
         for pdb in ids:
-            pdb_list.retrieve_pdb_file(pdb, pdir=self.pdir + "/pdb")
+            pdb_list.retrieve_pdb_file(pdb, pdir=outdir)
 
 
 class PDBClust(DatasetOriginBase):
@@ -56,6 +60,8 @@ class AF_clust_all(DatasetOriginBase):
 class AFUniprot(DatasetOriginBase):
     def fetch(self):
         foldcomp_download('afdb_uniprot_v4', self.pdir + "/afuniprot")
+
+        foldcomp.setup()
 
 
 class AFSwissprot(DatasetOriginBase):
@@ -99,6 +105,7 @@ class DatasetOriginType(Enum):
 
 
 def foldcomp_download(db: str, output_dir: str):
+    print(f"Foldcomp downloading db: {db} to {output_dir}")
     download_chunks = 16
     for i in ["", ".index", ".dbtype", ".lookup", ".source"]:
         asyncio.run(
