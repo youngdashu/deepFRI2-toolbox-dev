@@ -68,10 +68,10 @@ class DatasetVersioning(BaseModel):
 
             # find existing files of the same DB
             if self.db == DatabaseType.other:
-                all_files = Path(repo_path).rglob("*")
+                all_files = Path(repo_path).rglob("*.*")
             else:
                 db_path = Path(repo_path) / self.db.name
-                all_files = db_path.rglob("*")
+                all_files = db_path.rglob("*.*")
 
             file_paths = {file_path.stem: file_path for file_path in all_files if
                           file_path.is_file() and file_path.suffix in {'.cif', '.pdb', '.ent'}}
@@ -94,6 +94,10 @@ class DatasetVersioning(BaseModel):
                         missing_ids.append(id_)
 
             print(len(missing_ids))
+
+            if self.db == DatabaseType.other and self.type == DatasetVersioningType.subset and len(missing_ids) > 0:
+                print(missing_ids)
+                raise RuntimeError("Missing ids are not allowed when subsetting all DBs!")
 
             self.download_ids(missing_ids)
         else:
@@ -260,18 +264,11 @@ class DatasetVersioning(BaseModel):
         it = iter(it)
         return iter(lambda: tuple(islice(it, self.batch_size)), ())
 
-    # def handle_other(self):
-    #     match self.type:
-    #         case DatasetVersioningType.subset:
-    #
-    #         case _:
-    #             raise Warning()
-
 
 if __name__ == '__main__':
     DatasetVersioning(
-        db=DatabaseType.PDB,
+        db=DatabaseType.other,
         type=DatasetVersioningType.subset,
         # type_str="e_coli"
-        ids_file=Path("./download_ids1.txt")
+        ids_file=Path("./mix_ids1.txt")
     ).create_dataset()
