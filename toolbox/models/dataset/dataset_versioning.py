@@ -2,6 +2,7 @@ import os
 import time
 from datetime import datetime
 from enum import Enum
+from itertools import islice
 from pathlib import Path
 from typing import List
 
@@ -17,6 +18,7 @@ from toolbox.models.dataset.database_type import DatabaseType
 from toolbox.models.dataset.dataset import Dataset
 from toolbox.models.dataset.dataset_origin import dataset_path, repo_path, foldcomp_download
 
+SEPARATOR = "-"
 
 class Subset(BaseModel):
     ids: List[str]
@@ -27,6 +29,11 @@ class DatasetVersioningType(Enum):
     clust = "clust"
     part = "part"
     subset = "subset"
+
+
+def mkdir_for_batches(base_path: Path, batch_count: int):
+    for i in range(batch_count):
+        (base_path / f"{i}").mkdir(exist_ok=True, parents=True)
 
 
 class DatasetVersioning(BaseModel):
@@ -45,7 +52,7 @@ class DatasetVersioning(BaseModel):
         return self.dataset_repo_path() / "structures"
 
     def dataset_index_file_name(self):
-        return f"{self.db.name}_{self.type.name}_{self.version}"
+        return f"{self.db.name}{SEPARATOR}{self.type.name}{SEPARATOR}{self.type_str}{SEPARATOR}{self.version}"
 
     def create_dataset(self) -> Dataset:
 
@@ -138,6 +145,11 @@ class DatasetVersioning(BaseModel):
     def retrieve_pdb_file(self, pdb: str, pdb_repo_path: str):
         pdb_list = PDBList()
         # Ensure the directory string is properly passed
+
+        # PDB ids from PDBList() are upper case without 'pdb' prefix
+        pdb = pdb.removeprefix("pdb")
+        pdb = pdb.upper()
+
         pdb_list.retrieve_pdb_file(
             pdb,
             pdir=pdb_repo_path,
@@ -148,14 +160,22 @@ class DatasetVersioning(BaseModel):
         Path(f"{dataset_path}/{self.dataset_index_file_name()}").mkdir(exist_ok=True, parents=True)
         with open(f"{dataset_path}/{self.dataset_index_file_name()}/dataset.idx", "a") as index_file:
             structures_path = self.structures_path()
-            files = [f for f in structures_path.iterdir() if f.is_file()]
+            files = [f for f in structures_path.rglob('*.*') if f.is_file()]
             for file_path in files:
                 index_file.write(f"{file_path}\n")
 
     def _download_pdb_(self, ids: List[str]):
         Path(self.structures_path()).mkdir(exist_ok=True, parents=True)
         pdb_repo_path = self.structures_path()
-        tasks = [delayed(self.retrieve_pdb_file)(pdb, pdb_repo_path) for pdb in ids]
+        chunks = list(self.chunk(ids))
+
+        mkdir_for_batches(pdb_repo_path, len(chunks))
+
+        tasks = [
+            delayed(self.retrieve_pdb_file)(pdb, pdb_repo_path / f"{batch_number}")
+            for batch_number, pdb_ids_chunk in enumerate(chunks)
+            for pdb in pdb_ids_chunk
+        ]
         # Dask distributed client
         with Client() as client:
             # Submit tasks to the client
@@ -182,14 +202,14 @@ class DatasetVersioning(BaseModel):
         structures_path = self.structures_path()
         structures_path.mkdir(exist_ok=True, parents=True)
 
-        def process_chunk(ids: List[str]):
+        def process_chunk(batch_number: int, ids: List[str]):
             # Assuming the capability to open and handle slices of `db`
             # `db` must support slicing or an equivalent method to fetch a range of items
             with foldcomp.open(db_path, ids=ids) as db:
                 for (_, pdb), file_name in zip(db, ids):
                     if ".pdb" not in file_name:
                         file_name = f"{file_name}.pdb"
-                    file_path = structures_path / f"{file_name}"
+                    file_path = structures_path / f"{batch_number}" / f"{file_name}"
                     with open(file_path, 'w') as f:
                         f.write(pdb)
 
@@ -197,14 +217,13 @@ class DatasetVersioning(BaseModel):
             cpu_cores = len(client.ncores())
             structures_path = self.structures_path()
             structures_path.mkdir(exist_ok=True, parents=True)
-            ids_length = len(ids)
-            indexes = np.linspace(0, ids_length, cpu_cores + 1, dtype=int)
+
+            batches = list(self.chunk(ids))
+            mkdir_for_batches(structures_path, len(batches))
 
             futures = []
-            for i in range(len(indexes) - 1):
-                start_idx = indexes[i]
-                end_idx = indexes[i + 1]
-                future = client.submit(process_chunk, ids[start_idx:end_idx])
+            for number, batch in enumerate(batches):
+                future = client.submit(process_chunk, number, list(batch))
                 futures.append(future)
 
             progress(futures)
@@ -237,6 +256,10 @@ class DatasetVersioning(BaseModel):
             case DatasetVersioningType.subset:
                 pass
 
+    def chunk(self, it):
+        it = iter(it)
+        return iter(lambda: tuple(islice(it, self.batch_size)), ())
+
     # def handle_other(self):
     #     match self.type:
     #         case DatasetVersioningType.subset:
@@ -246,9 +269,9 @@ class DatasetVersioning(BaseModel):
 
 
 if __name__ == '__main__':
-
     DatasetVersioning(
         db=DatabaseType.PDB,
         type=DatasetVersioningType.subset,
-        ids_file=Path("./ids.txt")
+        # type_str="e_coli"
+        ids_file=Path("./download_ids1.txt")
     ).create_dataset()
