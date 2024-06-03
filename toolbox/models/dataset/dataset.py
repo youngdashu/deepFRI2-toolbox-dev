@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from toolbox.models.dataset.structures_dataset import StructuresDataset
 from toolbox.models.protein.protein import Protein
 from toolbox.models.proteinType import ProteinType
 
@@ -13,13 +14,16 @@ class Dataset(BaseModel):
     proteins: List[Protein]
     type: ProteinType
     n_batches: int # number of batches max 1k-10k proteins and max 10k subfolders
-    api_link: str
-    struct_location: Path
     disto_location: Path
+    structures_dataset: StructuresDataset
 
     @property
     def n_proteins(self) -> int:
         return len(self.proteins)
+
+    @property
+    def struct_location(self) -> Path:
+        return self.structures_dataset.structures_path()
 
     def fetch_structures(self, overwrite: bool = False):
         pass
