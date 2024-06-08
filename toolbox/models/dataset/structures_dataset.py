@@ -85,6 +85,7 @@ class StructuresDataset(BaseModel):
     type_str: str = ""
     version: str = datetime.now().strftime('%Y%m%d')
     ids_file: Path = None
+    seqres_file: Path = None
     overwrite: bool = False
     batch_size: int = 10_000
 
@@ -173,8 +174,9 @@ class StructuresDataset(BaseModel):
             all_ids = ids_file.readlines()
             batched_ids = list(self.chunk(map(lambda l: l.rstrip('\n'), all_ids)))
 
-            self.sequences_path().mkdir(exist_ok=True, parents=True)
-            mkdir_for_batches(self.sequences_path(), self.batches_count())
+            # self.sequences_path().mkdir(exist_ok=True, parents=True)
+            # mkdir_for_batches(self.sequences_path(), self.batches_count())
+            # unused when only one result file
 
             tasks = [
                 delayed(get_sequence_from_pdb)(ids)
