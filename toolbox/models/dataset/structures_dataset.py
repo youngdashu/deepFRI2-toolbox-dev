@@ -19,6 +19,8 @@ from pydantic import BaseModel
 
 from toolbox.models.dataset.database_type import DatabaseType
 from toolbox.models.dataset.dataset_origin import dataset_path, repo_path, foldcomp_download
+from toolbox.models.dataset.sequences.from_pdb import get_sequence_from_pdbs
+from toolbox.models.dataset.sequences.load_fasta import extract_sequences_from_fasta
 
 SEPARATOR = "-"
 
@@ -38,46 +40,6 @@ def mkdir_for_batches(base_path: Path, batch_count: int):
     for i in range(batch_count):
         (base_path / f"{i}").mkdir(exist_ok=True, parents=True)
 
-
-def get_sequence_from_pdbs(file_paths: List[str], sequences_path: Path):
-    pdb_parser = PDBParser()
-
-    res = []
-    for path in file_paths:
-        structure = pdb_parser.get_structure("", path)
-        chains = {chain.id: seq1(''.join(residue.resname for residue in chain)) for chain in structure.get_chains()}
-
-        path = Path(path)
-        protein_name = path.stem
-
-        # batch_number = int(path.parent.stem)
-        # sequence_path = Path(sequences_path) / str(batch_number)
-        # with open(sequence_path / f"{protein_name}_sequence.pickle", 'wb') as f:
-        #     pickle.dump(res, f, pickle.HIGHEST_PROTOCOL)
-
-        res.append({protein_name: chains})
-
-    return res
-
-    # return [{record.id: record.seq for record in SeqIO.parse(path, 'pdb-seqres')} for path in file_paths]
-
-
-def get_sequence_from_pdb(path_str, sequences_path):
-    pdb_parser = PDBParser()
-
-    path = Path(path_str)
-
-    structure = pdb_parser.get_structure("", path_str)
-    chains = {chain.id: seq1(''.join(residue.resname for residue in chain)) for chain in structure.get_chains()}
-
-    protein_name = path.stem
-    res = {protein_name: chains}
-
-    # batch_number = int(path.parent.stem)
-    # sequence_path = Path(sequences_path) / str(batch_number)
-    # with open(sequence_path / f"{protein_name}_sequence.pickle", 'wb') as f:
-    #     pickle.dump(res, f, pickle.HIGHEST_PROTOCOL)
-    return res
 
 class StructuresDataset(BaseModel):
     db_type: DatabaseType
@@ -178,10 +140,14 @@ class StructuresDataset(BaseModel):
             # mkdir_for_batches(self.sequences_path(), self.batches_count())
             # unused when only one result file
 
-            tasks = [
-                delayed(get_sequence_from_pdb)(ids)
-                for ids in batched_ids
-            ]
+            if self.seqres_file is not None:
+                tasks = extract_sequences_from_fasta(self.seqres_file, batched_ids)
+            else:
+                tasks = [
+                    delayed(get_sequence_from_pdbs)(ids)
+                    for ids in batched_ids
+                ]
+
             with Client() as client:
                 futures = client.compute(tasks)
                 progress(futures)
