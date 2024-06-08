@@ -1,6 +1,7 @@
 import fnmatch
 import re
 from pathlib import Path
+from dotenv import load_dotenv
 
 from toolbox.models.dataset.structures_dataset import SEPARATOR
 

@@ -1,17 +1,23 @@
+import json
+import pickle
 from datetime import datetime
 from enum import Enum
 from itertools import islice
+from operator import iconcat
 from pathlib import Path
 from typing import List
 
+from functools import reduce
+
 import foldcomp
-from Bio.PDB import PDBList
+from Bio import SeqIO
+from Bio.PDB import PDBList, PDBParser
+from Bio.SeqUtils import seq1
 from dask import delayed, compute
 from distributed import Client, progress
 from pydantic import BaseModel
 
 from toolbox.models.dataset.database_type import DatabaseType
-from toolbox.models.dataset.dataset import Dataset
 from toolbox.models.dataset.dataset_origin import dataset_path, repo_path, foldcomp_download
 
 SEPARATOR = "-"
@@ -33,6 +39,46 @@ def mkdir_for_batches(base_path: Path, batch_count: int):
         (base_path / f"{i}").mkdir(exist_ok=True, parents=True)
 
 
+def get_sequence_from_pdbs(file_paths: List[str], sequences_path: Path):
+    pdb_parser = PDBParser()
+
+    res = []
+    for path in file_paths:
+        structure = pdb_parser.get_structure("", path)
+        chains = {chain.id: seq1(''.join(residue.resname for residue in chain)) for chain in structure.get_chains()}
+
+        path = Path(path)
+        protein_name = path.stem
+
+        # batch_number = int(path.parent.stem)
+        # sequence_path = Path(sequences_path) / str(batch_number)
+        # with open(sequence_path / f"{protein_name}_sequence.pickle", 'wb') as f:
+        #     pickle.dump(res, f, pickle.HIGHEST_PROTOCOL)
+
+        res.append({protein_name: chains})
+
+    return res
+
+    # return [{record.id: record.seq for record in SeqIO.parse(path, 'pdb-seqres')} for path in file_paths]
+
+
+def get_sequence_from_pdb(path_str, sequences_path):
+    pdb_parser = PDBParser()
+
+    path = Path(path_str)
+
+    structure = pdb_parser.get_structure("", path_str)
+    chains = {chain.id: seq1(''.join(residue.resname for residue in chain)) for chain in structure.get_chains()}
+
+    protein_name = path.stem
+    res = {protein_name: chains}
+
+    # batch_number = int(path.parent.stem)
+    # sequence_path = Path(sequences_path) / str(batch_number)
+    # with open(sequence_path / f"{protein_name}_sequence.pickle", 'wb') as f:
+    #     pickle.dump(res, f, pickle.HIGHEST_PROTOCOL)
+    return res
+
 class StructuresDataset(BaseModel):
     db_type: DatabaseType
     collection_type: CollectionType
@@ -43,7 +89,7 @@ class StructuresDataset(BaseModel):
     batch_size: int = 10_000
 
     def dataset_repo_path(self):
-        return Path(repo_path) / self.db_type.name / f"{self.type.name}_{self.type_str}" / self.version
+        return Path(repo_path) / self.db_type.name / f"{self.collection_type.name}_{self.type_str}" / self.version
 
     def dataset_path(self):
         return Path(f"{dataset_path}/{self.dataset_index_file_name()}")
@@ -52,18 +98,25 @@ class StructuresDataset(BaseModel):
         return self.dataset_repo_path() / "structures"
 
     def dataset_index_file_name(self):
-        return f"{self.db_type.name}{SEPARATOR}{self.type.name}{SEPARATOR}{self.type_str}{SEPARATOR}{self.version}"
+        return f"{self.db_type.name}{SEPARATOR}{self.collection_type.name}{SEPARATOR}{self.type_str}{SEPARATOR}{self.version}"
 
-    def create_dataset(self) -> Dataset:
+    def dataset_index_file_path(self) -> Path:
+        return self.dataset_path() / "dataset.idx"
+
+    def sequences_path(self):
+        return self.dataset_path() / "sequences"
+
+    def batches_count(self) -> int:
+        return sum(1 for item in self.structures_path().iterdir() if item.is_dir())
+
+    def create_dataset(self) -> "Dataset":
 
         self.dataset_repo_path().mkdir(exist_ok=True, parents=True)
 
-        if self.type == CollectionType.subset:
+        if self.collection_type == CollectionType.subset:
             assert self.ids_file is not None
 
-        print(self.type)
-
-        if self.type is CollectionType.subset or self.type is CollectionType.all:
+        if self.collection_type is CollectionType.subset or self.collection_type is CollectionType.all:
             dataset_index_file_name = self.dataset_index_file_name()
 
             # find existing files of the same DB
@@ -79,14 +132,14 @@ class StructuresDataset(BaseModel):
             missing_ids = []
 
             ids = None
-            if self.type is CollectionType.subset:
+            if self.collection_type is CollectionType.subset:
                 with open(self.ids_file, 'r') as f:
                     ids = f.read().splitlines()
             else:
                 ids = self.get_all_ids()
 
             Path(f"{dataset_path}/{dataset_index_file_name}").mkdir(exist_ok=True, parents=True)
-            with open(f"{dataset_path}/{dataset_index_file_name}/dataset.idx", "a") as index_file:
+            with open(self.dataset_index_file_path(), "a") as index_file:
                 for id_ in ids:
                     if id_ in file_paths:
                         index_file.write(str(file_paths[id_]) + '\n')
@@ -95,7 +148,8 @@ class StructuresDataset(BaseModel):
 
             print(len(missing_ids))
 
-            if self.db_type == DatabaseType.other and self.type == CollectionType.subset and len(missing_ids) > 0:
+            if self.db_type == DatabaseType.other and self.collection_type == CollectionType.subset and len(
+                    missing_ids) > 0:
                 print(missing_ids)
                 raise RuntimeError("Missing ids are not allowed when subsetting all DBs!")
 
@@ -115,7 +169,27 @@ class StructuresDataset(BaseModel):
         self.generate_sequence()
 
     def generate_sequence(self):
-        pass
+        with self.dataset_index_file_path().open("r") as ids_file:
+            all_ids = ids_file.readlines()
+            batched_ids = list(self.chunk(map(lambda l: l.rstrip('\n'), all_ids)))
+
+            self.sequences_path().mkdir(exist_ok=True, parents=True)
+            mkdir_for_batches(self.sequences_path(), self.batches_count())
+
+            tasks = [
+                delayed(get_sequence_from_pdb)(ids)
+                for ids in batched_ids
+            ]
+            with Client() as client:
+                futures = client.compute(tasks)
+                progress(futures)
+                results = client.gather(futures)
+
+                results = reduce(iconcat, results, [])
+
+                results = reduce(lambda a, b: {**a, **b}, results)
+                with open(self.dataset_path() / "pdb_sequence.pickle", 'wb') as f:
+                    pickle.dump(results, f, pickle.HIGHEST_PROTOCOL)
 
     def get_all_ids(self):
         res = None
@@ -143,7 +217,7 @@ class StructuresDataset(BaseModel):
                 self
 
     def handle_pdb(self, ids: List[str]):
-        match self.type:
+        match self.collection_type:
             case CollectionType.all:
                 self._download_pdb_(ids)
             case CollectionType.part:
@@ -244,7 +318,7 @@ class StructuresDataset(BaseModel):
         self.save_new_files_to_index()
 
     def handle_afdb(self):
-        match self.type:
+        match self.collection_type:
             case CollectionType.all:
                 pass
             case CollectionType.part:
@@ -257,7 +331,7 @@ class StructuresDataset(BaseModel):
                 pass
 
     def handle_esma(self):
-        match self.type:
+        match self.collection_type:
             case CollectionType.all:
                 pass
             case CollectionType.part:
@@ -276,20 +350,84 @@ class StructuresDataset(BaseModel):
         with (self.dataset_path() / "dataset.json").open("w+") as json_dataset_file:
             json_dataset_file.write(self.model_dump_json())
 
+
 def create_subset():
     StructuresDataset(
         db_type=DatabaseType.other,
-        type=CollectionType.subset,
+        collection_type=CollectionType.subset,
         ids_file=Path("./mix_ids1.txt")
     ).create_dataset()
+
 
 def create_e_coli():
     StructuresDataset(
         db_type=DatabaseType.AFDB,
-        type=CollectionType.part,
+        collection_type=CollectionType.part,
         type_str="e_coli"
     ).create_dataset()
 
+
+def create_swissprot():
+    StructuresDataset(
+        db_type=DatabaseType.AFDB,
+        collection_type=CollectionType.part,
+        type_str="afdb_swissprot_v4"
+    ).create_dataset()
+
+
+def test():
+    chunk = lambda xd: iter(lambda: tuple(islice(iter(xd), 10_000)), ())
+
+    with Path(
+            "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-afdb_swissprot_v4-20240604/dataset.idx").open(
+        "r") as ids_file:
+        all_ids = ids_file.readlines()
+        # batched_ids = list(map(lambda l: l.rstrip('\n'), all_ids))
+
+        batched_ids = list(chunk(map(lambda l: l.rstrip('\n'), all_ids)))
+        batched_ids = batched_ids[:10]
+
+        sequences_path = Path(
+            "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-afdb_swissprot_v4-20240604/sequences")
+
+        # sequences_path.mkdir(exist_ok=True, parents=True)
+        # mkdir_for_batches(sequences_path, 55)
+
+        tasks = [
+            delayed(get_sequence_from_pdbs)(ids, sequences_path)
+            for ids in batched_ids
+        ]
+        with Client() as client:
+            futures = client.compute(tasks)
+            progress(futures)
+            results = client.gather(futures)
+
+            results = reduce(iconcat, results, [])
+
+            results = reduce(lambda a, b: {**a, **b}, results, {})
+
+            with open(
+                    Path(
+                        "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-afdb_swissprot_v4-20240604") / "pdb_sequence.pickle",
+                    'wb') as f:
+                pickle.dump(results, f, pickle.HIGHEST_PROTOCOL)
+
+
+
 if __name__ == '__main__':
-    # create_e_coli()
+    # import pickle
+    # import bz2
+    #
+    # with open("/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-afdb_swissprot_v4-20240604/pdb_sequence.pickle", 'rb') as f:
+    #     results = pickle.load(f)
+    #
+    #
+    #     with open(
+    #             Path(
+    #                 "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-afdb_swissprot_v4-20240604") / "compressed_sequence.data",
+    #             'wb') as f:
+    #         compressed_data = bz2.compress(json.dumps(results).encode())
+    #         f.write(compressed_data)
+
+    test()
     pass
