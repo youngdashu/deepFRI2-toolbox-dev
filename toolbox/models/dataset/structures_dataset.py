@@ -19,8 +19,10 @@ from pydantic import BaseModel
 
 from toolbox.models.dataset.database_type import DatabaseType
 from toolbox.models.dataset.dataset_origin import dataset_path, repo_path, foldcomp_download
+from toolbox.models.dataset.handle_index import create_index, read_index
 from toolbox.models.dataset.sequences.from_pdb import get_sequence_from_pdbs
 from toolbox.models.dataset.sequences.load_fasta import extract_sequences_from_fasta
+from toolbox.models.dataset.sequences.search_sequence_indexes import search_sequence_indexes
 
 SEPARATOR = "-"
 
@@ -66,8 +68,8 @@ class StructuresDataset(BaseModel):
     def dataset_index_file_path(self) -> Path:
         return self.dataset_path() / "dataset.idx"
 
-    def sequences_path(self):
-        return self.dataset_path() / "sequences"
+    def sequences_index_path(self):
+        return self.dataset_path() / "sequences.idx"
 
     def batches_count(self) -> int:
         return sum(1 for item in self.structures_path().iterdir() if item.is_dir())
@@ -93,6 +95,7 @@ class StructuresDataset(BaseModel):
                           file_path.is_file() and file_path.suffix in {'.cif', '.pdb', '.ent'}}
 
             missing_ids = []
+            present_file_paths = []
 
             ids = None
             if self.collection_type is CollectionType.subset:
@@ -102,12 +105,11 @@ class StructuresDataset(BaseModel):
                 ids = self.get_all_ids()
 
             Path(f"{dataset_path}/{dataset_index_file_name}").mkdir(exist_ok=True, parents=True)
-            with open(self.dataset_index_file_path(), "a") as index_file:
-                for id_ in ids:
-                    if id_ in file_paths:
-                        index_file.write(str(file_paths[id_]) + '\n')
-                    else:
-                        missing_ids.append(id_)
+
+            for id_ in ids:
+                present_file_paths.append(file_paths[id_]) if id_ in file_paths else missing_ids.append(id_)
+
+            create_index(self.dataset_index_file_path(), present_file_paths)
 
             print(len(missing_ids))
 
@@ -132,32 +134,45 @@ class StructuresDataset(BaseModel):
         self.generate_sequence()
 
     def generate_sequence(self):
-        with self.dataset_index_file_path().open("r") as ids_file:
-            all_ids = ids_file.readlines()
-            batched_ids = list(self.chunk(map(lambda l: l.rstrip('\n'), all_ids)))
+        index = read_index(self.dataset_index_file_path())
+        batched_ids = list(self.chunk(index.values()))
 
-            # self.sequences_path().mkdir(exist_ok=True, parents=True)
-            # mkdir_for_batches(self.sequences_path(), self.batches_count())
-            # unused when only one result file
+        # self.sequences_path().mkdir(exist_ok=True, parents=True)
+        # mkdir_for_batches(self.sequences_path(), self.batches_count())
+        # unused when only one result file
 
-            if self.seqres_file is not None:
-                tasks = extract_sequences_from_fasta(self.seqres_file, batched_ids)
-            else:
-                tasks = [
-                    delayed(get_sequence_from_pdbs)(ids)
-                    for ids in batched_ids
-                ]
+        index, missing_sequences = search_sequence_indexes(
+            self.db_type.name,
+            dataset_path,
+            batched_ids
+        )
 
-            with Client() as client:
-                futures = client.compute(tasks)
-                progress(futures)
-                results = client.gather(futures)
+        missing_ids = list(self.chunk(missing_sequences))
 
-                results = reduce(iconcat, results, [])
+        if self.seqres_file is not None:
+            tasks = extract_sequences_from_fasta(self.seqres_file, missing_ids)
+        else:
+            tasks = [
+                delayed(get_sequence_from_pdbs)(ids)
+                for ids in missing_ids
+            ]
 
-                results = reduce(lambda a, b: {**a, **b}, results)
-                with open(self.dataset_path() / "pdb_sequence.pickle", 'wb') as f:
-                    pickle.dump(results, f, pickle.HIGHEST_PROTOCOL)
+        with Client() as client:
+            futures = client.compute(tasks)
+            progress(futures)
+            results = client.gather(futures)
+
+            results = reduce(iconcat, results, [])
+
+            results = reduce(lambda a, b: {**a, **b}, results)
+            sequences_file_path = self.dataset_path() / "pdb_sequence.pickle"
+            with open(sequences_file_path, 'wb') as f:
+                pickle.dump(results, f, pickle.HIGHEST_PROTOCOL)
+
+            for id_ in missing_sequences:
+                index[id_] = str(sequences_file_path)
+
+            create_index(self.sequences_index_path(), index)
 
     def get_all_ids(self):
         res = None
