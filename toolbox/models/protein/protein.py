@@ -8,7 +8,9 @@ from toolbox.models.proteinType import ProteinType
 
 class Sequence(BaseModel):
     amino_acids: str
-    header: str
+    header: str # sequence metadata
+    # TODO pdb and seqres amino_acids
+
 
 class Structure(BaseModel):
     atom_coordinates: dict[str, tuple[float]]
