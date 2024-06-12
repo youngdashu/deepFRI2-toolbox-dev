@@ -1,0 +1,4 @@
+name: dev_env
+channels:
+  - conda-forge
+  - defaults
