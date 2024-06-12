@@ -5,7 +5,7 @@ from typing import Dict, Union, List
 
 def read_index(index_file_path: Path) -> Dict[str, str]:
     with index_file_path.open('r') as f:
-        index = json.loads(f)
+        index = json.load(f)
         return index
 
 

@@ -1,13 +1,16 @@
-import fnmatch
+import os
 import re
 from pathlib import Path
-from dotenv import load_dotenv
 
-from toolbox.models.dataset.structures_dataset import SEPARATOR
+import dotenv
+
+dotenv.load_dotenv()
+SEPARATOR = os.getenv("SEPARATOR")
+data_path = os.getenv('DATA_PATH')
 
 if __name__ == "__main__":
 
-    dataset_path =  "../data/dataset"
+    dataset_path =  f"{data_path}/dataset"
 
     pattern = f".*\\{SEPARATOR}.*\\{SEPARATOR}.*\\{SEPARATOR}.*"
 

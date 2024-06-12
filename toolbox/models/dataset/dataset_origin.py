@@ -1,13 +1,11 @@
 import asyncio
-from enum import Enum
-from typing import List
+import os
 
-from Bio.PDB import PDBList
-
-import foldcomp
 from foldcomp.setup import download
+import dotenv
+dotenv.load_dotenv()
 
-pdir = "../../../data"
+pdir = os.getenv('DATA_PATH')
 repo_path = pdir + "/repo"
 dataset_path = pdir + "/dataset"
 
@@ -115,5 +113,3 @@ def foldcomp_download(db: str, output_dir: str):
                 chunks=download_chunks,
             )
         )
-
-

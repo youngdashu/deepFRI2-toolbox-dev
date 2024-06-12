@@ -1,13 +1,12 @@
 from functools import reduce
-from operator import iconcat
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Iterable
 
 from dask import delayed
 from distributed import Client, progress
 
 from toolbox.models.dataset.handle_index import read_index
-from toolbox.models.dataset.structures_dataset import SEPARATOR
+SEPARATOR = "-"
 
 
 def search_index(path: Path, ids_searched_for: List[str]):
@@ -25,7 +24,7 @@ def search_index(path: Path, ids_searched_for: List[str]):
 def search_sequence_indexes(
         db_type: str,
         base_path: Path,
-        batched_ids: List[List[str]]
+        batched_ids: Iterable[List[str]]
 ) -> Tuple[Dict[str, str], List[str]]:
     sequence_indexes = base_path.glob(f'**/{db_type}{SEPARATOR}*/sequences.idx')
 
@@ -40,11 +39,11 @@ def search_sequence_indexes(
         progress(futures)
         results = client.gather(futures)
 
-        results = reduce(lambda a, b: {**a, **b}, results)
+        results = reduce(lambda a, b: {**a, **b}, results, {})
         return results, find_missing_ids(results, batched_ids)
 
 
-def find_missing_ids(index: Dict[str, str], ids: List[List[str]]) -> List[str]:
+def find_missing_ids(index: Dict[str, str], ids: Iterable[List[str]]) -> List[str]:
     return [
         id_
         for batch in ids

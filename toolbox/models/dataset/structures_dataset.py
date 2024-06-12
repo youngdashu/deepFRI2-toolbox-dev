@@ -1,4 +1,4 @@
-import json
+import os
 import pickle
 from datetime import datetime
 from enum import Enum
@@ -9,10 +9,9 @@ from typing import List
 
 from functools import reduce
 
+import dotenv
 import foldcomp
-from Bio import SeqIO
 from Bio.PDB import PDBList, PDBParser
-from Bio.SeqUtils import seq1
 from dask import delayed, compute
 from distributed import Client, progress
 from pydantic import BaseModel
@@ -22,14 +21,19 @@ from toolbox.models.dataset.dataset_origin import dataset_path, repo_path, foldc
 from toolbox.models.dataset.handle_index import create_index, read_index
 from toolbox.models.dataset.sequences.from_pdb import get_sequence_from_pdbs
 from toolbox.models.dataset.sequences.load_fasta import extract_sequences_from_fasta
-from toolbox.models.dataset.sequences.search_sequence_indexes import search_sequence_indexes
-
-SEPARATOR = "-"
+from toolbox.models.dataset.sequences.sequence_indexes import search_sequence_indexes
 
 
-# class Subset(BaseModel):
-#     ids: List[str]
+dotenv.load_dotenv()
+SEPARATOR = os.getenv("SEPARATOR")
 
+def chunk(data, size):
+    it = iter(data)
+    while True:
+        chunk_data = tuple(islice(it, size))
+        if not chunk_data:
+            break
+        yield chunk_data
 
 class CollectionType(Enum):
     all = "all"
@@ -95,7 +99,7 @@ class StructuresDataset(BaseModel):
                           file_path.is_file() and file_path.suffix in {'.cif', '.pdb', '.ent'}}
 
             missing_ids = []
-            present_file_paths = []
+            present_file_paths = {}
 
             ids = None
             if self.collection_type is CollectionType.subset:
@@ -107,7 +111,7 @@ class StructuresDataset(BaseModel):
             Path(f"{dataset_path}/{dataset_index_file_name}").mkdir(exist_ok=True, parents=True)
 
             for id_ in ids:
-                present_file_paths.append(file_paths[id_]) if id_ in file_paths else missing_ids.append(id_)
+                present_file_paths[id_] = file_paths[id_] if id_ in file_paths else missing_ids.append(id_)
 
             create_index(self.dataset_index_file_path(), present_file_paths)
 
@@ -135,7 +139,7 @@ class StructuresDataset(BaseModel):
 
     def generate_sequence(self):
         index = read_index(self.dataset_index_file_path())
-        batched_ids = list(self.chunk(index.values()))
+        batched_ids = self.chunk(index.values())
 
         # self.sequences_path().mkdir(exist_ok=True, parents=True)
         # mkdir_for_batches(self.sequences_path(), self.batches_count())
@@ -143,11 +147,11 @@ class StructuresDataset(BaseModel):
 
         index, missing_sequences = search_sequence_indexes(
             self.db_type.name,
-            dataset_path,
+            Path(dataset_path),
             batched_ids
         )
 
-        missing_ids = list(self.chunk(missing_sequences))
+        missing_ids = self.chunk(missing_sequences)
 
         if self.seqres_file is not None:
             tasks = extract_sequences_from_fasta(self.seqres_file, missing_ids)
@@ -227,11 +231,15 @@ class StructuresDataset(BaseModel):
     def save_new_files_to_index(self):
         self.dataset_path().mkdir(exist_ok=True, parents=True)
 
-        with (self.dataset_path() / "dataset.idx").open("a") as index_file:
-            structures_path = self.structures_path()
-            files = [f for f in structures_path.rglob('*.*') if f.is_file()]
-            for file_path in files:
-                index_file.write(f"{file_path}\n")
+        structures_path = self.structures_path()
+        files = [str(f) for f in structures_path.rglob('*.*') if f.is_file()]
+
+        create_index(self.dataset_index_file_path(), files)
+
+        # with (self.dataset_path() / "dataset.idx").open("a") as index_file:
+        #     structures_path = self.structures_path()
+        #     for file_path in files:
+        #         index_file.write(f"{file_path}\n")
 
     def _download_pdb_(self, ids: List[str]):
         Path(self.structures_path()).mkdir(exist_ok=True, parents=True)
@@ -326,8 +334,7 @@ class StructuresDataset(BaseModel):
                 pass
 
     def chunk(self, it):
-        it = iter(it)
-        return iter(lambda: tuple(islice(it, self.batch_size)), ())
+        return chunk(it, self.batch_size)
 
     def save_dataset_metadata(self):
         with (self.dataset_path() / "dataset.json").open("w+") as json_dataset_file:
@@ -396,6 +403,23 @@ def test():
                 pickle.dump(results, f, pickle.HIGHEST_PROTOCOL)
 
 
+def test2():
+
+    index = read_index(Path("/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-e_coli-20240611/dataset.idx"))
+    batched_ids = chunk(index.values(), 10_000)
+
+    print(batched_ids)
+
+
+    index, missing_sequences = search_sequence_indexes(
+        DatabaseType.AFDB.name,
+        Path(dataset_path),
+        batched_ids
+    )
+
+    missing_ids = chunk(missing_sequences, 10_000)
+
+
 
 if __name__ == '__main__':
     # import pickle
@@ -412,5 +436,8 @@ if __name__ == '__main__':
     #         compressed_data = bz2.compress(json.dumps(results).encode())
     #         f.write(compressed_data)
 
-    test()
+    # test()
+    # create_swissprot()
+    # create_e_coli()
+    # test2()
     pass
