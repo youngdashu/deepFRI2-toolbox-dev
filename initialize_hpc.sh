@@ -40,6 +40,8 @@ else
 
   source activate $ENV_PATH
 
+  pip3 install foldcomp
+
 fi
 
 
