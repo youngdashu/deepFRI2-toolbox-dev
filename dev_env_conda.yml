@@ -7,7 +7,4 @@ dependencies:
   - distributed~=2024.4.2
   - pydantic~=2.7.0
   - python-dotenv~=1.0.1
-  - pip
-  - pip:
-    - bio~=1.7.0
-    - foldcomp~=0.0.7
+  -

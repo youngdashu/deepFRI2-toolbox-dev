@@ -40,6 +40,9 @@ else
 
   source activate $ENV_PATH
 
+  pip install bio~=1.7.0
+  pip install foldcomp~=0.0.7
+
 fi
 
 
