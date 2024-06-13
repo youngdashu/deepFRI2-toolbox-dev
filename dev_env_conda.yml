@@ -2,3 +2,10 @@ name: dev_env
 channels:
   - conda-forge
   - defaults
+dependencies:
+  - bio~=1.7.0
+  - dask~=2024.4.2
+  - distributed~=2024.4.2
+  - pydantic~=2.7.0
+  - python-dotenv~=1.0.1
+  - foldcomp~=0.0.7
