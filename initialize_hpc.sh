@@ -21,7 +21,7 @@ then
   cd "deepFRI2-toolbox-dev"
   git pull
 
-  conda activate $ENV_PATH
+  source activate $ENV_PATH
 
 else
   git clone https://github.com/youngdashu/deepFRI2-toolbox-dev.git
@@ -37,7 +37,7 @@ else
 
   conda config --set auto_activate_base false
 
-  conda activate $ENV_PATH
+  source activate $ENV_PATH
 
   pip3 install --upgrade pip --user
   pip3 install --upgrade setuptools --user
