@@ -12,6 +12,7 @@ cd deepfri
 DATA_DIR="deepfri/dev_data"
 mkdir "$GROUP_DIR/$DATA_DIR"
 
+module load python
 module load miniconda3
 
 ENV_PATH="$GROUP_DIR/deepfri/dev_env"
@@ -38,13 +39,6 @@ else
   conda config --set auto_activate_base false
 
   source activate $ENV_PATH
-
-  pip3 install --upgrade pip --user
-  pip3 install --upgrade setuptools --user
-
-
-
-#  pip3 install -r ./requirements.txt
 
 fi
 
