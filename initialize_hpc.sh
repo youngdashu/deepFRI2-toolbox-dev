@@ -42,8 +42,6 @@ else
   pip3 install --upgrade pip --user
   pip3 install --upgrade setuptools --user
 
-  pip3 install bio
-  pip3 install foldcomp
 
 
 #  pip3 install -r ./requirements.txt
