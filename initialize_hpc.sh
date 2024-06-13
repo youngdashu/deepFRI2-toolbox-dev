@@ -1,5 +1,7 @@
 GROUP_DIR="$PLG_GROUPS_STORAGE/plggdeepfri2"
 
+set -x
+
 if [[ ! -d "deepfri" ]]
 then
   mkdir deepfri
