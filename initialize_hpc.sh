@@ -12,7 +12,7 @@ cd deepfri
 DATA_DIR="deepfri/dev_data"
 mkdir "$GROUP_DIR/$DATA_DIR"
 
-module load python
+module load python/3.10
 module load miniconda3
 
 ENV_PATH="$GROUP_DIR/deepfri/dev_env"
@@ -39,8 +39,6 @@ else
   conda config --set auto_activate_base false
 
   source activate $ENV_PATH
-
-  pip install foldcomp
 
 fi
 

@@ -10,4 +10,4 @@ dependencies:
   - pip
   - pip:
     - bio~=1.7.0
-#    - foldcomp~=0.0.7
+    - foldcomp~=0.0.7
