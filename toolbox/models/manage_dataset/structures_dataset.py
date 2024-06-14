@@ -16,12 +16,12 @@ from dask import delayed, compute
 from distributed import Client, progress
 from pydantic import BaseModel
 
-from toolbox.models.dataset.database_type import DatabaseType
-from toolbox.models.dataset.dataset_origin import dataset_path, repo_path, foldcomp_download
-from toolbox.models.dataset.handle_index import create_index, read_index
-from toolbox.models.dataset.sequences.from_pdb import get_sequence_from_pdbs
-from toolbox.models.dataset.sequences.load_fasta import extract_sequences_from_fasta
-from toolbox.models.dataset.sequences.sequence_indexes import search_sequence_indexes
+from toolbox.models.manage_dataset.database_type import DatabaseType
+from toolbox.models.manage_dataset.dataset_origin import dataset_path, repo_path, foldcomp_download
+from toolbox.models.manage_dataset.handle_index import create_index, read_index
+from toolbox.models.manage_dataset.sequences.from_pdb import get_sequence_from_pdbs
+from toolbox.models.manage_dataset.sequences.load_fasta import extract_sequences_from_fasta
+from toolbox.models.manage_dataset.sequences.sequence_indexes import search_sequence_indexes
 
 
 dotenv.load_dotenv()
@@ -70,7 +70,7 @@ class StructuresDataset(BaseModel):
         return f"{self.db_type.name}{SEPARATOR}{self.collection_type.name}{SEPARATOR}{self.type_str}{SEPARATOR}{self.version}"
 
     def dataset_index_file_path(self) -> Path:
-        return self.dataset_path() / "dataset.idx"
+        return self.dataset_path() / "manage_dataset.idx"
 
     def sequences_index_path(self):
         return self.dataset_path() / "sequences.idx"
@@ -146,7 +146,7 @@ class StructuresDataset(BaseModel):
         # unused when only one result file
 
         index, missing_sequences = search_sequence_indexes(
-            self.db_type.name,
+            self.db_type,
             Path(dataset_path),
             batched_ids
         )
@@ -168,7 +168,7 @@ class StructuresDataset(BaseModel):
 
             results = reduce(iconcat, results, [])
 
-            results = reduce(lambda a, b: {**a, **b}, results)
+            results = reduce(lambda a, b: {**a, **b}, results, {})
             sequences_file_path = self.dataset_path() / "pdb_sequence.pickle"
             with open(sequences_file_path, 'wb') as f:
                 pickle.dump(results, f, pickle.HIGHEST_PROTOCOL)
@@ -236,7 +236,7 @@ class StructuresDataset(BaseModel):
 
         create_index(self.dataset_index_file_path(), files)
 
-        # with (self.dataset_path() / "dataset.idx").open("a") as index_file:
+        # with (self.dataset_path() / "manage_dataset.idx").open("a") as index_file:
         #     structures_path = self.structures_path()
         #     for file_path in files:
         #         index_file.write(f"{file_path}\n")
@@ -283,6 +283,9 @@ class StructuresDataset(BaseModel):
             # Assuming the capability to open and handle slices of `db_type`
             # `db_type` must support slicing or an equivalent method to fetch a range of items
             with foldcomp.open(db_path, ids=ids) as db:
+                print(db_path)
+                print(len(ids))
+                print(ids)
                 for (_, pdb), file_name in zip(db, ids):
                     if ".pdb" not in file_name:
                         file_name = f"{file_name}.pdb"
@@ -337,7 +340,7 @@ class StructuresDataset(BaseModel):
         return chunk(it, self.batch_size)
 
     def save_dataset_metadata(self):
-        with (self.dataset_path() / "dataset.json").open("w+") as json_dataset_file:
+        with (self.dataset_path() / "manage_dataset.json").open("w+") as json_dataset_file:
             json_dataset_file.write(self.model_dump_json())
 
 
@@ -369,7 +372,7 @@ def test():
     chunk = lambda xd: iter(lambda: tuple(islice(iter(xd), 10_000)), ())
 
     with Path(
-            "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-afdb_swissprot_v4-20240604/dataset.idx").open(
+            "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-afdb_swissprot_v4-20240604/manage_dataset.idx").open(
         "r") as ids_file:
         all_ids = ids_file.readlines()
         # batched_ids = list(map(lambda l: l.rstrip('\n'), all_ids))
@@ -404,20 +407,20 @@ def test():
 
 
 def test2():
-
-    index = read_index(Path("/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-e_coli-20240611/dataset.idx"))
-    batched_ids = chunk(index.values(), 10_000)
-
-    print(batched_ids)
-
-
-    index, missing_sequences = search_sequence_indexes(
-        DatabaseType.AFDB.name,
-        Path(dataset_path),
-        batched_ids
-    )
-
-    missing_ids = chunk(missing_sequences, 10_000)
+    pass
+    # index = read_index(Path("/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-e_coli-20240611/dataset.idx"))
+    # batched_ids = chunk(index.values(), 10_000)
+    #
+    # print(batched_ids)
+    #
+    #
+    # index, missing_sequences = search_sequence_indexes(
+    #     DatabaseType.AFDB,
+    #     Path(dataset_path),
+    #     batched_ids
+    # )
+    #
+    # missing_ids = chunk(missing_sequences, 10_000)
 
 
 
@@ -425,13 +428,13 @@ if __name__ == '__main__':
     # import pickle
     # import bz2
     #
-    # with open("/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-afdb_swissprot_v4-20240604/pdb_sequence.pickle", 'rb') as f:
+    # with open("/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/manage_dataset/AFDB-part-afdb_swissprot_v4-20240604/pdb_sequence.pickle", 'rb') as f:
     #     results = pickle.load(f)
     #
     #
     #     with open(
     #             Path(
-    #                 "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/dataset/AFDB-part-afdb_swissprot_v4-20240604") / "compressed_sequence.data",
+    #                 "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/manage_dataset/AFDB-part-afdb_swissprot_v4-20240604") / "compressed_sequence.data",
     #             'wb') as f:
     #         compressed_data = bz2.compress(json.dumps(results).encode())
     #         f.write(compressed_data)

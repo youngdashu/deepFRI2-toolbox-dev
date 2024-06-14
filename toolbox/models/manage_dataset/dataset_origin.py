@@ -7,13 +7,13 @@ dotenv.load_dotenv()
 
 pdir = os.getenv('DATA_PATH')
 repo_path = pdir + "/repo"
-dataset_path = pdir + "/dataset"
+dataset_path = pdir + "/datasets"
 
 # class DatasetOriginBase:
 #     pdir = "../../../data"
 #
 #     def fetch(self, *args, **kwargs):
-#         raise NotImplementedError("Fetch method must be implemented by the specific dataset origin type.")
+#         raise NotImplementedError("Fetch method must be implemented by the specific manage_dataset origin type.")
 #
 #
 # class PDB(DatasetOriginBase):
@@ -27,7 +27,7 @@ dataset_path = pdir + "/dataset"
 #
 # class PDBClust(DatasetOriginBase):
 #     def fetch(self):
-#         print("Fetching PDB_clust dataset...")
+#         print("Fetching PDB_clust manage_dataset...")
 #
 #
 # class PDBSubset(DatasetOriginBase):
@@ -37,12 +37,12 @@ dataset_path = pdir + "/dataset"
 #
 # class AFDB(DatasetOriginBase):
 #     def fetch(self):
-#         print("Fetching AFDB dataset... (Warning: This is several TBs)")
+#         print("Fetching AFDB manage_dataset... (Warning: This is several TBs)")
 #
 #
 # class AFDBSubset(DatasetOriginBase):
 #     def fetch(self, subset_list):
-#         print(f"Fetching AFDB_subset dataset for IDs: {subset_list}")
+#         print(f"Fetching AFDB_subset manage_dataset for IDs: {subset_list}")
 #
 #
 # class AF_clust_dark(DatasetOriginBase):
@@ -79,7 +79,7 @@ dataset_path = pdir + "/dataset"
 #
 # class ESMAtlasSubset(DatasetOriginBase):
 #     def fetch(self, subset_list):
-#         print(f"Fetching ESMAtlas_subset dataset for IDs: {subset_list}")
+#         print(f"Fetching ESMAtlas_subset manage_dataset for IDs: {subset_list}")
 #
 #
 # class DatasetOriginType(Enum):

@@ -5,7 +5,8 @@ from typing import List, Dict, Tuple, Iterable
 from dask import delayed
 from distributed import Client, progress
 
-from toolbox.models.dataset.handle_index import read_index
+from toolbox.models.manage_dataset.database_type import DatabaseType
+from toolbox.models.manage_dataset.handle_index import read_index
 SEPARATOR = "-"
 
 
@@ -22,11 +23,16 @@ def search_index(path: Path, ids_searched_for: List[str]):
 
 
 def search_sequence_indexes(
-        db_type: str,
+        db_type: DatabaseType,
         base_path: Path,
         batched_ids: Iterable[List[str]]
 ) -> Tuple[Dict[str, str], List[str]]:
-    sequence_indexes = base_path.glob(f'**/{db_type}{SEPARATOR}*/sequences.idx')
+
+    if db_type == DatabaseType.other:
+        glob_pattern = f'**/*/sequences.idx'
+    else:
+        glob_pattern = f'**/{db_type.name}{SEPARATOR}*/sequences.idx'
+    sequence_indexes = base_path.glob(glob_pattern)
 
     tasks = [
         delayed(search_index)(file, batch)
