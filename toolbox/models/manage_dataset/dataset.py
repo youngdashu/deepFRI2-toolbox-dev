@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from toolbox.models.manage_dataset.handle_index import read_index
 from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
-from toolbox.models.protein_model.protein import Protein
+from toolbox.models.protein import Protein
 from toolbox.models.proteinType import ProteinType
 
 

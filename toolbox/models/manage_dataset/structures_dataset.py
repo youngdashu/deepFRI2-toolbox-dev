@@ -283,9 +283,6 @@ class StructuresDataset(BaseModel):
             # Assuming the capability to open and handle slices of `db_type`
             # `db_type` must support slicing or an equivalent method to fetch a range of items
             with foldcomp.open(db_path, ids=ids) as db:
-                print(db_path)
-                print(len(ids))
-                print(ids)
                 for (_, pdb), file_name in zip(db, ids):
                     if ".pdb" not in file_name:
                         file_name = f"{file_name}.pdb"

@@ -6,5 +6,5 @@ if __name__ == '__main__':
     StructuresDataset(
             db_type=DatabaseType.AFDB.name,
             collection_type=CollectionType.part.name,
-            type_str="afdb_swissprot_v4"
+            type_str="e_coli"
         ).create_dataset()
