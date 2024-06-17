@@ -5,7 +5,8 @@ from enum import Enum
 from itertools import islice
 from operator import iconcat
 from pathlib import Path
-from typing import List
+from types import NoneType
+from typing import List, Union
 
 from functools import reduce
 
@@ -14,7 +15,7 @@ import foldcomp
 from Bio.PDB import PDBList, PDBParser
 from dask import delayed, compute
 from distributed import Client, progress
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.dataset_origin import dataset_path, repo_path, foldcomp_download
@@ -52,10 +53,14 @@ class StructuresDataset(BaseModel):
     collection_type: CollectionType
     type_str: str = ""
     version: str = datetime.now().strftime('%Y%m%d')
-    ids_file: Path = None
-    seqres_file: Path = None
+    ids_file: Union[Path, NoneType] = None
+    seqres_file: Union[Path, NoneType] = None
     overwrite: bool = False
     batch_size: int = 10_000
+
+    @field_validator('version', mode='before')
+    def set_version(cls, v):
+        return v or datetime.now().strftime('%Y%m%d')
 
     def dataset_repo_path(self):
         return Path(repo_path) / self.db_type.name / f"{self.collection_type.name}_{self.type_str}" / self.version
