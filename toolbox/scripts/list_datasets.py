@@ -10,7 +10,7 @@ data_path = os.getenv('DATA_PATH')
 
 if __name__ == "__main__":
 
-    dataset_path =  f"{data_path}/dataset"
+    dataset_path =  f"{data_path}/datasets"
 
     pattern = f".*\\{SEPARATOR}.*\\{SEPARATOR}.*\\{SEPARATOR}.*"
 
@@ -24,4 +24,5 @@ if __name__ == "__main__":
             dataset_name = path.name
             dataset_name = dataset_name.split("-")
             print(f"DB:{dataset_name[0]} type:{dataset_name[1]} type_str:{dataset_name[2]} version:{dataset_name[3]}")
+            print("\t\t\t\t")
             
