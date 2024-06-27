@@ -32,8 +32,15 @@ def create_parser():
                                 help="Should overwrite existing files? Default - false")
     parser_dataset.add_argument('-b', '--batch-size', type=int, default=5_000)
 
-    create_parser = subparsers.add_parser("embedding", help="Create embeddings from datasets")
-    create_parser.add_argument("-p", "--file-path", type=pathlib.Path, help="Path to the datasets file")
+    embedding_parser = subparsers.add_parser("embedding", help="Create embeddings from datasets")
+    embedding_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path,
+                                  help="Path to the datasets file")
+
+    load_dataset_parser = subparsers.add_parser("load", help="Load a dataset from json")
+    load_dataset_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
+
+    generate_sequence_parser = subparsers.add_parser("generate-sequence", help="Generate sequences for ")
+    generate_sequence_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
     return parser
 
@@ -58,6 +65,17 @@ def main():
     elif args.command == "embedding":
         embedding = Embedding(datasets_file_path=args.file_path)
         embedding.create_embeddings()
+    elif args.command == "load":
+        dataset_file = args.file_path
+        if dataset_file.exists():
+            dataset = StructuresDataset.parse_file(dataset_file)
+            print(dataset)
+    elif args.command == "generate-sequence":
+        dataset_file = args.file_path
+        if dataset_file.exists():
+            dataset = StructuresDataset.parse_file(dataset_file)
+            dataset.generate_sequence()
+
 
 if __name__ == "__main__":
     main()

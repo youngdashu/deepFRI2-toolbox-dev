@@ -3,17 +3,16 @@ import pickle
 from datetime import datetime
 from enum import Enum
 from itertools import islice
-from operator import iconcat
 from pathlib import Path
 from types import NoneType
 from typing import List, Union
 
-from functools import reduce
-
+import dask.bag as db
 import dotenv
 import foldcomp
-from Bio.PDB import PDBList, PDBParser
-from dask import delayed, compute
+from Bio.PDB import PDBList
+from dask import delayed
+from dask.bag import Bag
 from distributed import Client, progress
 from pydantic import BaseModel, field_validator
 
@@ -23,7 +22,6 @@ from toolbox.models.manage_dataset.handle_index import create_index, read_index
 from toolbox.models.manage_dataset.sequences.from_pdb import get_sequence_from_pdbs
 from toolbox.models.manage_dataset.sequences.load_fasta import extract_sequences_from_fasta
 from toolbox.models.manage_dataset.sequences.sequence_indexes import search_sequence_indexes
-
 
 dotenv.load_dotenv()
 SEPARATOR = os.getenv("SEPARATOR")
@@ -39,6 +37,7 @@ def chunk(data, size):
         if not chunk_data:
             break
         yield chunk_data
+
 
 class CollectionType(Enum):
     all = "all"
@@ -60,7 +59,7 @@ class StructuresDataset(BaseModel):
     ids_file: Union[Path, NoneType] = None
     seqres_file: Union[Path, NoneType] = None
     overwrite: bool = False
-    batch_size: int = 10_000
+    batch_size: int = 5_000
 
     @field_validator('version', mode='before')
     def set_version(cls, v):
@@ -152,8 +151,7 @@ class StructuresDataset(BaseModel):
         print(len(index))
         batched_ids = self.chunk(index.values())
 
-        print(batched_ids)
-
+        print("Searching indexes")
         index, missing_sequences = search_sequence_indexes(
             self.db_type,
             Path(datasets_path),
@@ -164,35 +162,40 @@ class StructuresDataset(BaseModel):
         print("missing seqs:")
         print(len(missing_sequences))
 
-        # print(index)
-
-        missing_ids = self.chunk(missing_sequences)
+        missing_ids = db.from_sequence(missing_sequences,
+                                       partition_size=self.batch_size)  # self.chunk(missing_sequences)
 
         if self.seqres_file is not None:
             tasks = extract_sequences_from_fasta(self.seqres_file, missing_ids)
         else:
-            tasks = [
-                delayed(get_sequence_from_pdbs)(ids)
-                for ids in missing_ids
-            ]
-            print(len(tasks))
+            print("missing ids")
+            tasks = missing_ids.map(get_sequence_from_pdbs)
 
-        with Client() as client:
-            futures = client.compute(tasks)
-            progress(futures)
-            results = client.gather(futures)
+        def parallel_reduce_dicts_with_bag(bag: Bag):
+            # Use foldby to combine all dictionaries
+            # The key function returns a constant so all items are grouped together
+            combined = bag.foldby(
+                key=lambda x: 'all',
+                binop=lambda acc, x: {**acc, **x},
+                initial={}
+            )
 
-            results = reduce(iconcat, results, [])
+            # Compute the result and extract the combined dictionary
+            with Client() as client:
+                final_result = combined.compute()[0][1]
 
-            results = reduce(lambda a, b: {**a, **b}, results, {})
-            sequences_file_path = self.dataset_path() / "pdb_sequence.pickle"
-            with open(sequences_file_path, 'wb') as f:
-                pickle.dump(results, f, pickle.HIGHEST_PROTOCOL)
+            return final_result
 
-            for id_ in missing_sequences:
-                index[id_] = str(sequences_file_path)
+        # Parallel reduce for dictionary merging
+        results_dict = parallel_reduce_dicts_with_bag(tasks)
+        sequences_file_path = self.dataset_path() / "pdb_sequence.pickle"
+        with open(sequences_file_path, 'wb') as f:
+            pickle.dump(results_dict, f, pickle.HIGHEST_PROTOCOL)
 
-            create_index(self.sequences_index_path(), index)
+        for id_ in missing_sequences:
+            index[id_] = str(sequences_file_path)
+
+        create_index(self.sequences_index_path(), index)
 
     def get_all_ids(self):
         res = None
@@ -336,8 +339,8 @@ class StructuresDataset(BaseModel):
             case CollectionType.all:
                 pass
             case CollectionType.part:
-                # foldcomp_download(self.type_str, str(self.dataset_repo_path()))
-                copy_files("/Users/youngdashu/sano/offline_data", str(self.dataset_repo_path()))
+                foldcomp_download(self.type_str, str(self.dataset_repo_path()))
+                # copy_files("/Users/youngdashu/sano/offline_data", str(self.dataset_repo_path()))
                 self.foldcomp_decompress()
             case CollectionType.clust:
                 foldcomp_download(self.type_str, str(self.dataset_repo_path()))
@@ -389,9 +392,7 @@ def create_swissprot():
     ).create_dataset()
 
 
-
 if __name__ == '__main__':
-
     # test()
     # create_swissprot()
     # create_e_coli()
