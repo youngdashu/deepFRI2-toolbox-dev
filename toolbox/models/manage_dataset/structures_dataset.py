@@ -146,7 +146,7 @@ class StructuresDataset(BaseModel):
         self.generate_sequence()
 
     def generate_sequence(self):
-        print("generate_sequence")
+        print("Generating sequences")
         index = read_index(self.dataset_index_file_path())
         print(len(index))
         batched_ids = self.chunk(index.values())
@@ -159,16 +159,16 @@ class StructuresDataset(BaseModel):
         )
 
         print(len(index))
-        print("missing seqs:")
-        print(len(missing_sequences))
+        print(f"missing seqs: {len(missing_sequences)}")
 
         missing_ids = db.from_sequence(missing_sequences,
                                        partition_size=self.batch_size)  # self.chunk(missing_sequences)
 
         if self.seqres_file is not None:
+            print("Getting sequences from provided fasta")
             tasks = extract_sequences_from_fasta(self.seqres_file, missing_ids)
         else:
-            print("missing ids")
+            print("Getting sequences from stored PDBs")
             tasks = missing_ids.map(get_sequence_from_pdbs)
 
         def parallel_reduce_dicts_with_bag(bag: Bag):
@@ -187,14 +187,16 @@ class StructuresDataset(BaseModel):
             return final_result
 
         # Parallel reduce for dictionary merging
+        print("\tGetting result")
         results_dict = parallel_reduce_dicts_with_bag(tasks)
         sequences_file_path = self.dataset_path() / "pdb_sequence.pickle"
         with open(sequences_file_path, 'wb') as f:
+            print("Saving sequences to dict")
             pickle.dump(results_dict, f, pickle.HIGHEST_PROTOCOL)
 
+        print("Save new index with all proteins")
         for id_ in missing_sequences:
             index[id_] = str(sequences_file_path)
-
         create_index(self.sequences_index_path(), index)
 
     def get_all_ids(self):

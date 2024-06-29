@@ -16,7 +16,3 @@ def extract_sequences_from_fasta(file_path: Path, ids: Bag) -> Bag:
         ]
 
     return ids.map(handle_batch)
-    # return [
-    #     delayed(handle_batch)(record_dict, batch)
-    #     for batch in batched_ids
-    # ]
