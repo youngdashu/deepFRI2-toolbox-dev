@@ -98,16 +98,25 @@ class StructuresDataset(BaseModel):
 
             # find existing files of the same DB
             if self.db_type == DatabaseType.other:
+                print(f"Globbing {repo_path}")
                 all_files = Path(repo_path).rglob("*.*")
             else:
                 db_path = Path(repo_path) / self.db_type.name
+                print(f"Globbing {db_path}")
                 all_files = db_path.rglob("*.*")
 
-            file_paths = {file_path.stem: file_path for file_path in all_files if
-                          file_path.is_file() and file_path.suffix in {'.cif', '.pdb', '.ent'}}
+            def process_file(file_path):
+                if file_path.is_file() and file_path.suffix in {'.cif', '.pdb', '.ent'}:
+                    return (file_path.stem, file_path)
+                return None
 
-            missing_ids = []
-            present_file_paths = {}
+            file_paths = (db.from_sequence(all_files)
+                          .map(process_file)
+                          .filter(lambda x: x is not None)
+                          .to_dict()
+                          .compute())
+
+            print(f"Found {len(file_paths)} files")
 
             ids = None
             if self.collection_type is CollectionType.subset:
@@ -118,12 +127,24 @@ class StructuresDataset(BaseModel):
 
             Path(f"{datasets_path}/{dataset_index_file_name}").mkdir(exist_ok=True, parents=True)
 
-            for id_ in ids:
-                present_file_paths[id_] = file_paths[id_] if id_ in file_paths else missing_ids.append(id_)
+            with Client() as client:
+
+                def process_id(id_):
+                    if id_ in file_paths:
+                        return True, (id_, file_paths[id_])
+                    else:
+                        return False, id_
+
+                result_bag = db.from_sequence(ids).map(process_id)
+
+                present_bag = result_bag.filter(lambda x: x[0]).map(lambda x: x[1])
+                missing_bag = result_bag.filter(lambda x: not x[0]).map(lambda x: x[1])
+                present_file_paths = dict(present_bag.compute())
+                missing_ids = list(missing_bag.compute())
 
             create_index(self.dataset_index_file_path(), present_file_paths)
 
-            print(len(missing_ids))
+            print(f"Found {len(missing_ids)} missing protein ids")
 
             if self.db_type == DatabaseType.other and self.collection_type == CollectionType.subset and len(
                     missing_ids) > 0:
