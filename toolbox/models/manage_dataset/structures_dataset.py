@@ -107,14 +107,14 @@ class StructuresDataset(BaseModel):
 
             def process_file(file_path):
                 if file_path.is_file() and file_path.suffix in {'.cif', '.pdb', '.ent'}:
-                    return (file_path.stem, file_path)
-                return None
+                    return [(file_path.stem, file_path)]
+                return []
 
             file_paths = (db.from_sequence(all_files)
                           .map(process_file)
-                          .filter(lambda x: x is not None)
-                          .to_dict()
+                          .flatten()
                           .compute())
+            file_paths = dict(file_paths)
 
             print(f"Found {len(file_paths)} files")
 
