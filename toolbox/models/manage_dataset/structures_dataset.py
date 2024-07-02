@@ -110,7 +110,7 @@ class StructuresDataset(BaseModel):
                     return [(file_path.stem, file_path)]
                 return []
 
-            file_paths = (db.from_sequence(all_files)
+            file_paths = (db.from_sequence(all_files, partition_size=self.batch_size)
                           .map(process_file)
                           .flatten()
                           .compute())
@@ -135,7 +135,7 @@ class StructuresDataset(BaseModel):
                     else:
                         return False, id_
 
-                result_bag = db.from_sequence(ids).map(process_id)
+                result_bag = db.from_sequence(ids, partition_size=self.batch_size).map(process_id)
 
                 present_bag = result_bag.filter(lambda x: x[0]).map(lambda x: x[1])
                 missing_bag = result_bag.filter(lambda x: not x[0]).map(lambda x: x[1])
