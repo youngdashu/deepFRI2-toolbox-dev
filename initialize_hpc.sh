@@ -8,14 +8,15 @@ then
 fi
 
 cd deepfri
-
-DATA_DIR="deepfri/dev_data"
-mkdir "$GROUP_DIR/$DATA_DIR"
+PROJECT_DIR="$GROUP_DIR/deepfri"
+DATA_DIR="$PROJECT_DIR/dev_data"
+mkdir "$DATA_DIR"
 
 module load python/3.10
 module load miniconda3
 
-ENV_PATH="$GROUP_DIR/deepfri/dev_env"
+ENV_PATH="$PROJECT_DIR/dev_env"
+EMBEDDING_ENV_PATH="$PROJECT_DIR/embedding_env"
 
 if [[ -d "deepFRI2-toolbox-dev" ]]
 then
@@ -42,6 +43,18 @@ else
 
   pip install bio~=1.7.0
   pip install foldcomp~=0.0.7
+
+  conda deactivate
+
+  git submodule init
+  git submodule update
+
+  cd tmvec
+
+  conda create -y --prefix "$EMBEDDING_ENV_PATH" faiss-cpu python=3.9 -c pytorch
+  conda activate "$EMBEDDING_ENV_PATH"
+  pip install tmvec
+  conda deactivate
 
 fi
 
