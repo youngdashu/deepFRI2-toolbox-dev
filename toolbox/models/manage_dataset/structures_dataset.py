@@ -55,7 +55,7 @@ class StructuresDataset(BaseModel):
     db_type: DatabaseType
     collection_type: CollectionType
     type_str: str = ""
-    version: str = datetime.now().strftime('%Y%m%d')
+    version: str = datetime.now().strftime('%Y%m%d_%H%M')
     ids_file: Union[Path, NoneType] = None
     seqres_file: Union[Path, NoneType] = None
     overwrite: bool = False
@@ -63,7 +63,7 @@ class StructuresDataset(BaseModel):
 
     @field_validator('version', mode='before')
     def set_version(cls, v):
-        return v or datetime.now().strftime('%Y%m%d')
+        return v or datetime.now().strftime('%Y%m%d_%H%M')
 
     def dataset_repo_path(self):
         return Path(repo_path) / self.db_type.name / f"{self.collection_type.name}_{self.type_str}" / self.version
@@ -107,7 +107,7 @@ class StructuresDataset(BaseModel):
 
             def process_file(file_path):
                 if file_path.is_file() and file_path.suffix in {'.cif', '.pdb', '.ent'}:
-                    return [(file_path.stem, file_path)]
+                    return [(file_path.stem, str(file_path))]
                 return []
 
             file_paths = (db.from_sequence(all_files, partition_size=self.batch_size)
@@ -129,8 +129,10 @@ class StructuresDataset(BaseModel):
 
             with Client() as client:
 
+                ids_present = file_paths.keys()
+
                 def process_id(id_):
-                    if id_ in file_paths:
+                    if id_ in ids_present:
                         return True, (id_, file_paths[id_])
                     else:
                         return False, id_
@@ -143,7 +145,7 @@ class StructuresDataset(BaseModel):
                 missing_ids = list(missing_bag.compute())
 
             create_index(self.dataset_index_file_path(), present_file_paths)
-
+            print(f"Found {len(present_file_paths)} present protein files")
             print(f"Found {len(missing_ids)} missing protein ids")
 
             if self.db_type == DatabaseType.other and self.collection_type == CollectionType.subset and len(
@@ -256,27 +258,58 @@ class StructuresDataset(BaseModel):
             case CollectionType.subset:
                 self._download_pdb_(ids)
 
-    def retrieve_pdb_file(self, pdb: str, pdb_repo_path: str):
+    def retrieve_pdb_file(self, pdb: str, pdb_repo_path_str: str):
         pdb_list = PDBList()
-        # Ensure the directory string is properly passed
 
         # PDB ids from PDBList() are upper case without 'pdb' prefix
         pdb = pdb.removeprefix("pdb")
         pdb = pdb.upper()
 
-        pdb_list.retrieve_pdb_file(
+        pdb_file = pdb_list.retrieve_pdb_file(
             pdb,
-            pdir=pdb_repo_path,
+            pdir=pdb_repo_path_str,
             file_format="pdb"
         )
 
-    def save_new_files_to_index(self):
+        pdb_file_path = Path(pdb_file)
+        pdb_file_name = pdb_file_path.stem
+        if pdb_file_name.startswith("pdb"):
+            new_file_name = f"{pdb_file_name[3:7].upper()}.pdb"
+            pdb_file_path.rename(Path(pdb_file_path.parent, new_file_name))
+
+    def add_new_files_to_index(self):
         self.dataset_path().mkdir(exist_ok=True, parents=True)
 
         structures_path = self.structures_path()
-        files = [str(f) for f in structures_path.rglob('*.*') if f.is_file()]
 
-        create_index(self.dataset_index_file_path(), files)
+        def process_directory(dir_path):
+            return [str(f) for f in Path(dir_path).glob('*.*') if f.is_file()]
+
+        numbered_dirs = [d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()]
+
+        with Client() as client:
+            dir_bag = db.from_sequence(numbered_dirs, npartitions=len(numbered_dirs))
+            new_files = dir_bag.map(process_directory).flatten().compute()
+
+        current_index = {}
+        try:
+            current_index = read_index(self.dataset_index_file_path())
+        except Exception:
+            pass
+
+        new_files_index = {str(i): v for i, v in enumerate(new_files)}
+
+        current_index.update(new_files_index)
+
+        create_index(self.dataset_index_file_path(), current_index)
+
+    # def save_new_files_to_index(self):
+    #     self.dataset_path().mkdir(exist_ok=True, parents=True)
+    #
+    #     structures_path = self.structures_path()
+    #     files = [str(f) for f in structures_path.rglob('*.*') if f.is_file()]
+    #
+    #     create_index(self.dataset_index_file_path(), files)
 
     def _download_pdb_(self, ids: List[str]):
         Path(self.structures_path()).mkdir(exist_ok=True, parents=True)
@@ -296,7 +329,7 @@ class StructuresDataset(BaseModel):
             progress(futures)
             results = client.gather(futures)
 
-        self.save_new_files_to_index()
+        self.add_new_files_to_index()
 
     def foldcomp_decompress(self):
 
@@ -340,7 +373,7 @@ class StructuresDataset(BaseModel):
             progress(futures)
             results = client.gather(futures)
 
-        self.save_new_files_to_index()
+        self.add_new_files_to_index()
 
     def handle_afdb(self):
 
