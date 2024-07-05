@@ -40,6 +40,37 @@ def chunk(data, size):
         yield chunk_data
 
 
+def retrieve_pdb_file(pdb: str, pdb_repo_path_str: str, retry_num: int = 0):
+
+    if retry_num > 3:
+        print(f"Failed retrying {pdb}")
+        return
+
+    if retry_num > 0:
+        print(f"Retrying downloading {pdb} {retry_num}")
+
+    pdb_list = PDBList()
+
+    # PDB ids from PDBList() are upper case without 'pdb' prefix
+    pdb = pdb.removeprefix("pdb")
+    pdb = pdb.upper()
+
+    pdb_file = pdb_list.retrieve_pdb_file(
+        pdb,
+        pdir=pdb_repo_path_str,
+        file_format="pdb"
+    )
+    pdb_file_path = Path(pdb_file)
+
+    if pdb_file_path.exists():
+        pdb_file_name = pdb_file_path.stem
+        if pdb_file_name.startswith("pdb"):
+            new_file_name = f"{pdb_file_name[3:7].upper()}.pdb"
+            pdb_file_path.rename(Path(pdb_file_path.parent, new_file_name))
+    else:
+        retrieve_pdb_file(pdb, pdb_repo_path_str, retry_num + 1)
+
+
 class CollectionType(Enum):
     all = "all"
     clust = "clust"
@@ -259,25 +290,6 @@ class StructuresDataset(BaseModel):
             case CollectionType.subset:
                 self._download_pdb_(ids)
 
-    def retrieve_pdb_file(self, pdb: str, pdb_repo_path_str: str):
-        pdb_list = PDBList()
-
-        # PDB ids from PDBList() are upper case without 'pdb' prefix
-        pdb = pdb.removeprefix("pdb")
-        pdb = pdb.upper()
-
-        pdb_file = pdb_list.retrieve_pdb_file(
-            pdb,
-            pdir=pdb_repo_path_str,
-            file_format="pdb"
-        )
-
-        pdb_file_path = Path(pdb_file)
-        pdb_file_name = pdb_file_path.stem
-        if pdb_file_name.startswith("pdb"):
-            new_file_name = f"{pdb_file_name[3:7].upper()}.pdb"
-            pdb_file_path.rename(Path(pdb_file_path.parent, new_file_name))
-
     def add_new_files_to_index(self):
         self.dataset_path().mkdir(exist_ok=True, parents=True)
 
@@ -320,7 +332,7 @@ class StructuresDataset(BaseModel):
         mkdir_for_batches(pdb_repo_path, len(chunks))
 
         tasks = [
-            delayed(self.retrieve_pdb_file)(pdb, pdb_repo_path / f"{batch_number}")
+            delayed(retrieve_pdb_file)(pdb, pdb_repo_path / f"{batch_number}")
             for batch_number, pdb_ids_chunk in enumerate(chunks)
             for pdb in pdb_ids_chunk
         ]
