@@ -1,3 +1,5 @@
+import json
+
 from dask import delayed
 import pickle
 from functools import reduce
@@ -51,8 +53,8 @@ class Embedding(BaseModel):
         all_sequence_files = db.from_sequence(set(all_sequence_files), partition_size=1)
 
         def load_sequence_file_to_dict(file_name: str):
-            with open(file_name, 'rb') as f:
-                return pickle.load(f)
+            with open(file_name, 'r') as f:
+                return json.load(f)
 
         all_seqs = all_sequence_files.map(load_sequence_file_to_dict).compute()
 

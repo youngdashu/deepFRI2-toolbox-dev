@@ -1,3 +1,4 @@
+import json
 import os
 import pickle
 from datetime import datetime
@@ -212,10 +213,10 @@ class StructuresDataset(BaseModel):
         # Parallel reduce for dictionary merging
         print("\tGetting result")
         results_dict = parallel_reduce_dicts_with_bag(tasks)
-        sequences_file_path = self.dataset_path() / "pdb_sequence.pickle"
+        sequences_file_path = self.dataset_path() / "pdb_sequence.json"
         with open(sequences_file_path, 'wb') as f:
             print("Saving sequences to dict")
-            pickle.dump(results_dict, f, pickle.HIGHEST_PROTOCOL)
+            json.dump(results_dict, f)
 
         print("Save new index with all proteins")
         for id_ in missing_sequences:
