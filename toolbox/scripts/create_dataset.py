@@ -66,9 +66,9 @@ def main():
         embedding = Embedding(datasets_file_path=args.file_path)
         embedding.create_embeddings()
     elif args.command == "load":
-        dataset_file = args.file_path
+        dataset_file: pathlib.Path = args.file_path
         if dataset_file.exists():
-            dataset = StructuresDataset.parse_file(dataset_file)
+            dataset = StructuresDataset.model_validate_json(dataset_file.read_text())
             print(dataset)
     elif args.command == "generate-sequence":
         dataset_file = args.file_path
