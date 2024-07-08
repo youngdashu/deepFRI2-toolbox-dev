@@ -245,7 +245,7 @@ class StructuresDataset(BaseModel):
         print("\tGetting result")
         results_dict = parallel_reduce_dicts_with_bag(tasks)
         sequences_file_path = self.dataset_path() / "pdb_sequence.json"
-        with open(sequences_file_path, 'wb') as f:
+        with open(sequences_file_path, 'w') as f:
             print("Saving sequences to dict")
             json.dump(results_dict, f)
 
