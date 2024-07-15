@@ -53,7 +53,8 @@ else
 
   conda create -y --prefix "$EMBEDDING_ENV_PATH" faiss-cpu python=3.9 -c pytorch
   conda activate "$EMBEDDING_ENV_PATH"
-  pip install tmvec
+  pip install click
+  pip install .
   conda deactivate
 
 fi
