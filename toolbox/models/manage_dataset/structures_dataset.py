@@ -23,6 +23,7 @@ from pydantic import BaseModel, field_validator
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.dataset_origin import datasets_path, repo_path, foldcomp_download
+from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms
 from toolbox.models.manage_dataset.handle_index import create_index, read_index
 from toolbox.models.manage_dataset.sequences.from_pdb import get_sequence_from_pdbs
 from toolbox.models.manage_dataset.sequences.load_fasta import extract_sequences_from_fasta
@@ -255,7 +256,7 @@ class StructuresDataset(BaseModel):
     def get_all_ids(self):
         match self.db_type:
             case DatabaseType.PDB:
-                all_pdbs = PDBList().get_all_entries()
+                all_pdbs = PDBList().get_all_entries()[:1000]
                 all_pdbs = map(lambda x: x.lower(), all_pdbs)
                 url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
                 with contextlib.closing(urlopen(url)) as handle:
@@ -471,4 +472,13 @@ if __name__ == '__main__':
     # create_swissprot()
     # create_e_coli()
     # test2()
+
+    dataset = StructuresDataset(
+        db_type=DatabaseType.PDB,
+        collection_type=CollectionType.all,
+    ).create_dataset()
+
+    generate_distograms(dataset)
+
+
     pass

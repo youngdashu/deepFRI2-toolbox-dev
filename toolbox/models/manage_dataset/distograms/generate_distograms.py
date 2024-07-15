@@ -6,16 +6,12 @@ from typing import List, Tuple, Any, Union
 import h5py
 import numpy as np
 from Bio.PDB import PDBParser
-from Bio.PDB.Structure import Structure
-from dask.array import Array
 from numpy import ndarray, dtype
 
 from toolbox.models.manage_dataset.dataset_origin import datasets_path
 from toolbox.models.manage_dataset.handle_index import read_index, create_index
-from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
 from toolbox.utlis.search_indexes import search_indexes
 import dask.bag as db
-import dask.array as da
 
 from scipy.spatial.distance import pdist, squareform
 
@@ -33,7 +29,7 @@ def __extract_coordinates__(file_path: Path) -> ndarray[Any, dtype[Any]]:
     return coords
 
 
-def generate_distograms(structures_dataset: StructuresDataset):
+def generate_distograms(structures_dataset: "StructuresDataset"):
     print("Generating distograms")
     index = read_index(structures_dataset.dataset_index_file_path())
     print(f"Index len {len(index)}")
