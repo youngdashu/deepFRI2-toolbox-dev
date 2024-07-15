@@ -1,3 +1,5 @@
+import contextlib
+import itertools
 import json
 import os
 import pickle
@@ -7,7 +9,9 @@ from itertools import islice
 from pathlib import Path
 from types import NoneType
 from typing import List, Union
+from urllib.request import urlopen
 
+import biotite.database.rcsb
 import dask.bag as db
 import dotenv
 import foldcomp
@@ -22,7 +26,8 @@ from toolbox.models.manage_dataset.dataset_origin import datasets_path, repo_pat
 from toolbox.models.manage_dataset.handle_index import create_index, read_index
 from toolbox.models.manage_dataset.sequences.from_pdb import get_sequence_from_pdbs
 from toolbox.models.manage_dataset.sequences.load_fasta import extract_sequences_from_fasta
-from toolbox.models.manage_dataset.sequences.sequence_indexes import search_sequence_indexes
+from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
+from toolbox.utlis.search_indexes import search_indexes
 
 dotenv.load_dotenv()
 SEPARATOR = os.getenv("SEPARATOR")
@@ -49,25 +54,11 @@ def retrieve_pdb_file(pdb: str, pdb_repo_path_str: str, retry_num: int = 0):
     if retry_num > 0:
         print(f"Retrying downloading {pdb} {retry_num}")
 
-    pdb_list = PDBList()
+    pdb_file = biotite.database.rcsb.fetch(pdb, "pdb", pdb_repo_path_str)
 
-    # PDB ids from PDBList() are upper case without 'pdb' prefix
-    pdb = pdb.removeprefix("pdb")
-    pdb = pdb.upper()
-
-    pdb_file = pdb_list.retrieve_pdb_file(
-        pdb,
-        pdir=pdb_repo_path_str,
-        file_format="pdb"
-    )
     pdb_file_path = Path(pdb_file)
 
-    if pdb_file_path.exists():
-        pdb_file_name = pdb_file_path.stem
-        if pdb_file_name.startswith("pdb"):
-            new_file_name = f"{pdb_file_name[3:7].upper()}.pdb"
-            pdb_file_path.rename(Path(pdb_file_path.parent, new_file_name))
-    else:
+    if not pdb_file_path.exists():
         retrieve_pdb_file(pdb, pdb_repo_path_str, retry_num + 1)
 
 
@@ -114,6 +105,9 @@ class StructuresDataset(BaseModel):
 
     def sequences_index_path(self):
         return self.dataset_path() / "sequences.idx"
+
+    def distograms_index_path(self):
+        return self.dataset_path() / "distograms.idx"
 
     def batches_count(self) -> int:
         return sum(1 for item in self.structures_path().iterdir() if item.is_dir())
@@ -207,10 +201,11 @@ class StructuresDataset(BaseModel):
         batched_ids = self.chunk(index.values())
 
         print("Searching indexes")
-        index, missing_sequences = search_sequence_indexes(
+        index, missing_sequences = search_indexes(
             self.db_type,
             Path(datasets_path),
-            batched_ids
+            batched_ids,
+            'sequences'
         )
 
         print(len(index))
@@ -255,10 +250,14 @@ class StructuresDataset(BaseModel):
         create_index(self.sequences_index_path(), index)
 
     def get_all_ids(self):
-        res = None
         match self.db_type:
             case DatabaseType.PDB:
-                res = PDBList().get_all_entries()
+                all_pdbs = PDBList().get_all_entries()
+                all_pdbs = map(lambda x: x.lower(), all_pdbs)
+                url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
+                with contextlib.closing(urlopen(url)) as handle:
+                    res = filter_pdb_codes(handle, all_pdbs)
+                    print(len(res))
             case DatabaseType.AFDB:
                 res = []
             case DatabaseType.ESMatlas:
@@ -301,8 +300,11 @@ class StructuresDataset(BaseModel):
         numbered_dirs = [d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()]
 
         with Client() as client:
-            dir_bag = db.from_sequence(numbered_dirs, npartitions=len(numbered_dirs))
-            new_files = dir_bag.map(process_directory).flatten().compute()
+            if len(numbered_dirs) == 0:
+                new_files = []
+            else:
+                dir_bag = db.from_sequence(numbered_dirs, npartitions=len(numbered_dirs))
+                new_files = dir_bag.map(process_directory).flatten().compute()
 
         current_index = {}
         try:

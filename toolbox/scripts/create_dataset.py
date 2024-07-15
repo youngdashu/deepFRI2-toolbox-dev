@@ -3,6 +3,7 @@ import pathlib
 
 from toolbox.models.embedding.embedding import Embedding
 from toolbox.models.manage_dataset.database_type import DatabaseType
+from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms
 from toolbox.models.manage_dataset.structures_dataset import CollectionType, StructuresDataset
 
 
@@ -42,6 +43,9 @@ def create_parser():
     generate_sequence_parser = subparsers.add_parser("generate-sequence", help="Generate sequences for ")
     generate_sequence_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
+    generate_distograms_parser = subparsers.add_parser("generate-distograms", help="Generate distograms for ")
+    generate_distograms_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
+
     return parser
 
 
@@ -73,9 +77,13 @@ def main():
     elif args.command == "generate-sequence":
         dataset_file = args.file_path
         if dataset_file.exists():
-            dataset = StructuresDataset.parse_file(dataset_file)
+            dataset = StructuresDataset.model_validate_json(dataset_file.read_text())
             dataset.generate_sequence()
-
+    elif args.command == "generate-distograms":
+        dataset_file = args.file_path
+        if dataset_file.exists():
+            dataset = StructuresDataset.model_validate_json(dataset_file.read_text())
+            generate_distograms(dataset)
 
 if __name__ == "__main__":
     main()
