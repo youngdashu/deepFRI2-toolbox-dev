@@ -7,3 +7,5 @@ python-dotenv~=1.0.1
 foldcomp~=0.0.7
 scipy
 biotite
+h5py
+tables

@@ -109,6 +109,9 @@ class StructuresDataset(BaseModel):
     def distograms_index_path(self):
         return self.dataset_path() / "distograms.idx"
 
+    def distograms_file_path(self):
+        return self.dataset_path() / "distograms.hdf5"
+
     def batches_count(self) -> int:
         return sum(1 for item in self.structures_path().iterdir() if item.is_dir())
 
@@ -257,7 +260,7 @@ class StructuresDataset(BaseModel):
                 url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
                 with contextlib.closing(urlopen(url)) as handle:
                     res = filter_pdb_codes(handle, all_pdbs)
-                    print(len(res))
+                    print(f"After removing non protein codes {len(res)}")
             case DatabaseType.AFDB:
                 res = []
             case DatabaseType.ESMatlas:

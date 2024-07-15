@@ -3,8 +3,17 @@ import pathlib
 
 from toolbox.models.embedding.embedding import Embedding
 from toolbox.models.manage_dataset.database_type import DatabaseType
-from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms
+from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms, read_distograms_from_file
 from toolbox.models.manage_dataset.structures_dataset import CollectionType, StructuresDataset
+
+
+def _create_dataset_from_path_(path: pathlib.Path) -> StructuresDataset:
+    if path.is_dir() and (path / "dataset.json").exists():
+        return StructuresDataset.model_validate_json((path / "dataset.json").read_text())
+    elif path.is_file():
+        return StructuresDataset.model_validate_json(path.read_text())
+    else:
+        raise FileNotFoundError
 
 
 def create_parser():
@@ -46,6 +55,9 @@ def create_parser():
     generate_distograms_parser = subparsers.add_parser("generate-distograms", help="Generate distograms for ")
     generate_distograms_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
+    read_distograms_parser = subparsers.add_parser("read-distograms", help="Read distograms for ")
+    read_distograms_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
+
     return parser
 
 
@@ -70,20 +82,19 @@ def main():
         embedding = Embedding(datasets_file_path=args.file_path)
         embedding.create_embeddings()
     elif args.command == "load":
-        dataset_file: pathlib.Path = args.file_path
-        if dataset_file.exists():
-            dataset = StructuresDataset.model_validate_json(dataset_file.read_text())
-            print(dataset)
+        dataset = _create_dataset_from_path_(args.file_path)
+        print(dataset)
     elif args.command == "generate-sequence":
-        dataset_file = args.file_path
-        if dataset_file.exists():
-            dataset = StructuresDataset.model_validate_json(dataset_file.read_text())
-            dataset.generate_sequence()
+        dataset = _create_dataset_from_path_(args.file_path)
+        dataset.generate_sequence()
     elif args.command == "generate-distograms":
-        dataset_file = args.file_path
-        if dataset_file.exists():
-            dataset = StructuresDataset.model_validate_json(dataset_file.read_text())
-            generate_distograms(dataset)
+        dataset = _create_dataset_from_path_(args.file_path)
+        generate_distograms(dataset)
+    elif args.command == "read-distograms":
+        print(
+            read_distograms_from_file(args.file_path)
+        )
+
 
 if __name__ == "__main__":
     main()

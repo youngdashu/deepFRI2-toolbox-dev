@@ -11,3 +11,5 @@ dependencies:
   - python-dotenv~=1.0.1
   - scipy
   - biotite
+  - h5py
+  - tables
