@@ -8,7 +8,7 @@ dotenv.load_dotenv()
 pdir = os.getenv('DATA_PATH')
 repo_path = pdir + "/repo"
 datasets_path = pdir + "/datasets"
-embeddings_path = pdir + "/embeddings"
+EMBEDDINGS_PATH = pdir + "/embeddings"
 
 
 def foldcomp_download(db: str, output_dir: str):

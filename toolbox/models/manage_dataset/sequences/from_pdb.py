@@ -5,7 +5,7 @@ from Bio.SeqUtils import seq1
 
 
 def get_sequence_from_pdbs(file_path: str):
-    pdb_parser = PDBParser()
+    pdb_parser = PDBParser(QUIET=True)
 
     # print(file_paths)
     path = Path(file_path)

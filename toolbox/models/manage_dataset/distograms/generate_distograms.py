@@ -17,7 +17,7 @@ from scipy.spatial.distance import pdist, squareform
 
 
 def __extract_coordinates__(file_path: Path) -> ndarray[Any, dtype[Any]]:
-    parser = PDBParser()
+    parser = PDBParser(QUIET=True)
     structure = parser.get_structure("", file_path)
 
     coords = np.array([

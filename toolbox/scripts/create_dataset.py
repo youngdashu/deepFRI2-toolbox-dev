@@ -81,6 +81,8 @@ def main():
     elif args.command == "embedding":
         embedding = Embedding(datasets_file_path=args.file_path)
         embedding.sequences_to_single_fasta()
+        embedding.build_db()
+        embedding.create_embeddings()
     elif args.command == "load":
         dataset = _create_dataset_from_path_(args.file_path)
         print(dataset)
