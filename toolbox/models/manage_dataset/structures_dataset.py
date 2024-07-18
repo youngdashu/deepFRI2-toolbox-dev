@@ -395,21 +395,6 @@ class StructuresDataset(BaseModel):
         self.add_new_files_to_index()
 
     def handle_afdb(self):
-
-        import shutil
-        def copy_files(src_dir, dst_dir):
-            # Create destination directory if it doesn't exist
-            os.makedirs(dst_dir, exist_ok=True)
-
-            # Iterate through files in source directory
-            for filename in os.listdir(src_dir):
-                src_file = os.path.join(src_dir, filename)
-                dst_file = os.path.join(dst_dir, filename)
-
-                # Copy the file
-                shutil.copy2(src_file, dst_file)
-                print(f"Copied: {filename}")
-
         match self.collection_type:
             case CollectionType.all:
                 pass
@@ -421,6 +406,7 @@ class StructuresDataset(BaseModel):
                 foldcomp_download(self.type_str, str(self.dataset_repo_path()))
                 self.foldcomp_decompress()
             case CollectionType.subset:
+                # TODO handle file from disk
                 pass
 
     def handle_esma(self):
