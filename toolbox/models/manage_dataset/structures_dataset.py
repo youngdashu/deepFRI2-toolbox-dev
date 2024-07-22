@@ -197,8 +197,6 @@ class StructuresDataset(BaseModel):
 
         self.save_dataset_metadata()
 
-        self.generate_sequence()
-
     def generate_sequence(self):
         print("Generating sequences")
         index = read_index(self.dataset_index_file_path())
