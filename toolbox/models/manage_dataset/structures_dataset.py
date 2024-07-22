@@ -56,12 +56,30 @@ def retrieve_pdb_file(pdb: str, pdb_repo_path_str: str, retry_num: int = 0):
     if retry_num > 0:
         print(f"Retrying downloading {pdb} {retry_num}")
 
-    pdb_file = biotite.database.rcsb.fetch(pdb, "pdb", pdb_repo_path_str)
+    try:
+        pdb_file = biotite.database.rcsb.fetch(pdb, "pdb", pdb_repo_path_str)
+        pdb_file_path = Path(pdb_file)
+    except biotite.database.RequestError:
+        print(f"Biotite failed downloading {pdb}, trying bioPython")
 
-    pdb_file_path = Path(pdb_file)
+        pdb_list = PDBList()
+        pdb_file = pdb_list.retrieve_pdb_file(
+            pdb.upper(),
+            pdir=pdb_repo_path_str,
+            file_format="pdb"
+        )
+        pdb_file_path = Path(pdb_file)
 
-    if not pdb_file_path.exists():
+    except _:
+        pdb_file_path = None
+
+    if not pdb_file_path or not pdb_file_path.exists():
         retrieve_pdb_file(pdb, pdb_repo_path_str, retry_num + 1)
+
+    pdb_file_name = pdb_file_path.stem
+    if pdb_file_name.startswith("pdb"):
+        new_file_name = f"{pdb_file_name[3:7].upper()}.pdb"
+        pdb_file_path.rename(Path(pdb_file_path.parent, new_file_name))
 
 
 class CollectionType(Enum):
