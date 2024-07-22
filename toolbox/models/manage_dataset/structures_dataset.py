@@ -1,6 +1,7 @@
 import contextlib
 import itertools
 import json
+import logging
 import os
 import pickle
 from datetime import datetime
@@ -157,7 +158,7 @@ class StructuresDataset(BaseModel):
 
             Path(f"{datasets_path}/{dataset_index_file_name}").mkdir(exist_ok=True, parents=True)
 
-            with Client() as client:
+            with Client(silence_logs=logging.ERROR) as client:
 
                 ids_present = file_paths.keys()
 
@@ -235,7 +236,7 @@ class StructuresDataset(BaseModel):
             )
 
             # Compute the result and extract the combined dictionary
-            with Client() as client:
+            with Client(silence_logs=logging.ERROR) as client:
                 final_result = combined.compute()[0][1]
 
             return final_result
@@ -256,7 +257,7 @@ class StructuresDataset(BaseModel):
     def get_all_ids(self):
         match self.db_type:
             case DatabaseType.PDB:
-                all_pdbs = PDBList().get_all_entries()[:1000]
+                all_pdbs = PDBList().get_all_entries()
                 all_pdbs = map(lambda x: x.lower(), all_pdbs)
                 url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
                 with contextlib.closing(urlopen(url)) as handle:
@@ -303,7 +304,7 @@ class StructuresDataset(BaseModel):
 
         numbered_dirs = [d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()]
 
-        with Client() as client:
+        with Client(silence_logs=logging.ERROR) as client:
             if len(numbered_dirs) == 0:
                 new_files = []
             else:
@@ -343,7 +344,7 @@ class StructuresDataset(BaseModel):
             for pdb in pdb_ids_chunk
         ]
         # Dask distributed client
-        with Client() as client:
+        with Client(silence_logs=logging.ERROR) as client:
             futures = client.compute(tasks)
             progress(futures)
             results = client.gather(futures)
@@ -376,7 +377,7 @@ class StructuresDataset(BaseModel):
                     with open(file_path, 'w') as f:
                         f.write(pdb)
 
-        with Client() as client:
+        with Client(silence_logs=logging.ERROR) as client:
             cpu_cores = len(client.ncores())
             structures_path = self.structures_path()
             structures_path.mkdir(exist_ok=True, parents=True)

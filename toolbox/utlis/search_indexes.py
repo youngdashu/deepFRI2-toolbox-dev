@@ -1,3 +1,4 @@
+import logging
 from functools import reduce
 from pathlib import Path
 from typing import Iterable, List, Tuple, Dict
@@ -40,7 +41,7 @@ def search_indexes(
         for file in sequence_indexes
     ]
 
-    with Client() as client:
+    with Client(silence_logs=logging.ERROR) as client:
         futures = client.compute(tasks)
         progress(futures)
         results = client.gather(futures)
