@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple, ClassVar
 
 import dask.bag as db
 
-from toolbox.models.manage_dataset.dataset_origin import datasets_path, EMBEDDINGS_PATH
+from toolbox.models.manage_dataset.paths import datasets_path, EMBEDDINGS_PATH
 from toolbox.models.manage_dataset.handle_index import read_index
 
 import subprocess

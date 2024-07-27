@@ -10,7 +10,8 @@ import numpy as np
 from Bio.PDB import PDBParser
 from numpy import ndarray, dtype
 
-from toolbox.models.manage_dataset.dataset_origin import datasets_path
+import toolbox.models.manage_dataset.utils
+from toolbox.models.manage_dataset.paths import datasets_path
 from toolbox.models.manage_dataset.handle_index import read_index, create_index
 from toolbox.utlis.search_indexes import search_indexes
 import dask.bag as db
@@ -39,7 +40,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
     print("Generating distograms")
     index = read_index(structures_dataset.dataset_index_file_path())
     print(f"Index len {len(index)}")
-    batched_ids = structures_dataset.chunk(index.values())
+    batched_ids = toolbox.models.manage_dataset.utils.chunk(index.values())
 
     present_distograms, missing = search_indexes(
         structures_dataset.db_type,
@@ -60,10 +61,6 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     print(f"Time taken (calculate distograms): {end - start} seconds")
 
-    run_compression_tests(distograms)
-
-    exit(0)
-
     distograms_file = structures_dataset.dataset_path() / 'distograms.hdf5'
 
     hf = h5py.File(distograms_file, 'w')
@@ -72,7 +69,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
     start = time.time()
     for pdb_path, distogram in distograms:
         protein_grp = hf.create_group(pdb_path)
-        protein_grp.create_dataset('distogram', data=distogram, compression='szip', shuffle=True)
+        protein_grp.create_dataset('distogram', data=distogram, compression='szip')
     hf.close()
     end = time.time()
     print(f"Time taken (save to h5): {end - start} seconds")

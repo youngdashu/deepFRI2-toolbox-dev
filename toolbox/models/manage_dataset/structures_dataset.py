@@ -1,85 +1,37 @@
 import contextlib
-import itertools
 import json
 import logging
 import os
-import pickle
+import time
 from datetime import datetime
 from enum import Enum
-from itertools import islice
 from pathlib import Path
-from types import NoneType
-from typing import List, Union
+from typing import List, Union, Dict, Optional
 from urllib.request import urlopen
 
-import biotite.database.rcsb
 import dask.bag as db
 import dotenv
 import foldcomp
 from Bio.PDB import PDBList
 from dask import delayed
 from dask.bag import Bag
-from distributed import Client, progress
+from distributed import Client, progress, wait
 from pydantic import BaseModel, field_validator
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
-from toolbox.models.manage_dataset.dataset_origin import datasets_path, repo_path, foldcomp_download
+from toolbox.models.manage_dataset.paths import datasets_path, repo_path
+from toolbox.models.manage_dataset.utils import foldcomp_download, mkdir_for_batches, retrieve_pdb_chunk_to_h5, \
+    retrieve_pdb_file_h5, alphafold_chunk_to_h5
 from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms
 from toolbox.models.manage_dataset.handle_index import create_index, read_index
 from toolbox.models.manage_dataset.sequences.from_pdb import get_sequence_from_pdbs
 from toolbox.models.manage_dataset.sequences.load_fasta import extract_sequences_from_fasta
+from toolbox.models.manage_dataset.utils import chunk, retrieve_pdb_file
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 from toolbox.utlis.search_indexes import search_indexes
 
 dotenv.load_dotenv()
 SEPARATOR = os.getenv("SEPARATOR")
-
-
-def chunk(data, size):
-    # if len(data) < size:
-    #     return [data]
-
-    it = iter(data)
-    while True:
-        chunk_data = tuple(islice(it, size))
-        if not chunk_data:
-            break
-        yield chunk_data
-
-
-def retrieve_pdb_file(pdb: str, pdb_repo_path_str: str, retry_num: int = 0):
-
-    if retry_num > 3:
-        print(f"Failed retrying {pdb}")
-        return
-
-    if retry_num > 0:
-        print(f"Retrying downloading {pdb} {retry_num}")
-
-    try:
-        pdb_file = biotite.database.rcsb.fetch(pdb, "pdb", pdb_repo_path_str)
-        pdb_file_path = Path(pdb_file)
-    except biotite.database.RequestError:
-        print(f"Biotite failed downloading {pdb}, trying bioPython")
-
-        pdb_list = PDBList()
-        pdb_file = pdb_list.retrieve_pdb_file(
-            pdb.upper(),
-            pdir=pdb_repo_path_str,
-            file_format="pdb"
-        )
-        pdb_file_path = Path(pdb_file)
-
-    except _:
-        pdb_file_path = None
-
-    if not pdb_file_path or not pdb_file_path.exists():
-        retrieve_pdb_file(pdb, pdb_repo_path_str, retry_num + 1)
-
-    pdb_file_name = pdb_file_path.stem
-    if pdb_file_name.startswith("pdb"):
-        new_file_name = f"{pdb_file_name[3:7].upper()}.pdb"
-        pdb_file_path.rename(Path(pdb_file_path.parent, new_file_name))
 
 
 class CollectionType(Enum):
@@ -89,20 +41,16 @@ class CollectionType(Enum):
     subset = "subset"
 
 
-def mkdir_for_batches(base_path: Path, batch_count: int):
-    for i in range(batch_count):
-        (base_path / f"{i}").mkdir(exist_ok=True, parents=True)
-
-
 class StructuresDataset(BaseModel):
     db_type: DatabaseType
     collection_type: CollectionType
     type_str: str = ""
     version: str = datetime.now().strftime('%Y%m%d_%H%M')
-    ids_file: Union[Path, NoneType] = None
-    seqres_file: Union[Path, NoneType] = None
+    ids_file: Optional[Path] = None
+    seqres_file: Optional[Path] = None
     overwrite: bool = False
-    batch_size: int = 5_000
+    batch_size: int = 10
+    _client: Optional[Client] = None
 
     @field_validator('version', mode='before')
     def set_version(cls, v):
@@ -136,6 +84,8 @@ class StructuresDataset(BaseModel):
         return sum(1 for item in self.structures_path().iterdir() if item.is_dir())
 
     def create_dataset(self) -> "Dataset":
+
+        self._client = Client(silence_logs=logging.ERROR)
 
         self.dataset_repo_path().mkdir(exist_ok=True, parents=True)
 
@@ -176,22 +126,20 @@ class StructuresDataset(BaseModel):
 
             Path(f"{datasets_path}/{dataset_index_file_name}").mkdir(exist_ok=True, parents=True)
 
-            with Client(silence_logs=logging.ERROR) as client:
+            ids_present = file_paths.keys()
 
-                ids_present = file_paths.keys()
+            def process_id(id_):
+                if id_ in ids_present:
+                    return True, (id_, file_paths[id_])
+                else:
+                    return False, id_
 
-                def process_id(id_):
-                    if id_ in ids_present:
-                        return True, (id_, file_paths[id_])
-                    else:
-                        return False, id_
+            result_bag = db.from_sequence(ids, partition_size=self.batch_size).map(process_id)
 
-                result_bag = db.from_sequence(ids, partition_size=self.batch_size).map(process_id)
-
-                present_bag = result_bag.filter(lambda x: x[0]).map(lambda x: x[1])
-                missing_bag = result_bag.filter(lambda x: not x[0]).map(lambda x: x[1])
-                present_file_paths = dict(present_bag.compute())
-                missing_ids = list(missing_bag.compute())
+            present_bag = result_bag.filter(lambda x: x[0]).map(lambda x: x[1])
+            missing_bag = result_bag.filter(lambda x: not x[0]).map(lambda x: x[1])
+            present_file_paths = dict(present_bag.compute())
+            missing_ids = list(missing_bag.compute())
 
             create_index(self.dataset_index_file_path(), present_file_paths)
             print(f"Found {len(present_file_paths)} present protein files")
@@ -219,7 +167,7 @@ class StructuresDataset(BaseModel):
         print("Generating sequences")
         index = read_index(self.dataset_index_file_path())
         print(len(index))
-        batched_ids = self.chunk(index.values())
+        batched_ids = self.chunk(index.keys())
 
         print("Searching indexes")
         index, missing_sequences = search_indexes(
@@ -235,11 +183,14 @@ class StructuresDataset(BaseModel):
         missing_ids = db.from_sequence(missing_sequences,
                                        partition_size=self.batch_size)  # self.chunk(missing_sequences)
 
+        missing_items: Dict[str, str] = dict.fromkeys(missing_sequences) & index
+
         if self.seqres_file is not None:
             print("Getting sequences from provided fasta")
             tasks = extract_sequences_from_fasta(self.seqres_file, missing_ids)
         else:
             print("Getting sequences from stored PDBs")
+            db.from_sequence(missing_items).groupby(lambda code_file_path: code_file_path[1])
             tasks = missing_ids.map(get_sequence_from_pdbs)
 
         def parallel_reduce_dicts_with_bag(bag: Bag):
@@ -252,8 +203,7 @@ class StructuresDataset(BaseModel):
             )
 
             # Compute the result and extract the combined dictionary
-            with Client(silence_logs=logging.ERROR) as client:
-                final_result = combined.compute()[0][1]
+            final_result = combined.compute()[0][1]
 
             return final_result
 
@@ -273,12 +223,20 @@ class StructuresDataset(BaseModel):
     def get_all_ids(self):
         match self.db_type:
             case DatabaseType.PDB:
+                start_time = time.time()
                 all_pdbs = PDBList().get_all_entries()
                 all_pdbs = map(lambda x: x.lower(), all_pdbs)
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+                print(f"PDBList().get_all_entries time: {elapsed_time} seconds")
                 url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
+                start_time = time.time()
                 with contextlib.closing(urlopen(url)) as handle:
-                    res = filter_pdb_codes(handle, all_pdbs)
+                    res = list(filter_pdb_codes(handle, all_pdbs))
                     print(f"After removing non protein codes {len(res)}")
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+                print(f"filter_pdb_codes time: {elapsed_time} seconds")
             case DatabaseType.AFDB:
                 res = []
             case DatabaseType.ESMatlas:
@@ -310,7 +268,7 @@ class StructuresDataset(BaseModel):
             case CollectionType.subset:
                 self._download_pdb_(ids)
 
-    def add_new_files_to_index(self):
+    def find_add_new_files_to_index(self):
         self.dataset_path().mkdir(exist_ok=True, parents=True)
 
         structures_path = self.structures_path()
@@ -320,20 +278,22 @@ class StructuresDataset(BaseModel):
 
         numbered_dirs = [d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()]
 
-        with Client(silence_logs=logging.ERROR) as client:
-            if len(numbered_dirs) == 0:
-                new_files = []
-            else:
-                dir_bag = db.from_sequence(numbered_dirs, npartitions=len(numbered_dirs))
-                new_files = dir_bag.map(process_directory).flatten().compute()
+        if len(numbered_dirs) == 0:
+            new_files = []
+        else:
+            dir_bag = db.from_sequence(numbered_dirs, npartitions=len(numbered_dirs))
+            new_files = dir_bag.map(process_directory).flatten().compute()
 
+        new_files_index = {str(i): v for i, v in enumerate(new_files)}
+
+        self.add_new_files_to_index(new_files_index)
+
+    def add_new_files_to_index(self, new_files_index):
         current_index = {}
         try:
             current_index = read_index(self.dataset_index_file_path())
         except Exception:
             pass
-
-        new_files_index = {str(i): v for i, v in enumerate(new_files)}
 
         current_index.update(new_files_index)
 
@@ -354,22 +314,39 @@ class StructuresDataset(BaseModel):
 
         mkdir_for_batches(pdb_repo_path, len(chunks))
 
-        tasks = [
-            delayed(retrieve_pdb_file)(pdb, pdb_repo_path / f"{batch_number}")
-            for batch_number, pdb_ids_chunk in enumerate(chunks)
-            for pdb in pdb_ids_chunk
-        ]
-        # Dask distributed client
-        with Client(silence_logs=logging.ERROR) as client:
-            futures = client.compute(tasks)
-            progress(futures)
-            results = client.gather(futures)
+        print(f"Downloading PDBs into {len(chunks)} chunks")
 
-        self.add_new_files_to_index()
+        new_files_index = {}
+
+        for batch_number, pdb_ids_chunk in enumerate(chunks):
+            start_time = time.time()
+            futures = self._client.map(retrieve_pdb_file_h5, pdb_ids_chunk)
+            downloaded_pdbs, file_path = retrieve_pdb_chunk_to_h5(pdb_repo_path / f"{batch_number}", futures)
+            end_time = time.time()
+
+            elapsed_time = end_time - start_time
+            print(f"Chunk to h5 time: {elapsed_time} seconds")
+
+            new_files_index.update(
+                {
+                    k: file_path for k in downloaded_pdbs
+                }
+            )
+
+        # tasks = [
+        #     delayed(retrieve_pdb_file)(pdb, pdb_repo_path / f"{batch_number}")
+        #     for batch_number, pdb_ids_chunk in enumerate(chunks)
+        #     for pdb in pdb_ids_chunk
+        # ]
+        # futures = self._client.compute(tasks)
+        # progress(futures)
+        # results = self._client.gather(futures)
+
+        self.add_new_files_to_index(new_files_index)
 
     def foldcomp_decompress(self):
 
-        db_path = self.dataset_repo_path() / self.type_str
+        db_path = str(self.dataset_repo_path() / self.type_str)
 
         lookup_path = self.dataset_repo_path() / f"{self.type_str}.lookup"
 
@@ -382,34 +359,23 @@ class StructuresDataset(BaseModel):
         structures_path = self.structures_path()
         structures_path.mkdir(exist_ok=True, parents=True)
 
-        def process_chunk(batch_number: int, ids: List[str]):
-            # Assuming the capability to open and handle slices of `db_type`
-            # `db_type` must support slicing or an equivalent method to fetch a range of items
-            with foldcomp.open(db_path, ids=ids) as db:
-                for (_, pdb), file_name in zip(db, ids):
-                    if ".pdb" not in file_name:
-                        file_name = f"{file_name}.pdb"
-                    file_path = structures_path / f"{batch_number}" / f"{file_name}"
-                    with open(file_path, 'w') as f:
-                        f.write(pdb)
+        batches = list(self.chunk(ids))
+        mkdir_for_batches(structures_path, len(batches))
 
-        with Client(silence_logs=logging.ERROR) as client:
-            cpu_cores = len(client.ncores())
-            structures_path = self.structures_path()
-            structures_path.mkdir(exist_ok=True, parents=True)
+        futures = [
+            self._client.submit(
+                alphafold_chunk_to_h5,
+                db_path,
+                structures_path / f"{number}",
+                list(batch)
+            )
+            for number, batch in enumerate(batches)
+        ]
 
-            batches = list(self.chunk(ids))
-            mkdir_for_batches(structures_path, len(batches))
+        progress(futures)
+        wait(futures)
 
-            futures = []
-            for number, batch in enumerate(batches):
-                future = client.submit(process_chunk, number, list(batch))
-                futures.append(future)
-
-            progress(futures)
-            results = client.gather(futures)
-
-        self.add_new_files_to_index()
+        self.find_add_new_files_to_index()
 
     def handle_afdb(self):
         match self.collection_type:
@@ -482,6 +448,5 @@ if __name__ == '__main__':
     ).create_dataset()
 
     generate_distograms(dataset)
-
 
     pass

@@ -24,11 +24,12 @@ def search_index(path: Path, ids_searched_for: List[str]):
 
 
 def search_indexes(
-        db_type: DatabaseType,
+        structures_dataset,
         base_path: Path,
         batched_ids: Iterable[List[str]],
         index_file_name: str,
 ) -> Tuple[Dict[str, str], List[str]]:
+    db_type = structures_dataset.db_type
     if db_type == DatabaseType.other:
         glob_pattern = f'**/*/{index_file_name}.idx'
     else:
@@ -41,13 +42,12 @@ def search_indexes(
         for file in sequence_indexes
     ]
 
-    with Client(silence_logs=logging.ERROR) as client:
-        futures = client.compute(tasks)
-        progress(futures)
-        results = client.gather(futures)
+    futures = structures_dataset._client.compute(tasks)
+    progress(futures)
+    results = structures_dataset._client.gather(futures)
 
-        results = reduce(lambda a, b: {**a, **b}, results, {})
-        return results, find_missing_ids(results, batched_ids)
+    results = reduce(lambda a, b: {**a, **b}, results, {})
+    return results, find_missing_ids(results, batched_ids)
 
 
 def find_missing_ids(index: Dict[str, str], ids: Iterable[List[str]]) -> List[str]:
