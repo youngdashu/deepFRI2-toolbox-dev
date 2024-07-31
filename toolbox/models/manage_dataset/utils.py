@@ -1,21 +1,19 @@
 import asyncio
-import shutil
+import traceback
 from io import StringIO
 from itertools import islice
 from pathlib import Path
-from typing import List, Tuple, Optional, Dict, Literal, Union
+from typing import List, Tuple, Optional, Dict
 
 import biotite.database
 import biotite.database.rcsb
-import dask.bag
 import h5py
 import numpy as np
-from Bio import PDB
-from Bio.PDB import PDBList
-from dask.distributed import Client, as_completed, Future, fire_and_forget, wait
+from dask.distributed import as_completed, Future
 from foldcomp import foldcomp
-
 from foldcomp.setup import download
+
+from toolbox.models.utils.cif2pdb import cif_to_pdb
 
 
 def foldcomp_download(db: str, output_dir: str):
@@ -51,13 +49,12 @@ def retrieve_pdb_file(pdb: str, pdb_repo_path_str: str, retry_num: int = 0):
     cif_file = biotite.database.rcsb.fetch(pdb, "cif")
 
     try:
-        pdbs = convert_cif_to_pdb_multi_chain(cif_file, pdb, "strIO")
+        pdbs = convert_cif_to_pdb_multi_chain(cif_file, pdb)
         for pdb_name, pdb_file in pdbs.items():
             pdb_file_path = Path(pdb_repo_path_str) / pdb_name
 
             with open(pdb_file_path, 'w') as file:
-                pdb_file.seek(0)
-                shutil.copyfileobj(pdb_file, file)
+                file.write(pdb_file)
     except Exception:
         print("Error converting CIF to PDB " + pdb)
 
@@ -84,28 +81,7 @@ def retrieve_pdb_chunk_to_h5(
     return res_pdbs, str(pdbs_file)
 
 
-def remove_hetatoms_from_model(model):
-    residue_to_remove = []
-    chain_to_remove = []
-
-    for chain in model:
-        for residue in chain:
-            if residue.id[0] != ' ':
-                residue_to_remove.append((chain.id, residue.id))
-        if len(chain) == 0:
-            chain_to_remove.append(chain.id)
-
-    for residue in residue_to_remove:
-        model[residue[0]].detach_child(residue[1])
-
-    for chain in chain_to_remove:
-        model.detach_child(chain)
-
-    return model
-
-
-def convert_cif_to_pdb_multi_chain(cif_stringio: StringIO, pdb_code: str, out_type: Literal["str", "strIO"]) -> Dict[
-    str, Union[str, StringIO]]:
+def convert_cif_to_pdb_multi_chain(cif_stringio: StringIO, pdb_code: str) -> Dict[str, str]:
     """
     Convert a CIF file to multiple PDB files, one for each chain.
 
@@ -114,46 +90,13 @@ def convert_cif_to_pdb_multi_chain(cif_stringio: StringIO, pdb_code: str, out_ty
         pdb_code (str): The PDB code to use in the output filenames.
 
     Returns:
-        Dict[str, Union[str, StringIO]]: A dictionary where keys are filenames (str) and values are PDB content (str).
+        Dict[str, str]: A dictionary where keys are filenames (str) and values are PDB content (str).
     """
-    # Create a structure object from the CIF file
-    parser = PDB.MMCIFParser(QUIET=True)
-    structure = parser.get_structure("structure", cif_stringio)
+    cif_stringio.seek(0)
+    cif_str = cif_stringio.read()
+    cif_stringio.close()
 
-    # Create a PDB file writer
-    io = PDB.PDBIO()
-
-    # Dictionary to store PDB content for each chain
-    chain_pdbs: Dict[str, str] = {}
-
-    # Iterate through models and chains
-    for model in map(remove_hetatoms_from_model, structure):
-
-        for chain in model:
-            original_chain_id = chain.id
-            chain.id = chain.id[-1]
-
-            # Select this chain only
-            io.set_structure(chain)
-
-            # Write the chain to a new StringIO object in PDB format
-            pdb_stringio = StringIO()
-            io.save(pdb_stringio)
-
-            if out_type == "strIO":
-                pdb_content = pdb_stringio
-            else:
-                pdb_content = pdb_stringio.getvalue()
-
-            chain_pdbs[original_chain_id] = pdb_content
-
-    # Prepare the results
-    results: Dict[str, str] = {}
-    for original_chain_id, pdb_content in chain_pdbs.items():
-        filename: str = f"{pdb_code}_{original_chain_id}.pdb"
-        results[filename] = pdb_content
-
-    return results
+    return cif_to_pdb(cif_str, pdb_code)
 
 
 def retrieve_pdb_file_h5(pdb: str) -> Dict[str, str]:
@@ -179,8 +122,9 @@ def retrieve_pdb_file_h5(pdb: str) -> Dict[str, str]:
 
     converted = {}
     try:
-        converted = convert_cif_to_pdb_multi_chain(cif_file, pdb, "str")
+        converted = convert_cif_to_pdb_multi_chain(cif_file, pdb)
     except Exception as e:
+        traceback.print_exc()
         print(e)
         print("Error in converting cif " + pdb)
 
@@ -241,10 +185,7 @@ def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
         return None
 
 
-from dask import delayed, compute
-
-
-def write_file(path, pdb_file_name, content, ):
+def write_file(path, pdb_file_name, content):
     with open(path / pdb_file_name, 'w') as f:
         f.write(content)
 
@@ -253,14 +194,28 @@ def pdbs_h5_to_files(h5_file_path: str):
     path = Path("./pdbs")
     path.mkdir(exist_ok=True, parents=True)
 
-    with Client(processes=False) as client:
-        futures = client.compute([
-            delayed(write_file, pure=False)(path, name, content)
-            for name, content in read_all_pdbs_from_h5(h5_file_path).items()
-        ])
-        return [future.result() for future in as_completed(futures)]
+    pdbs_dict = read_all_pdbs_from_h5(h5_file_path)
+
+    if pdbs_dict is None:
+        return []
+
+    print(len(pdbs_dict.keys()))
+
+    for i, (name, content) in enumerate(pdbs_dict.items()):
+        write_file(path, f"{i}_{name}", content)
+
 
 if __name__ == '__main__':
-    xd = pdbs_h5_to_files(
-        "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240727_1540/structures/0/pdbs.hdf5"
+
+    pdbs_h5_to_files(
+        "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240731_1058/structures/0/pdbs.hdf5"
     )
+
+    # xd = read_all_pdbs_from_h5(
+    #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240730_1747/structures/0/pdbs.hdf5"
+    # )
+    #
+    # print(
+    #     len(xd.keys())
+    # )
+
