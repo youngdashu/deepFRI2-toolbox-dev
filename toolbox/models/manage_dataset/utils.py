@@ -1,15 +1,19 @@
 import asyncio
 import traceback
+import zlib
 from io import StringIO
 from itertools import islice
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
+
+import time
 
 import biotite.database
 import biotite.database.rcsb
 import h5py
 import numpy as np
 from dask.distributed import as_completed, Future
+from distributed import Client
 from foldcomp import foldcomp
 from foldcomp.setup import download
 
@@ -61,7 +65,8 @@ def retrieve_pdb_file(pdb: str, pdb_repo_path_str: str, retry_num: int = 0):
 
 def retrieve_pdb_chunk_to_h5(
         path_for_batch: Path,
-        pdb_futures: List[Future]
+        pdb_futures: List[Future],
+        client: Client
 ) -> Tuple[List[str], str]:
     pdbs_file = path_for_batch / 'pdbs.hdf5'
 
@@ -69,14 +74,34 @@ def retrieve_pdb_chunk_to_h5(
         res_pdbs = []
         files_group = hf.create_group("files")
 
-        # write pdb_path and corresponding distogram to hdf5 file
-        for future, result in as_completed(pdb_futures, with_results=True):
+        contents = []
 
+        # 1000 input -> 4197 pdbs output
+        # w/o compression
+        # 81.5 sec
+        # 523.8 MB
+        # w compression
+        # 98.1 sec
+        # 177.3 MB
+
+        start_time = time.time()
+        for future, result in as_completed(pdb_futures, with_results=True):
             chains: Dict[str, str] = result
             for pdb_file_name, content in chains.items():
-                pdb_content = np.frombuffer(content.encode('utf-8'), dtype=np.uint8)
-                files_group.create_dataset(pdb_file_name, data=pdb_content, compression='szip')
                 res_pdbs.append(pdb_file_name)
+                contents.append(content)
+
+        end_time = time.time()
+
+        print("Download time: ", end_time - start_time)
+
+        start_time = time.time()
+        files_together = zlib.compress("|".join(contents).encode('utf-8'))
+        pdbs_content = np.frombuffer(files_together, dtype=np.uint8)
+        files_group.create_dataset(";".join(res_pdbs), data=pdbs_content)
+        end_time = time.time()
+
+        print("Compress + save time: ", end_time - start_time)
 
     return res_pdbs, str(pdbs_file)
 
@@ -143,14 +168,19 @@ def alphafold_chunk_to_h5(db_path: str, structures_path_for_batch: str, ids: Lis
         res_pdbs = []
         files_group = hf.create_group("files")
 
+        contents = []
+
         with foldcomp.open(db_path, ids=ids) as db:
             for (_, pdb), file_name in zip(db, ids):
                 if ".pdb" not in file_name:
                     file_name = f"{file_name}.pdb"
 
-                pdb_content = np.frombuffer(pdb.encode('utf-8'), dtype=np.uint8)
-                files_group.create_dataset(file_name, data=pdb_content, compression='szip')
+                contents.append(pdb)
                 res_pdbs.append(file_name)
+
+        files_together = zlib.compress("|".join(contents).encode('utf-8'))
+        pdb_content = np.frombuffer(files_together, dtype=np.uint8)
+        files_group.create_dataset(file_name, data=pdb_content)
 
 
 def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
@@ -172,14 +202,16 @@ def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
 
     try:
         with h5py.File(h5_file_path, 'r') as hf:
-            pdb_dict = {}
             pdb_files = hf["files"]
 
-            for pdb_code in pdb_files:
-                pdb_content = pdb_files[pdb_code][:].tobytes().decode('utf-8')
-                pdb_dict[pdb_code] = pdb_content
+            for pdb_file_names in pdb_files:
+                pdb_contents_bytes = pdb_files[pdb_file_names][:].tobytes()
+                decompressed = zlib.decompress(pdb_contents_bytes).decode('utf-8')
+                all_pdbs = decompressed.split("|")
 
-            return pdb_dict
+                all_file_names_split = pdb_file_names.split(";")
+
+            return dict(zip(all_file_names_split, all_pdbs))
     except Exception as e:
         print(f"An error occurred while reading the HDF5 file: {e}")
         return None
@@ -208,14 +240,6 @@ def pdbs_h5_to_files(h5_file_path: str):
 if __name__ == '__main__':
 
     pdbs_h5_to_files(
-        "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240731_1058/structures/0/pdbs.hdf5"
+        "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/subset_/20240731_1432/structures/0/pdbs.hdf5"
     )
-
-    # xd = read_all_pdbs_from_h5(
-    #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240730_1747/structures/0/pdbs.hdf5"
-    # )
-    #
-    # print(
-    #     len(xd.keys())
-    # )
 

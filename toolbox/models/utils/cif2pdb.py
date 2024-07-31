@@ -210,8 +210,6 @@ def _create_pdb_atoms_from_cif(cif_atoms, cif_fields, identifier):
 def cif_to_pdb(cif: str, pdb_code: str) -> Dict[str, str]:
     all_atoms, fields = _fetch_atoms_from_cif(pdb_code, 'A', cif)
 
-    print(pdb_code)
-
     # split atoms by auth_asym_id field
     chain_id_field_number = fields[KEY_CHAIN]
     atoms_per_chain = dict()

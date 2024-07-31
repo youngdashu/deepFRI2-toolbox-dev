@@ -228,7 +228,7 @@ class StructuresDataset(BaseModel):
                 print(f"PDBList().get_all_entries time: {elapsed_time} seconds")
                 url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
                 with contextlib.closing(urlopen(url)) as handle:
-                    res = list(filter_pdb_codes(handle, all_pdbs))
+                    res = list(filter_pdb_codes(handle, all_pdbs))[:1000]
                     print(f"After removing non protein codes {len(res)}")
             case DatabaseType.AFDB:
                 res = []
@@ -306,7 +306,7 @@ class StructuresDataset(BaseModel):
         for batch_number, pdb_ids_chunk in enumerate(chunks):
             start_time = time.time()
             futures = self._client.map(retrieve_pdb_file_h5, pdb_ids_chunk)
-            downloaded_pdbs, file_path = retrieve_pdb_chunk_to_h5(pdb_repo_path / f"{batch_number}", futures)
+            downloaded_pdbs, file_path = retrieve_pdb_chunk_to_h5(pdb_repo_path / f"{batch_number}", futures, self._client)
             end_time = time.time()
 
             elapsed_time = end_time - start_time
@@ -427,7 +427,10 @@ if __name__ == '__main__':
 
     dataset = StructuresDataset(
         db_type=DatabaseType.PDB,
-        collection_type=CollectionType.all,
-    ).create_dataset()
+        collection_type=CollectionType.subset,
+        ids_file=Path("/Users/youngdashu/sano/deepFRI2-toolbox-dev/toolbox/models/manage_dataset/ids.txt")
+    )
+
+    dataset.create_dataset()
 
     pass
