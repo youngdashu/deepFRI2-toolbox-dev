@@ -110,10 +110,13 @@ def compression_test(distograms: List[Tuple[str, np.ndarray]], compression=None,
     start = time.time()
     for pdb_path, distogram in distograms:
         protein_grp = hf.create_group(pdb_path)
-        protein_grp.create_dataset('distogram', data=distogram,
-                                   compression=compression,
-                                   compression_opts=compression_opts,
-                                   shuffle=shuffle)
+        protein_grp.create_dataset(
+            'distogram',
+            data=distogram,
+            compression=compression,
+            compression_opts=compression_opts,
+            shuffle=shuffle
+        )
     hf.close()
     end = time.time()
 
