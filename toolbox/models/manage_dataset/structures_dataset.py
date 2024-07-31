@@ -11,9 +11,7 @@ from urllib.request import urlopen
 
 import dask.bag as db
 import dotenv
-import foldcomp
 from Bio.PDB import PDBList
-from dask import delayed
 from dask.bag import Bag
 from distributed import Client, progress, wait
 from pydantic import BaseModel, field_validator
@@ -22,8 +20,7 @@ from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.paths import datasets_path, repo_path
 from toolbox.models.manage_dataset.utils import foldcomp_download, mkdir_for_batches, retrieve_pdb_chunk_to_h5, \
     retrieve_pdb_file_h5, alphafold_chunk_to_h5
-from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms
-from toolbox.models.manage_dataset.handle_index import create_index, read_index
+from toolbox.models.manage_dataset.handle_index import create_index, read_index, add_new_files_to_index
 from toolbox.models.manage_dataset.sequences.from_pdb import get_sequence_from_pdbs
 from toolbox.models.manage_dataset.sequences.load_fasta import extract_sequences_from_fasta
 from toolbox.models.manage_dataset.utils import chunk, retrieve_pdb_file
@@ -49,7 +46,7 @@ class StructuresDataset(BaseModel):
     ids_file: Optional[Path] = None
     seqres_file: Optional[Path] = None
     overwrite: bool = False
-    batch_size: int = 10
+    batch_size: int = 1000
     _client: Optional[Client] = None
 
     @field_validator('version', mode='before')
@@ -230,13 +227,9 @@ class StructuresDataset(BaseModel):
                 elapsed_time = end_time - start_time
                 print(f"PDBList().get_all_entries time: {elapsed_time} seconds")
                 url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
-                start_time = time.time()
                 with contextlib.closing(urlopen(url)) as handle:
                     res = list(filter_pdb_codes(handle, all_pdbs))
                     print(f"After removing non protein codes {len(res)}")
-                end_time = time.time()
-                elapsed_time = end_time - start_time
-                print(f"filter_pdb_codes time: {elapsed_time} seconds")
             case DatabaseType.AFDB:
                 res = []
             case DatabaseType.ESMatlas:
@@ -289,15 +282,7 @@ class StructuresDataset(BaseModel):
         self.add_new_files_to_index(new_files_index)
 
     def add_new_files_to_index(self, new_files_index):
-        current_index = {}
-        try:
-            current_index = read_index(self.dataset_index_file_path())
-        except Exception:
-            pass
-
-        current_index.update(new_files_index)
-
-        create_index(self.dataset_index_file_path(), current_index)
+        add_new_files_to_index(self.dataset_index_file_path(), new_files_index)
 
     # def save_new_files_to_index(self):
     #     self.dataset_path().mkdir(exist_ok=True, parents=True)
@@ -437,16 +422,12 @@ def create_swissprot():
 
 
 if __name__ == '__main__':
-    # test()
     # create_swissprot()
     # create_e_coli()
-    # test2()
 
     dataset = StructuresDataset(
         db_type=DatabaseType.PDB,
         collection_type=CollectionType.all,
     ).create_dataset()
-
-    generate_distograms(dataset)
 
     pass
