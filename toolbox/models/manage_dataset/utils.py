@@ -237,9 +237,16 @@ def pdbs_h5_to_files(h5_file_path: str):
         write_file(path, f"{i}_{name}", content)
 
 
+def groupby_dict_by_values(d):
+    v = {}
+
+    for key, value in d.items():
+        v.setdefault(value, []).append(key)
+
+    return v
+
+
 if __name__ == '__main__':
-
     pdbs_h5_to_files(
-        "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/subset_/20240731_1432/structures/0/pdbs.hdf5"
+        "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/subset_/20240731_1535/structures/0/pdbs.hdf5"
     )
-

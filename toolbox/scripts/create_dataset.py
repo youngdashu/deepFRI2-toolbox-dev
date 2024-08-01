@@ -1,5 +1,8 @@
 import argparse
+import logging
 import pathlib
+
+from distributed import Client
 
 from toolbox.models.embedding.embedding import Embedding
 from toolbox.models.manage_dataset.database_type import DatabaseType
@@ -8,12 +11,16 @@ from toolbox.models.manage_dataset.structures_dataset import CollectionType, Str
 
 
 def _create_dataset_from_path_(path: pathlib.Path) -> StructuresDataset:
+    res = None
     if path.is_dir() and (path / "dataset.json").exists():
-        return StructuresDataset.model_validate_json((path / "dataset.json").read_text())
+        res = StructuresDataset.model_validate_json((path / "dataset.json").read_text())
     elif path.is_file():
-        return StructuresDataset.model_validate_json(path.read_text())
+        res = StructuresDataset.model_validate_json(path.read_text())
     else:
         raise FileNotFoundError
+
+    res._client =  Client(silence_logs=logging.ERROR)
+    return res
 
 
 def create_parser():

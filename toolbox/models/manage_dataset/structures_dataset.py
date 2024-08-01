@@ -19,11 +19,11 @@ from pydantic import BaseModel, field_validator
 from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.paths import datasets_path, repo_path
 from toolbox.models.manage_dataset.utils import foldcomp_download, mkdir_for_batches, retrieve_pdb_chunk_to_h5, \
-    retrieve_pdb_file_h5, alphafold_chunk_to_h5
+    retrieve_pdb_file_h5, alphafold_chunk_to_h5, groupby_dict_by_values
 from toolbox.models.manage_dataset.handle_index import create_index, read_index, add_new_files_to_index
-from toolbox.models.manage_dataset.sequences.from_pdb import get_sequence_from_pdbs
 from toolbox.models.manage_dataset.sequences.load_fasta import extract_sequences_from_fasta
 from toolbox.models.manage_dataset.utils import chunk, retrieve_pdb_file
+from toolbox.models.utils.get_sequences import get_sequences_from_batch
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 from toolbox.utlis.search_indexes import search_indexes
 
@@ -167,55 +167,79 @@ class StructuresDataset(BaseModel):
         batched_ids = self.chunk(index.keys())
 
         print("Searching indexes")
-        index, missing_sequences = search_indexes(
-            self.db_type,
+        sequences_index, missing_sequences = search_indexes(
+            self,
             Path(datasets_path),
             batched_ids,
             'sequences'
         )
 
-        print(len(index))
+        print(len(sequences_index))
         print(f"missing seqs: {len(missing_sequences)}")
 
-        missing_ids = db.from_sequence(missing_sequences,
-                                       partition_size=self.batch_size)  # self.chunk(missing_sequences)
+        # missing_items: Dict[str, str] = dict.fromkeys(missing_sequences) & index
 
-        missing_items: Dict[str, str] = dict.fromkeys(missing_sequences) & index
+        missing_items: Dict[str, str] = {
+            missing_protein_name: index[missing_protein_name] for missing_protein_name in missing_sequences
+        }
+
+        reversed: dict[str, List[str]] = groupby_dict_by_values(missing_items)
+
+        sequences_file_path = self.dataset_path() / "sequences.fasta"
 
         if self.seqres_file is not None:
             print("Getting sequences from provided fasta")
+            missing_ids = db.from_sequence(missing_sequences,
+                                           partition_size=self.batch_size)
             tasks = extract_sequences_from_fasta(self.seqres_file, missing_ids)
         else:
             print("Getting sequences from stored PDBs")
-            db.from_sequence(missing_items).groupby(lambda code_file_path: code_file_path[1])
-            tasks = missing_ids.map(get_sequence_from_pdbs)
 
-        def parallel_reduce_dicts_with_bag(bag: Bag):
-            # Use foldby to combine all dictionaries
-            # The key function returns a constant so all items are grouped together
-            combined = bag.foldby(
-                key=lambda x: 'all',
-                binop=lambda acc, x: {**acc, **x},
-                initial={}
-            )
+            futures = []
+            for proteins_file, codes in reversed.items():
+                future = self._client.submit(get_sequences_from_batch, proteins_file, codes)
+                futures.append(future)
+            progress(futures)
+            all_sequences: List[List[str]] = self._client.gather(futures)
 
-            # Compute the result and extract the combined dictionary
-            final_result = combined.compute()[0][1]
+            all_codes: List[List[str]] = reversed.values()
 
-            return final_result
+            with open(sequences_file_path, 'w') as f:
+                print("Saving sequences to dict")
+                for sequences, codes in zip(all_sequences, all_codes):
+                    for sequence, code in zip(sequences, codes):
+                        transformed_code = str(code).removesuffix(".pdb")
+                        f.write(
+                            f">{transformed_code}\n{sequence}\n"
+                        )
 
-        # Parallel reduce for dictionary merging
-        print("\tGetting result")
-        results_dict = parallel_reduce_dicts_with_bag(tasks)
-        sequences_file_path = self.dataset_path() / "pdb_sequence.json"
-        with open(sequences_file_path, 'w') as f:
-            print("Saving sequences to dict")
-            json.dump(results_dict, f)
+            # db.from_sequence(missing_items).groupby(lambda code_file_path: code_file_path[1])
+            # tasks = missing_ids.map(get_sequence_from_pdbs)
+
+        # def parallel_reduce_dicts_with_bag(bag: Bag):
+        #     # Use foldby to combine all dictionaries
+        #     # The key function returns a constant so all items are grouped together
+        #     combined = bag.foldby(
+        #         key=lambda x: 'all',
+        #         binop=lambda acc, x: {**acc, **x},
+        #         initial={}
+        #     )
+        #
+        #     # Compute the result and extract the combined dictionary
+        #     final_result = combined.compute()[0][1]
+        #
+        #     return final_result
+        #
+        # # Parallel reduce for dictionary merging
+        # print("\tGetting result")
+        # results_dict = parallel_reduce_dicts_with_bag(tasks)
+
+            # json.dump(results_dict, f)
 
         print("Save new index with all proteins")
         for id_ in missing_sequences:
-            index[id_] = str(sequences_file_path)
-        create_index(self.sequences_index_path(), index)
+            sequences_index[id_] = str(sequences_file_path)
+        create_index(self.sequences_index_path(), sequences_index)
 
     def get_all_ids(self):
         match self.db_type:
