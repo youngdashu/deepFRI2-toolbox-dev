@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 
 from pathlib import Path
-from typing import Dict, List, Tuple, ClassVar
+from typing import Dict, Tuple, ClassVar
 
 import dask.bag as db
 
@@ -13,17 +13,6 @@ import subprocess
 import time
 
 import shutil
-
-
-def create_fasta_for_protein(item: Tuple[str, Dict[str, str]]):
-    name, values = item
-    res = []
-    for key, value in values.items():
-        res.append(
-            f">{name}_{key}\n{value}\n"
-        )
-    return "\n".join(res)
-
 
 
 class Embedding:
@@ -52,7 +41,7 @@ class Embedding:
 
     def sequences_to_single_fasta(self):
         """
-        Process datasets of protein sequences, generate embeddings, and save them into a FASTA file.
+        Process datasets of protein sequences, and save them into a FASTA file.
         """
         start_time = time.time()
         datasets = self.datasets_file_path.read_text().splitlines()
@@ -76,23 +65,10 @@ class Embedding:
             return
 
         all_sequence_files = db.from_sequence(set(all_sequence_files), partition_size=1)
-
-        def load_sequence_file_to_dict(file_name: str):
-            with open(file_name, 'r') as f:
-                return json.load(f)
-
-        all_seqs = all_sequence_files.map(load_sequence_file_to_dict).compute()
-
-        merged_seqs: Dict[str, List[str]] = {}
-        for seq_dict in all_seqs:
-            merged_seqs.update(seq_dict)
-
-        bag = db.from_sequence(merged_seqs.items(), partition_size=5000)
-        processed_bag = bag.map(create_fasta_for_protein)
-        result = processed_bag.compute()
+        merged_fasta = all_sequence_files.map(lambda file: Path(file).read_text()).compute()
 
         with open(self.embeddings_path / Embedding.Fasta_file, "w") as f:
-            f.writelines(result)
+            f.writelines(merged_fasta)
 
         end_time = time.time()
         print(f"Execution time for sequences_to_single_fasta: {end_time - start_time} seconds.")
