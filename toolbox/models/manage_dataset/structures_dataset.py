@@ -53,6 +53,10 @@ class StructuresDataset(BaseModel):
     def set_version(cls, v):
         return v or datetime.now().strftime('%Y%m%d_%H%M')
 
+    @field_validator('batch_size', mode='before')
+    def set_batch_size(cls, size):
+        return size or 1000
+
     def dataset_repo_path(self):
         return Path(repo_path) / self.db_type.name / f"{self.collection_type.name}_{self.type_str}" / self.version
 
