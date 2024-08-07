@@ -1,4 +1,4 @@
-from typing import Dict, Literal, Tuple, List
+from typing import Dict, Literal, Tuple, List, Union, Optional
 
 LOOP_ID = "loop_"
 LOOP_EL_ID = "_atom_site."
@@ -113,7 +113,7 @@ def _fetch_atoms_from_cif(protein_code: str, row_type: Literal['A', 'H', 'AH'], 
     return atoms, fields
 
 
-def _create_pdb_atoms_from_cif(cif_atoms, cif_fields, identifier):
+def _create_pdb_atoms_from_cif(cif_atoms, cif_fields, identifier, with_acids_validation=False) -> Optional[List[str]]:
     """
     Transform mmCIF atoms into pdb atoms.
 
@@ -181,6 +181,9 @@ def _create_pdb_atoms_from_cif(cif_atoms, cif_fields, identifier):
 
         # Create and save line
 
+        if len(str(elements[idx_res])) < 3:
+            return None
+
         line = f"{elements[idx_record]:<6}" \
                f"{str(i + 1)[:5]:>5}" \
                f" " \
@@ -222,6 +225,8 @@ def cif_to_pdb(cif: str, pdb_code: str) -> Dict[str, str]:
     # return dict[pdb_code_ORIGINAL_chain, pdb_file_content]
     for chain_id, chain_atoms in atoms_per_chain.items():
         pdb_atoms = _create_pdb_atoms_from_cif(chain_atoms, fields, chain_id)
+        if pdb_atoms is None:
+            continue
         pdb_str = "".join(pdb_atoms)
         result[f"{pdb_code}_{chain_id}.pdb"] = pdb_str
 

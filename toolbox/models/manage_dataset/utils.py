@@ -66,7 +66,6 @@ def retrieve_pdb_file(pdb: str, pdb_repo_path_str: str, retry_num: int = 0):
 def retrieve_pdb_chunk_to_h5(
         path_for_batch: Path,
         pdb_futures: List[Future],
-        client: Client
 ) -> Tuple[List[str], str]:
     pdbs_file = path_for_batch / 'pdbs.hdf5'
 
@@ -98,7 +97,10 @@ def retrieve_pdb_chunk_to_h5(
         start_time = time.time()
         files_together = zlib.compress("|".join(contents).encode('utf-8'))
         pdbs_content = np.frombuffer(files_together, dtype=np.uint8)
-        files_group.create_dataset(";".join(res_pdbs), data=pdbs_content)
+        files_group.create_dataset(
+            name=";".join(res_pdbs),
+            data=pdbs_content
+        )
         end_time = time.time()
 
         print("Compress + save time: ", end_time - start_time)

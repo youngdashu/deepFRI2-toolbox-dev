@@ -2,7 +2,7 @@ aa_dict = {
     'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
     'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
     'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R',
-    'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'
+    'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y',
 }
 
 
@@ -27,21 +27,6 @@ def extract_sequence_from_pdb_string(pdb_string):
                     sequence.append(aa_dict[residue_name])
 
     return ''.join(sequence)
-
-# def get_sequence_from_pdbs(file_path: str):
-#     pdb_parser = PDBParser(QUIET=True)
-#
-#     # print(file_paths)
-#     path = Path(file_path)
-#     structure = pdb_parser.get_structure("", path)
-#
-#     pdb_parser.get_structure()
-#
-#     chains = {chain.id: seq1(''.join(residue.resname for residue in chain)) for chain in structure.get_chains()}
-#
-#     protein_name = path.stem
-#
-#     return {protein_name: chains}
 
 
 

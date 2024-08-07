@@ -4,6 +4,7 @@ import pathlib
 
 from distributed import Client
 
+from toolbox.models.chains.verify_chains import verify_chains
 from toolbox.models.embedding.embedding import Embedding
 from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms, read_distograms_from_file
@@ -65,6 +66,9 @@ def create_parser():
     read_distograms_parser = subparsers.add_parser("read-distograms", help="Read distograms for ")
     read_distograms_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
+    verify_chains_parser = subparsers.add_parser("verify-chains", help="Verify chains for ")
+    verify_chains_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
+
     return parser
 
 
@@ -103,6 +107,9 @@ def main():
         print(
             read_distograms_from_file(args.file_path)
         )
+    elif args.command == "verify-chains":
+        dataset = _create_dataset_from_path_(args.file_path)
+        verify_chains(dataset, "/Users/youngdashu/downloads/pdb_seqres.txt")
 
 
 if __name__ == "__main__":

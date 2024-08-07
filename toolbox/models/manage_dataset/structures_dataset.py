@@ -330,7 +330,7 @@ class StructuresDataset(BaseModel):
         for batch_number, pdb_ids_chunk in enumerate(chunks):
             start_time = time.time()
             futures = self._client.map(retrieve_pdb_file_h5, pdb_ids_chunk)
-            downloaded_pdbs, file_path = retrieve_pdb_chunk_to_h5(pdb_repo_path / f"{batch_number}", futures, self._client)
+            downloaded_pdbs, file_path = retrieve_pdb_chunk_to_h5(pdb_repo_path / f"{batch_number}", futures)
             end_time = time.time()
 
             elapsed_time = end_time - start_time
@@ -452,7 +452,7 @@ if __name__ == '__main__':
     dataset = StructuresDataset(
         db_type=DatabaseType.PDB,
         collection_type=CollectionType.subset,
-        ids_file=Path("/Users/youngdashu/sano/deepFRI2-toolbox-dev/toolbox/models/manage_dataset/ids.txt")
+        ids_file=Path("/Users/youngdashu/sano/deepFRI2-toolbox-dev/ids_test.txt")
     )
 
     dataset.create_dataset()
