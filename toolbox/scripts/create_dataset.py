@@ -18,6 +18,7 @@ def _create_dataset_from_path_(path: pathlib.Path) -> StructuresDataset:
     elif path.is_file():
         res = StructuresDataset.model_validate_json(path.read_text())
     else:
+        print("Dataset path is not valid")
         raise FileNotFoundError
 
     res._client =  Client(silence_logs=logging.ERROR)
@@ -109,7 +110,7 @@ def main():
         )
     elif args.command == "verify-chains":
         dataset = _create_dataset_from_path_(args.file_path)
-        verify_chains(dataset, "/Users/youngdashu/downloads/pdb_seqres.txt")
+        verify_chains(dataset, "./toolbox/pdb_seqres.txt")
 
 
 if __name__ == "__main__":
