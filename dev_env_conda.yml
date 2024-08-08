@@ -13,3 +13,4 @@ dependencies:
   - biotite
   - h5py
   - tables
+  - numpy~=1.26.4
