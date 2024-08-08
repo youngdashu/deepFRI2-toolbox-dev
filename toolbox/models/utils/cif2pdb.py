@@ -1,5 +1,7 @@
 from typing import Dict, Literal, Tuple, List, Union, Optional
 
+from toolbox.models.manage_dataset.sequences.from_pdb import aa_dict
+
 LOOP_ID = "loop_"
 LOOP_EL_ID = "_atom_site."
 ATOM_ID = "ATOM"
@@ -182,6 +184,9 @@ def _create_pdb_atoms_from_cif(cif_atoms, cif_fields, identifier, with_acids_val
         # Create and save line
 
         if len(str(elements[idx_res])) < 3:
+            return None
+
+        if aa_dict.get(f"{elements[idx_res]:>3}", None) is None:
             return None
 
         line = f"{elements[idx_record]:<6}" \
