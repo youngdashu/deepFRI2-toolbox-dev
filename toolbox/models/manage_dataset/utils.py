@@ -2,7 +2,6 @@ import asyncio
 import traceback
 import zipfile
 import zlib
-from io import StringIO
 from itertools import islice
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
@@ -15,7 +14,6 @@ import h5py
 import numpy as np
 from dask import compute, delayed
 from dask.distributed import as_completed, Future
-from distributed import Client
 from foldcomp import foldcomp
 from foldcomp.setup import download
 
