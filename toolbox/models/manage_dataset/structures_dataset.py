@@ -12,7 +12,7 @@ from urllib.request import urlopen
 import dask.bag as db
 import dotenv
 from Bio.PDB import PDBList
-from distributed import Client, progress, wait
+from distributed import Client, progress, wait, LocalCluster
 from pydantic import BaseModel, field_validator
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
@@ -37,13 +37,17 @@ class CollectionType(Enum):
     subset = "subset"
 
 
+def get_client():
+    return Client(silence_logs=logging.ERROR, n_workers=os.cpu_count(), n_threads=1)
+
+
 class StructuresDataset(BaseModel):
     db_type: DatabaseType
     collection_type: CollectionType
     type_str: str = ""
     version: str = datetime.now().strftime('%Y%m%d_%H%M')
     ids_file: Optional[Path] = None
-    seqres_file: Optional[Path] = None
+    seqres_file: Optional[Path] = None  # to delete
     overwrite: bool = False
     batch_size: int = 1000
     _client: Optional[Client] = None
@@ -55,6 +59,10 @@ class StructuresDataset(BaseModel):
     @field_validator('batch_size', mode='before')
     def set_batch_size(cls, size):
         return size or 1000
+
+    # @field_validator('_client', mode='before', check_fields=False)
+    # def set_client(cls, client):
+    #     return get_client()
 
     def dataset_repo_path(self):
         return Path(repo_path) / self.db_type.name / f"{self.collection_type.name}_{self.type_str}" / self.version
@@ -83,10 +91,14 @@ class StructuresDataset(BaseModel):
     def batches_count(self) -> int:
         return sum(1 for item in self.structures_path().iterdir() if item.is_dir())
 
+    def add_client(self):
+        if self._client is None:
+            print(self._client)
+            self._client = get_client()
+
     def create_dataset(self) -> "Dataset":
 
-        self._client = Client(silence_logs=logging.ERROR)
-
+        self.add_client()
         print(self._client.dashboard_link)
 
         print(str(datetime.now()))
@@ -241,7 +253,7 @@ class StructuresDataset(BaseModel):
         # print("\tGetting result")
         # results_dict = parallel_reduce_dicts_with_bag(tasks)
 
-            # json.dump(results_dict, f)
+        # json.dump(results_dict, f)
 
         print("Save new index with all proteins")
         for id_ in missing_sequences:
@@ -442,12 +454,14 @@ if __name__ == '__main__':
     # create_swissprot()
     # create_e_coli()
 
-    dataset = StructuresDataset(
-        db_type=DatabaseType.PDB,
-        collection_type=CollectionType.subset,
-        ids_file=Path("/Users/youngdashu/sano/deepFRI2-toolbox-dev/ids_test.txt")
-    )
+    # dataset = StructuresDataset(
+    #     db_type=DatabaseType.PDB,
+    #     collection_type=CollectionType.subset,
+    #     ids_file=Path("/Users/youngdashu/sano/deepFRI2-toolbox-dev/ids_test.txt")
+    # )
+    #
+    # dataset.create_dataset()
 
-    dataset.create_dataset()
+    create_e_coli()
 
     pass
