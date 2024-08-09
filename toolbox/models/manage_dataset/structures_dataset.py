@@ -12,7 +12,6 @@ from urllib.request import urlopen
 import dask.bag as db
 import dotenv
 from Bio.PDB import PDBList
-from dask.bag import Bag
 from distributed import Client, progress, wait
 from pydantic import BaseModel, field_validator
 
@@ -87,6 +86,8 @@ class StructuresDataset(BaseModel):
     def create_dataset(self) -> "Dataset":
 
         self._client = Client(silence_logs=logging.ERROR)
+
+        print(self._client.dashboard_link)
 
         self.dataset_repo_path().mkdir(exist_ok=True, parents=True)
 
@@ -332,28 +333,14 @@ class StructuresDataset(BaseModel):
         new_files_index = {}
 
         for batch_number, pdb_ids_chunk in enumerate(chunks):
-            start_time = time.time()
             futures = self._client.map(retrieve_pdb_file_h5, pdb_ids_chunk)
             downloaded_pdbs, file_path = retrieve_pdb_chunk_to_h5(pdb_repo_path / f"{batch_number}", futures)
-            end_time = time.time()
-
-            elapsed_time = end_time - start_time
-            print(f"Chunk to h5 time: {elapsed_time} seconds")
 
             new_files_index.update(
                 {
                     k: file_path for k in downloaded_pdbs
                 }
             )
-
-        # tasks = [
-        #     delayed(retrieve_pdb_file)(pdb, pdb_repo_path / f"{batch_number}")
-        #     for batch_number, pdb_ids_chunk in enumerate(chunks)
-        #     for pdb in pdb_ids_chunk
-        # ]
-        # futures = self._client.compute(tasks)
-        # progress(futures)
-        # results = self._client.gather(futures)
 
         self.add_new_files_to_index(new_files_index)
 
