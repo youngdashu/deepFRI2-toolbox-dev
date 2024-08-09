@@ -89,6 +89,8 @@ class StructuresDataset(BaseModel):
 
         print(self._client.dashboard_link)
 
+        print(str(datetime.now()))
+
         self.dataset_repo_path().mkdir(exist_ok=True, parents=True)
 
         if self.collection_type == CollectionType.subset:
