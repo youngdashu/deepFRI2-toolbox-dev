@@ -1,28 +1,9 @@
 import argparse
-import logging
 import pathlib
 
-from distributed import Client
-
-from toolbox.models.chains.verify_chains import verify_chains
-from toolbox.models.embedding.embedding import Embedding
 from toolbox.models.manage_dataset.database_type import DatabaseType
-from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms, read_distograms_from_file
-from toolbox.models.manage_dataset.structures_dataset import CollectionType, StructuresDataset
-
-
-def _create_dataset_from_path_(path: pathlib.Path) -> StructuresDataset:
-    res = None
-    if path.is_dir() and (path / "dataset.json").exists():
-        res = StructuresDataset.model_validate_json((path / "dataset.json").read_text())
-    elif path.is_file():
-        res = StructuresDataset.model_validate_json(path.read_text())
-    else:
-        print("Dataset path is not valid")
-        raise FileNotFoundError
-
-    res._client =  Client(silence_logs=logging.ERROR)
-    return res
+from toolbox.models.manage_dataset.structures_dataset import CollectionType
+from toolbox.scripts.command_parser import CommandParser
 
 
 def create_parser():
@@ -77,40 +58,7 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    if args.command == "dataset":
-        dataset = StructuresDataset(
-            db_type=args.db,
-            collection_type=args.collection,
-            type_str=args.type,
-            version=args.version,
-            ids_file=args.ids,
-            seqres_file=args.seqres,
-            overwrite=args.overwrite,
-            batch_size=args.batch_size
-        )
-
-        dataset.create_dataset()
-    elif args.command == "embedding":
-        embedding = Embedding(datasets_file_path=args.file_path)
-        embedding.sequences_to_single_fasta()
-        embedding.build_db()
-        embedding.create_embeddings()
-    elif args.command == "load":
-        dataset = _create_dataset_from_path_(args.file_path)
-        print(dataset)
-    elif args.command == "generate-sequence":
-        dataset = _create_dataset_from_path_(args.file_path)
-        dataset.generate_sequence()
-    elif args.command == "generate-distograms":
-        dataset = _create_dataset_from_path_(args.file_path)
-        generate_distograms(dataset)
-    elif args.command == "read-distograms":
-        print(
-            read_distograms_from_file(args.file_path)
-        )
-    elif args.command == "verify-chains":
-        dataset = _create_dataset_from_path_(args.file_path)
-        verify_chains(dataset, "./toolbox/pdb_seqres.txt")
+    CommandParser(args).run()
 
 
 if __name__ == "__main__":

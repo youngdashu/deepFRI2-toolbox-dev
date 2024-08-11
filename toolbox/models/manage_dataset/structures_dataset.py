@@ -1,27 +1,26 @@
 import contextlib
-import json
 import logging
 import os
 import time
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import List, Union, Dict, Optional
+from typing import List, Dict, Optional
 from urllib.request import urlopen
 
 import dask.bag as db
 import dotenv
 from Bio.PDB import PDBList
-from distributed import Client, progress, wait, LocalCluster
+from dask.distributed import Client, progress, wait, LocalCluster, Semaphore
 from pydantic import BaseModel, field_validator
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.paths import datasets_path, repo_path
 from toolbox.models.manage_dataset.utils import foldcomp_download, mkdir_for_batches, retrieve_pdb_chunk_to_h5, \
-    retrieve_pdb_file_h5, alphafold_chunk_to_h5, groupby_dict_by_values
+    retrieve_cifs_to_pdbs, alphafold_chunk_to_h5, groupby_dict_by_values
 from toolbox.models.manage_dataset.handle_index import create_index, read_index, add_new_files_to_index
 from toolbox.models.manage_dataset.sequences.load_fasta import extract_sequences_from_fasta
-from toolbox.models.manage_dataset.utils import chunk, retrieve_pdb_file
+from toolbox.models.manage_dataset.utils import chunk
 from toolbox.models.utils.get_sequences import get_sequences_from_batch
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 from toolbox.utlis.search_indexes import search_indexes
@@ -37,8 +36,20 @@ class CollectionType(Enum):
     subset = "subset"
 
 
-def get_client():
-    return Client(silence_logs=logging.ERROR, n_workers=os.cpu_count(), n_threads=1)
+def create_client():
+    # Get the total number of CPUs available on the machine
+    total_cores = os.cpu_count()
+
+    # Create a LocalCluster with the calculated number of workers
+    cluster = LocalCluster(
+        dashboard_address='127.0.0.1:8786',
+        n_workers=total_cores,
+        threads_per_worker=1,
+        silence_logs=logging.ERROR
+    )
+
+    client = Client(cluster)
+    return client
 
 
 class StructuresDataset(BaseModel):
@@ -59,10 +70,6 @@ class StructuresDataset(BaseModel):
     @field_validator('batch_size', mode='before')
     def set_batch_size(cls, size):
         return size or 1000
-
-    # @field_validator('_client', mode='before', check_fields=False)
-    # def set_client(cls, client):
-    #     return get_client()
 
     def dataset_repo_path(self):
         return Path(repo_path) / self.db_type.name / f"{self.collection_type.name}_{self.type_str}" / self.version
@@ -93,8 +100,7 @@ class StructuresDataset(BaseModel):
 
     def add_client(self):
         if self._client is None:
-            print(self._client)
-            self._client = get_client()
+            self._client = create_client()
 
     def create_dataset(self) -> "Dataset":
 
@@ -344,12 +350,41 @@ class StructuresDataset(BaseModel):
 
         print(f"Downloading PDBs into {len(chunks)} chunks")
 
-        new_files_index = {}
+        new_files_futures = []
+
+        max_workers = max(os.cpu_count() // 10, 1)
+        semaphore = Semaphore(max_leases=max_workers, name='retrieve_pdb')
+
+        all_results = []
+
+        def collect():
+            progress(new_files_futures)
+            results = self._client.gather(new_files_futures)
+            all_results.extend(results)
+            for _ in results:
+                semaphore.release()
 
         for batch_number, pdb_ids_chunk in enumerate(chunks):
-            futures = self._client.map(retrieve_pdb_file_h5, pdb_ids_chunk)
-            downloaded_pdbs, file_path = retrieve_pdb_chunk_to_h5(pdb_repo_path / f"{batch_number}", futures)
 
+            def run():
+                semaphore.acquire()
+                future = self._client.submit(retrieve_pdb_chunk_to_h5, pdb_repo_path / f"{batch_number}", pdb_ids_chunk)
+                new_files_futures.append(future)
+
+            if max_workers > semaphore.get_value():
+                run()
+            else:
+                collect()
+
+                new_files_futures.clear()
+
+                run()
+
+        collect()
+
+        new_files_index = {}
+        for result in all_results:
+            downloaded_pdbs, file_path = result
             new_files_index.update(
                 {
                     k: file_path for k in downloaded_pdbs
@@ -454,14 +489,14 @@ if __name__ == '__main__':
     # create_swissprot()
     # create_e_coli()
 
-    # dataset = StructuresDataset(
-    #     db_type=DatabaseType.PDB,
-    #     collection_type=CollectionType.subset,
-    #     ids_file=Path("/Users/youngdashu/sano/deepFRI2-toolbox-dev/ids_test.txt")
-    # )
-    #
-    # dataset.create_dataset()
+    dataset = StructuresDataset(
+        db_type=DatabaseType.PDB,
+        collection_type=CollectionType.all,
+        # ids_file=Path("/Users/youngdashu/sano/deepFRI2-toolbox-dev/ids_test.txt")
+    )
 
-    create_e_coli()
+    dataset.create_dataset()
+
+    # create_e_coli()
 
     pass

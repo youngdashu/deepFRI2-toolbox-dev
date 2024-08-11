@@ -4,7 +4,7 @@ import zipfile
 import zlib
 from itertools import islice
 from pathlib import Path
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional, Dict, Iterable
 
 import time
 
@@ -12,8 +12,9 @@ import biotite.database
 import biotite.database.rcsb
 import h5py
 import numpy as np
-from dask import compute, delayed
-from dask.distributed import as_completed, Future
+from dask import delayed
+from dask.distributed import as_completed, Future, Semaphore, worker_client
+from distributed import get_client
 from foldcomp import foldcomp
 from foldcomp.setup import download
 
@@ -42,96 +43,28 @@ def chunk(data, size):
         yield chunk_data
 
 
-def retrieve_pdb_file(pdb: str, pdb_repo_path_str: str, retry_num: int = 0):
-    if retry_num > 2:
-        print(f"Failed retrying {pdb}")
-        return
-
-    if retry_num > 0:
-        print(f"Retrying downloading {pdb} {retry_num}")
-
-    cif_file: str = biotite.database.rcsb.fetch(pdb, "cif").getvalue()
-
-    try:
-        pdbs = cif_to_pdb(cif_file, pdb)
-        for pdb_name, pdb_file in pdbs.items():
-            pdb_file_path = Path(pdb_repo_path_str) / pdb_name
-
-            with open(pdb_file_path, 'w') as file:
-                file.write(pdb_file)
-    except Exception:
-        print("Error converting CIF to PDB " + pdb)
-
-
-@delayed
-def process_future(future: Tuple[Dict[str, str], Tuple[str, str]]):
-    # Directly use future since it's a tuple containing the results
-    chains: Dict[str, str] = future[0]
-    cif_file: Tuple[str, str] = future[1]
-
-    return chains.keys(), chains.values(), cif_file
+# def retrieve_pdb_file(pdb: str, pdb_repo_path_str: str, retry_num: int = 0):
+#     if retry_num > 2:
+#         print(f"Failed retrying {pdb}")
+#         return
+#
+#     if retry_num > 0:
+#         print(f"Retrying downloading {pdb} {retry_num}")
+#
+#     cif_file: str = biotite.database.rcsb.fetch(pdb, "cif").getvalue()
+#
+#     try:
+#         pdbs = cif_to_pdb(cif_file, pdb)
+#         for pdb_name, pdb_file in pdbs.items():
+#             pdb_file_path = Path(pdb_repo_path_str) / pdb_name
+#
+#             with open(pdb_file_path, 'w') as file:
+#                 file.write(pdb_file)
+#     except Exception:
+#         print("Error converting CIF to PDB " + pdb)
 
 
-@delayed
-def aggregate_results(results):
-    all_res_pdbs = []
-    all_contents = []
-    cif_files = []
-    for res_pdbs, contents, cif_file in results:
-        all_res_pdbs.extend(res_pdbs)
-        all_contents.extend(contents)
-        cif_files.append(cif_file)
-    return all_res_pdbs, all_contents, cif_files
-
-
-@delayed
-def create_zip_archive(path_for_batch: Path, cif_files):
-    zip_path = path_for_batch / 'cif_files.zip'
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for cif_file_name, cif_str in cif_files:
-            cif_file_name = cif_file_name if cif_file_name.endswith('.cif') else cif_file_name + '.cif'
-            zipf.writestr(cif_file_name, cif_str)
-    return str(zip_path)
-
-
-@delayed
-def compress_and_save_h5(path_for_batch: Path, all_res_pdbs, all_contents):
-    pdbs_file = path_for_batch / 'pdbs.hdf5'
-    with h5py.File(pdbs_file, 'w') as hf:
-        files_group = hf.create_group("files")
-        files_together = zlib.compress("|".join(all_contents).encode('utf-8'))
-        pdbs_content = np.frombuffer(files_together, dtype=np.uint8)
-        files_group.create_dataset(
-            name=";".join(all_res_pdbs),
-            data=pdbs_content
-        )
-    return str(pdbs_file)
-
-
-def retrieve_pdb_chunk_to_h5(
-        path_for_batch: Path,
-        pdb_futures: List[Future],
-) -> Tuple[List[str], str]:
-    start_time = time.time()
-
-    # Process futures and aggregate results
-    futures = [process_future(future) for future in pdb_futures]
-    aggregated = aggregate_results(futures)
-
-    # Create delayed tasks for H5 and ZIP creation
-    h5_task = compress_and_save_h5(path_for_batch, aggregated[0], aggregated[1])
-    zip_task = create_zip_archive(path_for_batch, aggregated[2])
-
-    # Compute the tasks
-    all_res_pdbs, h5_file_path, zip_file_path = compute(aggregated[0], h5_task, zip_task)
-
-    end_time = time.time()
-    print("Total processing time: ", end_time - start_time)
-
-    return all_res_pdbs, h5_file_path
-
-
-def retrieve_pdb_file_h5(pdb: str) -> Tuple[Dict[str, str], Optional[Tuple[str, str]]]:
+def retrieve_cifs_to_pdbs(pdb: str) -> Tuple[Dict[str, str], Optional[Tuple[str, str]]]:
     retry_num: int = 0
     cif_file: Optional[str] = None
 
@@ -161,6 +94,75 @@ def retrieve_pdb_file_h5(pdb: str) -> Tuple[Dict[str, str], Optional[Tuple[str, 
         print("Error in converting cif " + pdb)
 
     return converted, (pdb, cif_file)
+
+
+def process_future(future: Tuple[Dict[str, str], Tuple[str, str]]):
+    # Directly use future since it's a tuple containing the results
+    chains: Dict[str, str] = future[0]
+    cif_file: Tuple[str, str] = future[1]
+
+    return chains.keys(), chains.values(), cif_file
+
+
+def aggregate_results(protein_pdbs_with_cif: List[Tuple[Dict[str, str], Tuple[str, str]]]) -> Tuple[List[str], List[str], List[Tuple[str, str]]]:
+    all_res_pdbs = []
+    all_contents = []
+    cif_files = []
+
+    for prot, cif_file in protein_pdbs_with_cif:
+        all_res_pdbs.extend(prot.keys())
+        all_contents.extend(prot.values())
+        cif_files.append(cif_file)
+
+    return all_res_pdbs, all_contents, cif_files
+
+
+def create_zip_archive(path_for_batch: Path, results):
+    zip_path = path_for_batch / 'cif_files.zip'
+    cif_files = results[2]
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for cif_file_name, cif_str in cif_files:
+            cif_file_name = cif_file_name if cif_file_name.endswith('.cif') else cif_file_name + '.cif'
+            zipf.writestr(cif_file_name, cif_str)
+    return str(zip_path)
+
+
+def compress_and_save_h5(path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]):
+    pdbs_file = path_for_batch / 'pdbs.hdf5'
+    all_res_pdbs = results[0]
+    all_contents = results[1]
+    with h5py.File(pdbs_file, 'w') as hf:
+        files_group = hf.create_group("files")
+        files_together = zlib.compress("|".join(all_contents).encode('utf-8'))
+        pdbs_content = np.frombuffer(files_together, dtype=np.uint8)
+        files_group.create_dataset(
+            name=";".join(all_res_pdbs),
+            data=pdbs_content
+        )
+    return str(pdbs_file)
+
+
+def retrieve_pdb_chunk_to_h5(
+        path_for_batch: Path,
+        pdb_ids: Iterable[str],
+) -> Tuple[List[str], str]:
+    with worker_client() as client:
+        start_time = time.time()
+
+        pdb_futures = client.map(retrieve_cifs_to_pdbs, pdb_ids)
+        aggregated = client.submit(aggregate_results, pdb_futures)
+
+        # Create delayed tasks for H5 and ZIP creation
+        h5_task = client.submit(compress_and_save_h5, path_for_batch, aggregated, pure=False)
+        zip_task = client.submit(create_zip_archive, path_for_batch, aggregated, pure=False)
+
+        # Compute the tasks
+        aggregated_results, h5_file_path, zip_file_path = client.gather([aggregated, h5_task, zip_task])
+
+        end_time = time.time()
+        print("Total processing time: ", end_time - start_time)
+
+        return aggregated_results[0], h5_file_path
 
 
 def mkdir_for_batches(base_path: Path, batch_count: int):
