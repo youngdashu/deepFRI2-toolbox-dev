@@ -253,13 +253,11 @@ class StructuresDataset(BaseModel):
 
         db_path = str(self.dataset_repo_path() / self.type_str)
 
-        lookup_path = self.dataset_repo_path() / f"{self.type_str}.lookup"
-
-        ids_lines = lookup_path.open().readlines()
-        ids_lines = filter(
-            lambda line: ".pdb" in line if (".pdb" in line or ".cif" in line) else True, ids_lines
-        )
-        ids = list(map(lambda line: line.split()[1], ids_lines))
+        ids = db.read_text(f"{self.dataset_repo_path()}/{self.type_str}.lookup").filter(
+            lambda line: ".pdb" in line if (".pdb" in line or ".cif" in line) else True
+        ).map(
+            lambda line: line.split()[1]
+        ).compute()
 
         structures_path = self.structures_path()
         structures_path.mkdir(exist_ok=True, parents=True)
@@ -288,7 +286,7 @@ class StructuresDataset(BaseModel):
                 print(f"{i}/{total}")
                 i += 1
 
-        self.add_new_files_to_index(result_index)
+        create_index(self.dataset_index_file_path(), result_index)
 
     def handle_afdb(self):
         match self.collection_type:
