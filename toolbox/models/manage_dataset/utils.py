@@ -43,27 +43,6 @@ def chunk(data, size):
         yield chunk_data
 
 
-# def retrieve_pdb_file(pdb: str, pdb_repo_path_str: str, retry_num: int = 0):
-#     if retry_num > 2:
-#         print(f"Failed retrying {pdb}")
-#         return
-#
-#     if retry_num > 0:
-#         print(f"Retrying downloading {pdb} {retry_num}")
-#
-#     cif_file: str = biotite.database.rcsb.fetch(pdb, "cif").getvalue()
-#
-#     try:
-#         pdbs = cif_to_pdb(cif_file, pdb)
-#         for pdb_name, pdb_file in pdbs.items():
-#             pdb_file_path = Path(pdb_repo_path_str) / pdb_name
-#
-#             with open(pdb_file_path, 'w') as file:
-#                 file.write(pdb_file)
-#     except Exception:
-#         print("Error converting CIF to PDB " + pdb)
-
-
 def retrieve_cifs_to_pdbs(pdb: str) -> Tuple[Dict[str, str], Optional[Tuple[str, str]]]:
     retry_num: int = 0
     cif_file: Optional[str] = None
