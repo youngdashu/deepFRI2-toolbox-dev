@@ -9,7 +9,7 @@ from urllib.request import urlopen
 import dask.bag as db
 import dotenv
 from Bio.PDB import PDBList
-from dask.distributed import Client, progress, wait, Semaphore
+from dask.distributed import Client, progress, wait, Semaphore, as_completed
 from pydantic import BaseModel, field_validator
 
 from toolbox.models.manage_dataset.collection_type import CollectionType
@@ -223,41 +223,37 @@ class StructuresDataset(BaseModel):
         max_workers = max(len(self._client.nthreads()) // 10, 1)
         semaphore = Semaphore(max_leases=max_workers, name='retrieve_pdb')
 
-        all_results = []
+        new_files_index = {}
 
         def collect():
-            progress(new_files_futures)
-            results = self._client.gather(new_files_futures)
-            all_results.extend(results)
-            for _ in results:
-                semaphore.release()
+            for batch in as_completed(new_files_futures, with_results=True).batches():
+                for _, result in batch:
+                    downloaded_pdbs, file_path, time = result
+                    print('Total download + to h5', time)
+                    new_files_index.update(
+                        {
+                            k: file_path for k in downloaded_pdbs
+                        }
+                    )
+                    semaphore.release()
 
-        for batch_number, pdb_ids_chunk in enumerate(chunks):
+        i = 0
 
+        while i < len(chunks):
             def run():
                 semaphore.acquire()
-                future = self._client.submit(retrieve_pdb_chunk_to_h5, pdb_repo_path / f"{batch_number}", pdb_ids_chunk)
+                future = self._client.submit(retrieve_pdb_chunk_to_h5, pdb_repo_path / f"{i}", chunks[i])
                 new_files_futures.append(future)
 
             if max_workers > semaphore.get_value():
                 run()
+                print(f"{i}/{len(chunks)}")
+                i += 1
             else:
                 collect()
-
                 new_files_futures.clear()
 
-                run()
-
         collect()
-
-        new_files_index = {}
-        for result in all_results:
-            downloaded_pdbs, file_path = result
-            new_files_index.update(
-                {
-                    k: file_path for k in downloaded_pdbs
-                }
-            )
 
         self.add_new_files_to_index(new_files_index)
 

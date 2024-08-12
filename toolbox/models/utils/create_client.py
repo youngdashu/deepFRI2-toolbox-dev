@@ -15,7 +15,7 @@ def create_client():
         dashboard_address='0.0.0.0:8989',
         n_workers=int(total_cores) - 2,
         threads_per_worker=1,
-        memory_limit='4 GiB',
+        memory_limit='16 GiB',
         silence_logs=logging.ERROR
     )
 

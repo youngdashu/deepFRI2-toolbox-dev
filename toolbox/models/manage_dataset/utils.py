@@ -145,7 +145,7 @@ def compress_and_save_h5(path_for_batch: Path, results: Tuple[List[str], List[st
 def retrieve_pdb_chunk_to_h5(
         path_for_batch: Path,
         pdb_ids: Iterable[str],
-) -> Tuple[List[str], str]:
+) -> Tuple[List[str], str, float]:
     with worker_client() as client:
         start_time = time.time()
 
@@ -160,9 +160,10 @@ def retrieve_pdb_chunk_to_h5(
         aggregated_results, h5_file_path, zip_file_path = client.gather([aggregated, h5_task, zip_task])
 
         end_time = time.time()
-        print("Total processing time: ", end_time - start_time)
+        total_time = end_time - start_time
+        print("Total processing time: ", total_time)
 
-        return aggregated_results[0], h5_file_path
+        return aggregated_results[0], h5_file_path, total_time
 
 
 def mkdir_for_batches(base_path: Path, batch_count: int):
