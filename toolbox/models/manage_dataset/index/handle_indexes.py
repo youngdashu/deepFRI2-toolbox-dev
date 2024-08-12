@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple, Iterable
 
 import dotenv
 
@@ -46,7 +46,7 @@ class HandleIndexes:
         self.file_paths_storage[index_type] = file_paths
         print(f"Found {len(file_paths)} files")
 
-    def find_present_and_missing_ids(self, index_type, requested_ids) -> Tuple[Dict[str, str], List[str]]:
+    def find_present_and_missing_ids(self, index_type, requested_ids: Iterable[str]) -> Tuple[Dict[str, str], List[str]]:
         file_paths = self.file_paths(index_type)
 
         ids_present = file_paths.keys()
