@@ -36,12 +36,12 @@ class HandleIndexes:
         else:
             path = datasets_path_obj / f"{db_type.name}{SEPARATOR}*" / f"{index_type}.idx"
 
-        file_paths_jsons_list = db.read_text(path).map(json.loads).compute()
+        try:
+            file_paths_jsons_list = db.read_text(path).map(json.loads).compute()
+        except Exception as e:
+            file_paths_jsons_list = []
 
-        if len(file_paths_jsons_list) == 0:
-            file_paths = {}
-        else:
-            file_paths = {k.removesuffix('.pdb'): v for d in file_paths_jsons_list for k, v in d.items()}
+        file_paths = {k.removesuffix('.pdb'): v for d in file_paths_jsons_list for k, v in d.items()}
 
         self.file_paths_storage[index_type] = file_paths
         print(f"Found {len(file_paths)} files")
