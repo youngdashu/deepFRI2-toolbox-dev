@@ -12,7 +12,7 @@ from numpy import ndarray, dtype
 
 import toolbox.models.manage_dataset.utils
 from toolbox.models.manage_dataset.paths import datasets_path
-from toolbox.models.manage_dataset.handle_index import read_index, create_index
+from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
 from toolbox.utlis.search_indexes import search_indexes
 import dask.bag as db
 

@@ -2,7 +2,7 @@ from typing import Dict
 
 from Bio import SeqIO
 
-from toolbox.models.manage_dataset.handle_index import read_index
+from toolbox.models.manage_dataset.index.handle_index import read_index
 from toolbox.models.manage_dataset.sequences.from_pdb import aa_dict
 from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
 from toolbox.models.manage_dataset.utils import read_all_pdbs_from_h5

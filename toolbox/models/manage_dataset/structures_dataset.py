@@ -3,9 +3,8 @@ import logging
 import os
 import time
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from urllib.request import urlopen
 
 import dask.bag as db
@@ -14,11 +13,12 @@ from Bio.PDB import PDBList
 from dask.distributed import Client, progress, wait, LocalCluster, Semaphore
 from pydantic import BaseModel, field_validator
 
+from toolbox.models.manage_dataset.collection_type import CollectionType
 from toolbox.models.manage_dataset.database_type import DatabaseType
+from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import datasets_path, repo_path
-from toolbox.models.manage_dataset.utils import foldcomp_download, mkdir_for_batches, retrieve_pdb_chunk_to_h5, \
-    retrieve_cifs_to_pdbs, alphafold_chunk_to_h5, groupby_dict_by_values
-from toolbox.models.manage_dataset.handle_index import create_index, read_index, add_new_files_to_index
+from toolbox.models.manage_dataset.utils import foldcomp_download, mkdir_for_batches, retrieve_pdb_chunk_to_h5, alphafold_chunk_to_h5, groupby_dict_by_values
+from toolbox.models.manage_dataset.index.handle_index import create_index, read_index, add_new_files_to_index
 from toolbox.models.manage_dataset.sequences.load_fasta import extract_sequences_from_fasta
 from toolbox.models.manage_dataset.utils import chunk
 from toolbox.models.utils.get_sequences import get_sequences_from_batch
@@ -27,13 +27,6 @@ from toolbox.utlis.search_indexes import search_indexes
 
 dotenv.load_dotenv()
 SEPARATOR = os.getenv("SEPARATOR")
-
-
-class CollectionType(Enum):
-    all = "all"
-    clust = "clust"
-    part = "part"
-    subset = "subset"
 
 
 def create_client():
@@ -62,6 +55,7 @@ class StructuresDataset(BaseModel):
     overwrite: bool = False
     batch_size: int = 1000
     _client: Optional[Client] = None
+    _handle_indexes: Optional[HandleIndexes] = None
 
     @field_validator('version', mode='before')
     def set_version(cls, v):
@@ -71,16 +65,20 @@ class StructuresDataset(BaseModel):
     def set_batch_size(cls, size):
         return size or 1000
 
+    def __init__(self, **data: Any):
+        super().__init__(**data)
+        self._handle_indexes = HandleIndexes(self)
+
     def dataset_repo_path(self):
         return Path(repo_path) / self.db_type.name / f"{self.collection_type.name}_{self.type_str}" / self.version
 
     def dataset_path(self):
-        return Path(f"{datasets_path}/{self.dataset_index_file_name()}")
+        return Path(f"{datasets_path}/{self.dataset_dir_name()}")
 
     def structures_path(self):
         return self.dataset_repo_path() / "structures"
 
-    def dataset_index_file_name(self):
+    def dataset_dir_name(self):
         return f"{self.db_type.name}{SEPARATOR}{self.collection_type.name}{SEPARATOR}{self.type_str}{SEPARATOR}{self.version}"
 
     def dataset_index_file_path(self) -> Path:
@@ -102,11 +100,17 @@ class StructuresDataset(BaseModel):
         if self._client is None:
             self._client = create_client()
 
+    def requested_ids(self) -> List[str]:
+        if self.collection_type is CollectionType.subset:
+            with open(self.ids_file, 'r') as f:
+                return f.read().splitlines()
+        else:
+            return self.get_all_ids()
+
     def create_dataset(self) -> "Dataset":
 
         self.add_client()
         print(self._client.dashboard_link)
-
         print(str(datetime.now()))
 
         self.dataset_repo_path().mkdir(exist_ok=True, parents=True)
@@ -115,61 +119,17 @@ class StructuresDataset(BaseModel):
             assert self.ids_file is not None
 
         if self.collection_type is CollectionType.subset or self.collection_type is CollectionType.all:
-            dataset_index_file_name = self.dataset_index_file_name()
 
-            # find existing files of the same DB
-            if self.db_type == DatabaseType.other:
-                print(f"Globbing {repo_path}")
-                all_files = Path(repo_path).rglob("*.*")
-            else:
-                db_path = Path(repo_path) / self.db_type.name
-                print(f"Globbing {db_path}")
-                all_files = db_path.rglob("*.*")
+            self._handle_indexes.read_indexes('dataset')
+            requested_ids = self.requested_ids()
 
-            def process_file(file_path):
-                if file_path.is_file() and file_path.suffix in {'.cif', '.pdb', '.ent'}:
-                    return [(file_path.stem, str(file_path))]
-                return []
+            present_file_paths, missing_ids = self._handle_indexes.find_present_and_missing_ids('dataset', requested_ids)
 
-            file_paths = (db.from_sequence(all_files, partition_size=self.batch_size)
-                          .map(process_file)
-                          .flatten()
-                          .compute())
-            file_paths = dict(file_paths)
-
-            print(f"Found {len(file_paths)} files")
-
-            ids = None
-            if self.collection_type is CollectionType.subset:
-                with open(self.ids_file, 'r') as f:
-                    ids = f.read().splitlines()
-            else:
-                ids = self.get_all_ids()
-
-            Path(f"{datasets_path}/{dataset_index_file_name}").mkdir(exist_ok=True, parents=True)
-
-            ids_present = file_paths.keys()
-
-            def process_id(id_):
-                if id_ in ids_present:
-                    return True, (id_, file_paths[id_])
-                else:
-                    return False, id_
-
-            result_bag = db.from_sequence(ids, partition_size=self.batch_size).map(process_id)
-
-            present_bag = result_bag.filter(lambda x: x[0]).map(lambda x: x[1])
-            missing_bag = result_bag.filter(lambda x: not x[0]).map(lambda x: x[1])
-            present_file_paths = dict(present_bag.compute())
-            missing_ids = list(missing_bag.compute())
-
+            self.dataset_path().mkdir(exist_ok=True, parents=True)
             create_index(self.dataset_index_file_path(), present_file_paths)
-            print(f"Found {len(present_file_paths)} present protein files")
-            print(f"Found {len(missing_ids)} missing protein ids")
 
             if self.db_type == DatabaseType.other and self.collection_type == CollectionType.subset and len(
                     missing_ids) > 0:
-                print(missing_ids)
                 raise RuntimeError("Missing ids are not allowed when subsetting all DBs!")
 
             self.download_ids(missing_ids)
@@ -277,7 +237,7 @@ class StructuresDataset(BaseModel):
                 print(f"PDBList().get_all_entries time: {elapsed_time} seconds")
                 url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
                 with contextlib.closing(urlopen(url)) as handle:
-                    res = list(filter_pdb_codes(handle, all_pdbs))
+                    res = list(filter_pdb_codes(handle, all_pdbs))[:30]
                     print(f"After removing non protein codes {len(res)}")
             case DatabaseType.AFDB:
                 res = []

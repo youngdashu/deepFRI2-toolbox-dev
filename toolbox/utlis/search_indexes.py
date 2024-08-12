@@ -7,7 +7,7 @@ from dask import delayed
 from distributed import Client, progress
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
-from toolbox.models.manage_dataset.handle_index import read_index
+from toolbox.models.manage_dataset.index.handle_index import read_index
 from toolbox.scripts.list_datasets import SEPARATOR
 
 
