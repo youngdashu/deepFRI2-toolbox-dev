@@ -172,25 +172,25 @@ def mkdir_for_batches(base_path: Path, batch_count: int):
 
 
 def alphafold_chunk_to_h5(db_path: str, structures_path_for_batch: str, ids: List[str]):
-    pdbs_file = f"{structures_path_for_batch}/pdbs.hdf5"
+    res_pdbs = []
+    contents = []
 
-    with h5py.File(pdbs_file, 'w') as hf:
-        res_pdbs = []
-        files_group = hf.create_group("files")
+    with foldcomp.open(db_path, ids=ids) as db:
+        for (_, content), file_name in zip(db, ids):
+            if ".pdb" not in file_name:
+                file_name = f"{file_name}.pdb"
 
-        contents = []
+            contents.append(content)
+            res_pdbs.append(file_name)
 
-        with foldcomp.open(db_path, ids=ids) as db:
-            for (_, pdb), file_name in zip(db, ids):
-                if ".pdb" not in file_name:
-                    file_name = f"{file_name}.pdb"
+    h5_file = compress_and_save_h5(
+        Path(structures_path_for_batch),
+        (res_pdbs, contents, [])
+    )
 
-                contents.append(pdb)
-                res_pdbs.append(file_name)
-
-        files_together = zlib.compress("|".join(contents).encode('utf-8'))
-        pdb_content = np.frombuffer(files_together, dtype=np.uint8)
-        files_group.create_dataset(file_name, data=pdb_content)
+    return {
+        protein_name: h5_file for protein_name in res_pdbs
+    }
 
 
 def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:

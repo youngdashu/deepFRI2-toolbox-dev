@@ -98,10 +98,11 @@ class StructuresDataset(BaseModel):
         print(self._client.dashboard_link)
         print(str(datetime.now()))
 
-        self.dataset_repo_path().mkdir(exist_ok=True, parents=True)
-
         if self.collection_type == CollectionType.subset:
             assert self.ids_file is not None
+
+        self.dataset_repo_path().mkdir(exist_ok=True, parents=True)
+        self.dataset_path().mkdir(exist_ok=True, parents=True)
 
         if self.collection_type is CollectionType.subset or self.collection_type is CollectionType.all:
 
@@ -111,7 +112,6 @@ class StructuresDataset(BaseModel):
             present_file_paths, missing_ids = self._handle_indexes.find_present_and_missing_ids('dataset',
                                                                                                 requested_ids)
 
-            self.dataset_path().mkdir(exist_ok=True, parents=True)
             create_index(self.dataset_index_file_path(), present_file_paths)
 
             if self.db_type == DatabaseType.other and self.collection_type == CollectionType.subset and len(
@@ -201,14 +201,6 @@ class StructuresDataset(BaseModel):
     def add_new_files_to_index(self, new_files_index):
         add_new_files_to_index(self.dataset_index_file_path(), new_files_index)
 
-    # def save_new_files_to_index(self):
-    #     self.dataset_path().mkdir(exist_ok=True, parents=True)
-    #
-    #     structures_path = self.structures_path()
-    #     files = [str(f) for f in structures_path.rglob('*.*') if f.is_file()]
-    #
-    #     create_index(self.dataset_index_file_path(), files)
-
     def _download_pdb_(self, ids: List[str]):
         Path(self.structures_path()).mkdir(exist_ok=True, parents=True)
         pdb_repo_path = self.structures_path()
@@ -279,16 +271,24 @@ class StructuresDataset(BaseModel):
             self._client.submit(
                 alphafold_chunk_to_h5,
                 db_path,
-                structures_path / f"{number}",
+                str(structures_path / f"{number}"),
                 list(batch)
             )
             for number, batch in enumerate(batches)
         ]
 
-        progress(futures)
-        wait(futures)
+        result_index = {}
 
-        self.find_add_new_files_to_index()
+        i = 0
+        total = len(futures)
+
+        for batch in as_completed(futures, with_results=True).batches():
+            for _, single_batch_index in batch:
+                result_index.update(single_batch_index)
+                print(f"{i}/{total}")
+                i += 1
+
+        self.add_new_files_to_index(result_index)
 
     def handle_afdb(self):
         match self.collection_type:
@@ -296,7 +296,6 @@ class StructuresDataset(BaseModel):
                 pass
             case CollectionType.part:
                 foldcomp_download(self.type_str, str(self.dataset_repo_path()))
-                # copy_files("/Users/youngdashu/sano/offline_data", str(self.dataset_repo_path()))
                 self.foldcomp_decompress()
             case CollectionType.clust:
                 foldcomp_download(self.type_str, str(self.dataset_repo_path()))
