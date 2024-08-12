@@ -12,7 +12,7 @@ def create_client():
 
     # Create a LocalCluster with the calculated number of workers
     cluster = LocalCluster(
-        dashboard_address='127.0.0.1:8989',
+        dashboard_address='0.0.0.0:8989',
         n_workers=int(total_cores) - 2,
         threads_per_worker=1,
         memory_limit='4 GiB',
