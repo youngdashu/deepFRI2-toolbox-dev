@@ -7,7 +7,7 @@ from typing import List, Tuple, Any, Union, Iterable, Dict
 import dask.distributed
 import h5py
 import numpy as np
-from dask.distributed import as_completed, Client, progress
+from dask.distributed import as_completed, Client, progress, get_client
 
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
@@ -88,7 +88,10 @@ def __process_pdbs__(h5_file_path: str, codes: List[str]):
     return res
 
 
-def __save_result_batch_th_h5__(hf: h5py.File, results: Iterable[Tuple[str, np.ndarray]]):
+def __save_result_batch_to_h5__(hf: h5py.File, results: Iterable[Tuple[str, np.ndarray]]):
+
+    compression = 'szip' if len(get_client().nthreads()) > 10 else 'gzip'
+
     distogram_pdbs_saved = []
     for pdb_path, distogram in results:
 
@@ -100,7 +103,7 @@ def __save_result_batch_th_h5__(hf: h5py.File, results: Iterable[Tuple[str, np.n
             if distogram.shape[0] < 3:  # no compression for small dataset
                 protein_grp.create_dataset('distogram', data=distogram)
             else:
-                protein_grp.create_dataset('distogram', data=distogram, compression='gzip')
+                protein_grp.create_dataset('distogram', data=distogram, compression=compression)
             distogram_pdbs_saved.append(pdb_path)
     return distogram_pdbs_saved
 
@@ -132,7 +135,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
         return client.submit(__process_pdbs__,*input_data)
 
     def collect(result):
-        partial = __save_result_batch_th_h5__(hf, result)
+        partial = __save_result_batch_to_h5__(hf, result)
         distogram_pdbs_saved.extend(partial)
 
     compute_batches = ComputeBatches(structures_dataset._client, run, collect)
