@@ -39,16 +39,16 @@ def create_parser():
     load_dataset_parser = subparsers.add_parser("load", help="Load a dataset from json")
     load_dataset_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
-    generate_sequence_parser = subparsers.add_parser("generate-sequence", help="Generate sequences for ")
+    generate_sequence_parser = subparsers.add_parser("generate_sequence", help="Generate sequences for ")
     generate_sequence_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
-    generate_distograms_parser = subparsers.add_parser("generate-distograms", help="Generate distograms for ")
+    generate_distograms_parser = subparsers.add_parser("generate-_distograms", help="Generate distograms for ")
     generate_distograms_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
-    read_distograms_parser = subparsers.add_parser("read-distograms", help="Read distograms for ")
+    read_distograms_parser = subparsers.add_parser("read_distograms", help="Read distograms for ")
     read_distograms_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
-    verify_chains_parser = subparsers.add_parser("verify-chains", help="Verify chains for ")
+    verify_chains_parser = subparsers.add_parser("verify_chains", help="Verify chains for ")
     verify_chains_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
     return parser
