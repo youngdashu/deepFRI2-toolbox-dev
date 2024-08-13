@@ -90,8 +90,6 @@ def __process_pdbs__(h5_file_path: str, codes: List[str]):
 
 def __save_result_batch_to_h5__(hf: h5py.File, results: Iterable[Tuple[str, np.ndarray]]):
 
-    compression = 'szip' if len(get_client().nthreads()) > 10 else 'gzip'
-
     distogram_pdbs_saved = []
     for pdb_path, distogram in results:
 
@@ -103,7 +101,7 @@ def __save_result_batch_to_h5__(hf: h5py.File, results: Iterable[Tuple[str, np.n
             if distogram.shape[0] < 3:  # no compression for small dataset
                 protein_grp.create_dataset('distogram', data=distogram)
             else:
-                protein_grp.create_dataset('distogram', data=distogram, compression=compression)
+                protein_grp.create_dataset('distogram', data=distogram, compression='lzf', shuffle=True)
             distogram_pdbs_saved.append(pdb_path)
     return distogram_pdbs_saved
 
