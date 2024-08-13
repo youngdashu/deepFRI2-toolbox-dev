@@ -12,9 +12,7 @@ import biotite.database
 import biotite.database.rcsb
 import h5py
 import numpy as np
-from dask import delayed
 from dask.distributed import as_completed, Future, Semaphore, worker_client
-from distributed import get_client
 from foldcomp import foldcomp
 from foldcomp.setup import download
 
@@ -206,15 +204,15 @@ def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
         return None
 
 def read_pdbs_from_h5(h5_file_path: str, codes: List[str]) -> Optional[Dict[str, str]]:
-    h5_file_path = Path(h5_file_path)
-    if not h5_file_path.exists():
-        print(f"Error: File {h5_file_path} does not exist.")
+    h5_file_path_obj = Path(h5_file_path)
+    if not h5_file_path_obj.exists():
+        print(f"Error: File {h5_file_path_obj} does not exist.")
         return None
 
     codes = set(codes)
 
     try:
-        with h5py.File(h5_file_path, 'r') as hf:
+        with h5py.File(h5_file_path_obj, 'r') as hf:
             pdb_files = hf["files"]
             result = {}
 
@@ -268,6 +266,18 @@ def groupby_dict_by_values(d):
 
 
 if __name__ == '__main__':
-    pdbs_h5_to_files(
-        "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/subset_/20240731_1535/structures/0/pdbs.hdf5"
-    )
+    # pdbs_h5_to_files(
+    #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/subset_/20240731_1535/structures/0/pdbs.hdf5"
+    # )
+
+    d = read_all_pdbs_from_h5("/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240813_0238/structures/1/pdbs.hdf5")
+
+
+    for k in d.keys():
+        if k.startswith('5dat'):
+            print(k)
+
+            print(d[k])
+
+
+    # print(d['1hhz_F.pdb'])

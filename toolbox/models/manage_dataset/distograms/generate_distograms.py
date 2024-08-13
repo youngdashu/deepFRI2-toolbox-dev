@@ -1,82 +1,156 @@
 import csv
 import os
 import pathlib
-from io import StringIO
 from pathlib import Path
-from typing import List, Tuple, Any, Union
+from typing import List, Tuple, Any, Union, Iterable, Dict
 
 import h5py
 import numpy as np
-from Bio.PDB import PDBParser
-from numpy import ndarray, dtype
+from dask.distributed import as_completed, Client, progress
+from numba import jit, njit
 
-import toolbox.models.manage_dataset.utils
+from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import datasets_path
 from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
-from toolbox.utlis.search_indexes import search_indexes
-import dask.bag as db
+from toolbox.models.manage_dataset.utils import read_pdbs_from_h5
 
 from scipy.spatial.distance import pdist, squareform
-
 import time
 
 
-def __extract_coordinates__(file_path: Path) -> ndarray[Any, dtype[Any]]:
-    parser = PDBParser(QUIET=True)
-    structure = parser.get_structure("", file_path)
+def __extract_coordinates__(file: str) -> tuple[tuple[float, float, float], ...]:
+    ca_coords = []
 
-    coords = np.array([
-        residue["CA"].get_coord()
-        for residue in structure.get_residues()
-        if "CA" in residue.child_dict
-    ],
-        dtype=np.dtype(np.float16)
-    )
+    for line in file.splitlines():
+        if line.startswith('ATOM'):
+            atom_type = line[12:16].strip()
+            if atom_type == 'CA':
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                ca_coords.append((x, y, z))
 
-    return coords
+    return tuple(ca_coords)
+
+# @njit
+# def pdist_numba(X):
+#     n = X.shape[0]
+#     m = X.shape[1]
+#     k = n * (n - 1) // 2
+#     D = np.empty(k, dtype=np.float16)
+#     l = 0
+#     for i in range(n - 1):
+#         for j in range(i + 1, n):
+#             d = 0.0
+#             for x in range(m):
+#                 tmp = X[i, x] - X[j, x]
+#                 d += tmp * tmp
+#             D[l] = np.sqrt(d)
+#             l += 1
+#     return D
+
+
+# @njit
+# def squareform_numba(distances_1d):
+#     # Calculate the size of the square matrix
+#     n = int(np.ceil(np.sqrt(distances_1d.size * 2)))
+#
+#     # Initialize the square matrix
+#     square_matrix = np.zeros((n, n), dtype=distances_1d.dtype)
+#
+#     # Fill the upper triangle of the matrix
+#     k = 0
+#     for i in range(n - 1):
+#         for j in range(i + 1, n):
+#             square_matrix[i, j] = distances_1d[k]
+#             square_matrix[j, i] = distances_1d[k]  # Mirror the value to lower triangle
+#             k += 1
+#
+#     return square_matrix
+
+def process_tuples(pdb_list: Tuple[Tuple[str, str], ...]):
+    res = []
+
+    for code, content in pdb_list:
+        coords = __extract_coordinates__(content)
+        if len(coords) == 0:
+            print("No CA found in " + code)
+            continue
+        distances_1d = pdist(coords).astype(np.float16)
+        distances = squareform(distances_1d)
+        res.append(
+            (code, distances)
+        )
+    return res
+
+
+def __process_pdbs__(pdbs: Dict[str, str]):
+    return process_tuples(tuple(pdbs.items()))
+
+
+def __save_result_batch_th_h5__(hf: h5py.File, results: Iterable[Tuple[str, np.ndarray]]):
+    distogram_pdbs_saved = []
+    for pdb_path, distogram in results:
+
+        if distogram.shape == (1, 1):
+            print(f"Only one CA in {pdb_path}: {distogram}")
+        else:
+            protein_grp = hf.create_group(pdb_path)
+
+            if distogram.shape[0] < 3:  # no compression for small dataset
+                protein_grp.create_dataset('distogram', data=distogram)
+            else:
+                protein_grp.create_dataset('distogram', data=distogram, compression='gzip')
+            distogram_pdbs_saved.append(pdb_path)
+    return distogram_pdbs_saved
 
 
 def generate_distograms(structures_dataset: "StructuresDataset"):
     print("Generating distograms")
-    index = read_index(structures_dataset.dataset_index_file_path())
-    print(f"Index len {len(index)}")
-    batched_ids = toolbox.models.manage_dataset.utils.chunk(index.values(), structures_dataset.batch_size)
+    protein_index = read_index(structures_dataset.dataset_index_file_path())
+    print(f"Index len {len(protein_index)}")
 
-    present_distograms, missing = search_indexes(
-        structures_dataset,
-        Path(datasets_path),
-        batched_ids,
-        'distograms'
+    handle_indexes: HandleIndexes = structures_dataset._handle_indexes
+
+    search_index_result = handle_indexes.full_handle(
+        'distograms',
+        protein_index
     )
 
-    def __process_pdb__(pdb_path: str):
-        path = Path(pdb_path)
-        coords = __extract_coordinates__(path)
-        distances = squareform(pdist(coords).astype(np.float16))
-        return pdb_path.split("/")[-1], distances
+    distogram_index = search_index_result.present
 
-    start = time.time()
-    distograms = db.from_sequence(missing, partition_size=structures_dataset.batch_size).map(__process_pdb__).compute()
-    end = time.time()
+    print("Missing distograms")
+    print(len(search_index_result.missing_protein_files))
 
-    print(f"Time taken (calculate distograms): {end - start} seconds")
+    client: Client = structures_dataset._client
+
+    pdbs_futures = []
+    for h5_file, codes in search_index_result.reversed_missing_protein_files.items():
+        f = client.submit(read_pdbs_from_h5, h5_file, codes)
+        pdbs_futures.append(f)
+
+    futures = client.map(__process_pdbs__, pdbs_futures)
 
     distograms_file = structures_dataset.dataset_path() / 'distograms.hdf5'
 
     hf = h5py.File(distograms_file, 'w')
 
-    # write pdb_path and corresponding distogram to hdf5 file
     start = time.time()
-    for pdb_path, distogram in distograms:
-        protein_grp = hf.create_group(pdb_path)
-        protein_grp.create_dataset('distogram', data=distogram, compression='szip')
+    distogram_pdbs_saved = []
+    i = 1
+    for batch in as_completed(futures, with_results=True).batches():
+        print(f"Batch {i}")
+        i += 1
+        for _, result in batch:
+            partial = __save_result_batch_th_h5__(hf, result)
+            distogram_pdbs_saved.extend(partial)
     hf.close()
     end = time.time()
     print(f"Time taken (save to h5): {end - start} seconds")
 
-    for id_ in missing:
-        index[id_] = str(distograms_file)
-    create_index(structures_dataset.distograms_index_path(), index)
+    for id_ in distogram_pdbs_saved:
+        distogram_index[id_] = str(distograms_file)
+    create_index(structures_dataset.distograms_index_path(), distogram_index)
 
 
 def read_distograms_from_file(distograms_file: Union[str, pathlib.Path]) -> dict:

@@ -6,13 +6,19 @@ from typing import Dict, Optional, List, Tuple, Iterable
 import dotenv
 
 import dask.bag as db
+from pydantic import BaseModel
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.paths import datasets_path
+from toolbox.models.manage_dataset.utils import groupby_dict_by_values
 
 dotenv.load_dotenv()
 SEPARATOR = os.getenv("SEPARATOR")
 
+class SearchIndexResult(BaseModel):
+    present: Dict[str, str]
+    missing_protein_files: Dict[str, str]
+    reversed_missing_protein_files: Dict[str, List[str]]
 
 class HandleIndexes:
     structures_dataset: "StructuresDataset"
@@ -46,7 +52,8 @@ class HandleIndexes:
         self.file_paths_storage[index_type] = file_paths
         print(f"Found {len(file_paths)} files")
 
-    def find_present_and_missing_ids(self, index_type, requested_ids: Iterable[str]) -> Tuple[Dict[str, str], List[str]]:
+    def find_present_and_missing_ids(self, index_type, requested_ids: Iterable[str]) -> Tuple[
+        Dict[str, str], List[str]]:
         file_paths = self.file_paths(index_type)
 
         ids_present = file_paths.keys()
@@ -111,3 +118,25 @@ class HandleIndexes:
         print(f"Found {len(missing_ids)} missing {index_type} ids")
 
         return present_file_paths, missing_ids
+
+    def find_missing_protein_files(self, protein_index: Dict[str, str], missing: List[str]):
+
+        missing_items: Dict[str, str] = {
+            missing_protein_name: protein_index[missing_protein_name] for missing_protein_name in missing
+        }
+
+        reversed_missings: dict[str, List[str]] = groupby_dict_by_values(missing_items)
+
+        return missing_items, reversed_missings
+
+    def full_handle(self, index_type: str, protein_index: Dict[str, str]) -> SearchIndexResult:
+
+        self.read_indexes(index_type)
+
+        requested_ids = protein_index.keys()
+
+        present, missing_ids = self.find_present_and_missing_ids(index_type, requested_ids)
+
+        missing_protein, reversed_missing_proteins = self.find_missing_protein_files(protein_index, missing_ids)
+
+        return SearchIndexResult(present=present, missing_protein_files=missing_protein, reversed_missing_protein_files=reversed_missing_proteins)

@@ -3,14 +3,20 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python ==3.10
-  - dask~=2024.4.2
-  - dask[dataframe]
-  - distributed~=2024.4.2
-  - pydantic~=2.7.0
-  - python-dotenv~=1.0.1
-  - scipy
+  - python==3.10
+  - pip
+  - pip:
+      - foldcomp
+      - pydantic>=2.8.2
+      - scipy>=1.14.0
+      - h5py
+  - dask>=2024.4.2,<2025.0.0
+  - dask[dataframe]  # Ensure the latest version matches with your dask
+  - distributed>=2024.4.2,<2025.0.0
+  - python-dotenv
   - biotite
-  - h5py
   - tables
-  - numpy~=1.26.4
+  - numpy>=1.26.4,<1.27.0
+  - numba
+  - biopython
+  - bokeh>=2.4.2,<3.0.0
