@@ -96,7 +96,6 @@ class StructuresDataset(BaseModel):
     def create_dataset(self):
 
         self.add_client()
-        print(self._client.dashboard_link)
         print(str(datetime.now()))
 
         if self.collection_type == CollectionType.subset:

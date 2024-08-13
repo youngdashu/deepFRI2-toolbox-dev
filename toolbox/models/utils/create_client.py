@@ -16,8 +16,9 @@ def create_client():
         n_workers=int(total_cores) - 2,
         threads_per_worker=1,
         memory_limit='16 GiB',
-        silence_logs=logging.INFO
+        silence_logs=logging.ERROR
     )
 
     client = Client(cluster)
+    print(client.dashboard_link)
     return client
