@@ -1,5 +1,6 @@
 from typing import List, Any, Callable, Generator, Tuple
 
+import dask.distributed
 from dask.distributed import Client, Semaphore, as_completed, Future
 
 
@@ -14,14 +15,22 @@ class ComputeBatches:
         max_workers = max(len(self.client.nthreads()) // 10, 1)
         semaphore = Semaphore(max_leases=max_workers)
 
+        print(f"Max parallel workers {max_workers}")
+
         futures = []
         i = 0
 
         def collect():
+            dask.distributed.print("Collecting results")
+            count = 0
             for batch in as_completed(futures, with_results=True).batches():
                 for _, result in batch:
                     self.collect_f(result)
+                    count += 1
                     semaphore.release()
+            dask.distributed.print(f"{count} results collected")
+
+        i = 1
 
         while True:
             next_value = next(inputs, None)
@@ -29,6 +38,8 @@ class ComputeBatches:
                 break
             if max_workers > semaphore.get_value():
                 semaphore.acquire()
+                print(i)
+                i += 1
                 future = self.run_f(next_value)
                 futures.append(future)
             else:
