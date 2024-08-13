@@ -59,17 +59,19 @@ class HandleIndexes:
         ids_present = file_paths.keys()
 
         if self.structures_dataset.db_type == DatabaseType.PDB:
-            special_pdb_file_paths = {key.split('_')[0]: value for key, value in file_paths.items()}
+            short_pdb_codes = {key: key.split('_')[0] for key in file_paths.keys()}
+            pdb_code_to_pdb_with_chain_codes = groupby_dict_by_values(short_pdb_codes)
 
             def process_pdb_id(id_):
                 if '_' in id_:
                     if id_ in ids_present:
-                        return True, (id_, file_paths[id_])
+                        return True, {id_: file_paths[id_]}
                     else:
                         return False, id_
                 else:
-                    if id_ in special_pdb_file_paths:
-                        return True, (id_, special_pdb_file_paths[id_])
+                    if id_ in short_pdb_codes:
+                        codes_with_chains: List[str] = pdb_code_to_pdb_with_chain_codes[id_]
+                        return True, {code_with_chain: file_paths[code_with_chain] for code_with_chain in codes_with_chains}
                     else:
                         return False, id_
 
@@ -90,7 +92,7 @@ class HandleIndexes:
         def partition_results(accumulator, item):
             is_present, value = item
             if is_present:
-                accumulator['present'][value[0]] = value[1]
+                accumulator['present'].update(value)
             else:
                 accumulator['missing'].append(value)
             return accumulator

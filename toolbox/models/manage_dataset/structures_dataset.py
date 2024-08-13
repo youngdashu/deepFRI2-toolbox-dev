@@ -99,7 +99,7 @@ class StructuresDataset(BaseModel):
         print(str(datetime.now()))
 
         if self.collection_type == CollectionType.subset:
-            assert self.ids_file is not None
+            assert self.ids_file is not None and self.ids_file.exists()
 
         self.dataset_repo_path().mkdir(exist_ok=True, parents=True)
         self.dataset_path().mkdir(exist_ok=True, parents=True)
@@ -145,7 +145,7 @@ class StructuresDataset(BaseModel):
                 print(f"PDBList().get_all_entries time: {elapsed_time} seconds")
                 url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
                 with contextlib.closing(urlopen(url)) as handle:
-                    res = list(filter_pdb_codes(handle, all_pdbs))[:2000]
+                    res = list(filter_pdb_codes(handle, all_pdbs))
                     print(f"After removing non protein codes {len(res)}")
             case DatabaseType.AFDB:
                 res = []

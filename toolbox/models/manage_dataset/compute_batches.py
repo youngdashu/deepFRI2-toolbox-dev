@@ -18,7 +18,6 @@ class ComputeBatches:
         print(f"Max parallel workers {max_workers}")
 
         futures = []
-        i = 0
 
         def collect():
             dask.distributed.print("Collecting results")
