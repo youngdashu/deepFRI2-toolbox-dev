@@ -205,6 +205,38 @@ def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
         print(f"An error occurred while reading the HDF5 file: {e}")
         return None
 
+def read_pdbs_from_h5(h5_file_path: str, codes: List[str]) -> Optional[Dict[str, str]]:
+    h5_file_path = Path(h5_file_path)
+    if not h5_file_path.exists():
+        print(f"Error: File {h5_file_path} does not exist.")
+        return None
+
+    codes = set(codes)
+
+    try:
+        with h5py.File(h5_file_path, 'r') as hf:
+            pdb_files = hf["files"]
+            result = {}
+
+            for pdb_file_names in pdb_files:
+                pdb_contents_bytes = pdb_files[pdb_file_names][:].tobytes()
+                decompressed = zlib.decompress(pdb_contents_bytes).decode('utf-8')
+                all_pdbs = decompressed.split("|")
+                all_file_names_split = pdb_file_names.split(";")
+
+                # Only include the codes that are in the 'codes' list
+                for code, pdb in zip(all_file_names_split, all_pdbs):
+                    if code in codes:
+                        result[code] = pdb
+
+            return result
+
+    except Exception as e:
+        print(f"An error occurred while reading the HDF5 file: {e}")
+        return None
+
+
+
 
 def write_file(path, pdb_file_name, content):
     with open(path / pdb_file_name, 'w') as f:

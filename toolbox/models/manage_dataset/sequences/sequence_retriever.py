@@ -33,19 +33,6 @@ class SequenceRetriever:
             protein_index.keys()
         )
 
-        # print("Searching indexes")
-        # sequences_index, missing_sequences = search_indexes(
-        #     structures_dataset,
-        #     Path(datasets_path),
-        #     batched_ids,
-        #     'sequences'
-        # )
-        #
-        # print(len(sequences_index))
-        # print(f"missing seqs: {len(missing_sequences)}")
-
-        # missing_items: Dict[str, str] = dict.fromkeys(missing_sequences) & index
-
         missing_items: Dict[str, str] = {
             missing_protein_name: protein_index[missing_protein_name] for missing_protein_name in missing_sequences
         }

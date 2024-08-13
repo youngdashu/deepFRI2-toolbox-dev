@@ -107,7 +107,7 @@ class HandleIndexes:
         present_file_paths = result[0][1]['present']
         missing_ids = result[0][1]['missing']
 
-        print(f"Found {len(present_file_paths)} present protein files")
-        print(f"Found {len(missing_ids)} missing protein ids")
+        print(f"Found {len(present_file_paths)} present {index_type} files")
+        print(f"Found {len(missing_ids)} missing {index_type} ids")
 
         return present_file_paths, missing_ids
