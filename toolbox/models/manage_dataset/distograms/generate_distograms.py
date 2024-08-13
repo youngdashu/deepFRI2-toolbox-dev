@@ -43,7 +43,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
     batched_ids = toolbox.models.manage_dataset.utils.chunk(index.values(), structures_dataset.batch_size)
 
     present_distograms, missing = search_indexes(
-        structures_dataset.db_type,
+        structures_dataset,
         Path(datasets_path),
         batched_ids,
         'distograms'
