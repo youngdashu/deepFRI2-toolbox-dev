@@ -93,7 +93,7 @@ def __save_result_batch_th_h5__(hf: h5py.File, results: Iterable[Tuple[str, np.n
     for pdb_path, distogram in results:
 
         if distogram.shape == (1, 1):
-            print(f"Only one CA in {pdb_path}: {distogram}")
+            print(f"Only one CA in {pdb_path}.")
         else:
             protein_grp = hf.create_group(pdb_path)
 
