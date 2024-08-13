@@ -9,10 +9,11 @@ from urllib.request import urlopen
 import dask.bag as db
 import dotenv
 from Bio.PDB import PDBList
-from dask.distributed import Client, progress, wait, Semaphore, as_completed
+from dask.distributed import Client, Semaphore, as_completed
 from pydantic import BaseModel, field_validator
 
 from toolbox.models.manage_dataset.collection_type import CollectionType
+from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import datasets_path, repo_path
@@ -210,42 +211,20 @@ class StructuresDataset(BaseModel):
 
         print(f"Downloading PDBs into {len(chunks)} chunks")
 
-        new_files_futures = []
-
-        max_workers = max(len(self._client.nthreads()) // 10, 1)
-        semaphore = Semaphore(max_leases=max_workers, name='retrieve_pdb')
-
         new_files_index = {}
 
-        def collect():
-            for batch in as_completed(new_files_futures, with_results=True).batches():
-                for _, result in batch:
-                    downloaded_pdbs, file_path, time = result
-                    print('Total download + to h5', time)
-                    new_files_index.update(
-                        {
-                            k: file_path for k in downloaded_pdbs
-                        }
-                    )
-                    semaphore.release()
+        def run(input_data):
+            return self._client.submit(retrieve_pdb_chunk_to_h5, *input_data)
 
-        i = 0
+        def collect(result):
+            downloaded_pdbs, file_path = result
+            new_files_index.update({k: file_path for k in downloaded_pdbs})
 
-        while i < len(chunks):
-            def run():
-                semaphore.acquire()
-                future = self._client.submit(retrieve_pdb_chunk_to_h5, pdb_repo_path / f"{i}", chunks[i])
-                new_files_futures.append(future)
+        compute_batches = ComputeBatches(self._client, run, collect)
 
-            if max_workers > semaphore.get_value():
-                run()
-                print(f"{i}/{len(chunks)}")
-                i += 1
-            else:
-                collect()
-                new_files_futures.clear()
+        inputs = ((pdb_repo_path / f"{i}", ids_chunk) for i, ids_chunk in enumerate(chunks))
 
-        collect()
+        compute_batches.compute(inputs)
 
         self.add_new_files_to_index(new_files_index)
 

@@ -4,10 +4,12 @@ import pathlib
 from pathlib import Path
 from typing import List, Tuple, Any, Union, Iterable, Dict
 
+import dask.distributed
 import h5py
 import numpy as np
 from dask.distributed import as_completed, Client, progress
 
+from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import datasets_path
 from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
@@ -76,7 +78,7 @@ def __process_pdbs__(h5_file_path: str, codes: List[str]):
     for code, content in pdbs.items():
         coords = __extract_coordinates__(content)
         if len(coords) == 0:
-            print("No CA found in " + code)
+            dask.distributed.print("No CA found in " + code)
             continue
         distances_1d = pdist(coords).astype(np.float16)
         distances = squareform(distances_1d)
@@ -120,28 +122,25 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
     print("Missing distograms")
     print(len(search_index_result.missing_protein_files))
 
+    distogram_pdbs_saved = []
+
     client: Client = structures_dataset._client
-
-    futures = []
-    for h5_file, codes in search_index_result.reversed_missing_protein_files.items():
-        f = client.submit(__process_pdbs__, h5_file, codes)
-        futures.append(f)
-
-    # futures = client.map(__process_pdbs__, pdbs_futures)
-
     distograms_file = structures_dataset.dataset_path() / 'distograms.hdf5'
-
     hf = h5py.File(distograms_file, 'w')
 
+    def run(input_data):
+        return client.submit(__process_pdbs__,*input_data)
+
+    def collect(result):
+        partial = __save_result_batch_th_h5__(hf, result)
+        distogram_pdbs_saved.extend(partial)
+
+    compute_batches = ComputeBatches(structures_dataset._client, run, collect)
+
+    inputs = (item for item in search_index_result.reversed_missing_protein_files.items())
+
     start = time.time()
-    distogram_pdbs_saved = []
-    i = 1
-    for batch in as_completed(futures, with_results=True).batches():
-        print(f"Batch {i}")
-        i += 1
-        for _, result in batch:
-            partial = __save_result_batch_th_h5__(hf, result)
-            distogram_pdbs_saved.extend(partial)
+    compute_batches.compute(inputs)
     hf.close()
     end = time.time()
     print(f"Time taken (save to h5): {end - start} seconds")

@@ -1,4 +1,5 @@
 import asyncio
+import dask
 import traceback
 import zipfile
 import zlib
@@ -123,7 +124,7 @@ def compress_and_save_h5(path_for_batch: Path, results: Tuple[List[str], List[st
 def retrieve_pdb_chunk_to_h5(
         path_for_batch: Path,
         pdb_ids: Iterable[str],
-) -> Tuple[List[str], str, float]:
+) -> Tuple[List[str], str]:
     with worker_client() as client:
         start_time = time.time()
 
@@ -139,9 +140,9 @@ def retrieve_pdb_chunk_to_h5(
 
         end_time = time.time()
         total_time = end_time - start_time
-        print("Total processing time: ", total_time)
+        dask.distributed.print("Total processing time: ", total_time)
 
-        return aggregated_results[0], h5_file_path, total_time
+        return aggregated_results[0], h5_file_path
 
 
 def mkdir_for_batches(base_path: Path, batch_count: int):
@@ -208,7 +209,7 @@ def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
 def read_pdbs_from_h5(h5_file_path: str, codes: List[str]) -> Optional[Dict[str, str]]:
     h5_file_path_obj = Path(h5_file_path)
     if not h5_file_path_obj.exists():
-        print(f"Error: File {h5_file_path_obj} does not exist.")
+        dask.distributed.print(f"Error: File {h5_file_path_obj} does not exist.")
         return None
 
     codes = set(codes)
