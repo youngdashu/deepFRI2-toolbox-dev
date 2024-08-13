@@ -81,7 +81,8 @@ def process_future(future: Tuple[Dict[str, str], Tuple[str, str]]):
     return chains.keys(), chains.values(), cif_file
 
 
-def aggregate_results(protein_pdbs_with_cif: List[Tuple[Dict[str, str], Tuple[str, str]]]) -> Tuple[List[str], List[str], List[Tuple[str, str]]]:
+def aggregate_results(protein_pdbs_with_cif: List[Tuple[Dict[str, str], Tuple[str, str]]]) -> Tuple[
+    List[str], List[str], List[Tuple[str, str]]]:
     all_res_pdbs = []
     all_contents = []
     cif_files = []
@@ -203,6 +204,7 @@ def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
         print(f"An error occurred while reading the HDF5 file: {e}")
         return None
 
+
 def read_pdbs_from_h5(h5_file_path: str, codes: List[str]) -> Optional[Dict[str, str]]:
     h5_file_path_obj = Path(h5_file_path)
     if not h5_file_path_obj.exists():
@@ -232,8 +234,6 @@ def read_pdbs_from_h5(h5_file_path: str, codes: List[str]) -> Optional[Dict[str,
     except Exception as e:
         print(f"An error occurred while reading the HDF5 file: {e}")
         return None
-
-
 
 
 def write_file(path, pdb_file_name, content):
@@ -270,14 +270,13 @@ if __name__ == '__main__':
     #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/subset_/20240731_1535/structures/0/pdbs.hdf5"
     # )
 
-    d = read_all_pdbs_from_h5("/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240813_0238/structures/1/pdbs.hdf5")
-
+    d = read_all_pdbs_from_h5(
+        "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240813_0238/structures/1/pdbs.hdf5")
 
     for k in d.keys():
         if k.startswith('5dat'):
             print(k)
 
             print(d[k])
-
 
     # print(d['1hhz_F.pdb'])

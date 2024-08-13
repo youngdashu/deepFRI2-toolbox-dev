@@ -67,7 +67,10 @@ def __extract_coordinates__(file: str) -> tuple[tuple[float, float, float], ...]
 #
 #     return square_matrix
 
-def __process_pdbs__(pdbs: Dict[str, str]):
+def __process_pdbs__(h5_file_path: str, codes: List[str]):
+
+    pdbs = read_pdbs_from_h5(h5_file_path, codes)
+
     res = []
 
     for code, content in pdbs.items():
@@ -119,12 +122,12 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     client: Client = structures_dataset._client
 
-    pdbs_futures = []
+    futures = []
     for h5_file, codes in search_index_result.reversed_missing_protein_files.items():
-        f = client.submit(read_pdbs_from_h5, h5_file, codes)
-        pdbs_futures.append(f)
+        f = client.submit(__process_pdbs__, h5_file, codes)
+        futures.append(f)
 
-    futures = client.map(__process_pdbs__, pdbs_futures)
+    # futures = client.map(__process_pdbs__, pdbs_futures)
 
     distograms_file = structures_dataset.dataset_path() / 'distograms.hdf5'
 
