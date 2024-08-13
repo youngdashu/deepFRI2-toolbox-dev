@@ -1,13 +1,11 @@
-import logging
 import pathlib
 from argparse import Namespace
-
-from distributed import Client
 
 from toolbox.models.chains.verify_chains import verify_chains
 from toolbox.models.embedding.embedding import Embedding
 from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms, read_distograms_from_file
-from toolbox.models.manage_dataset.structures_dataset import CollectionType, StructuresDataset
+from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
+from toolbox.models.utils.create_client import create_client
 
 
 def _create_dataset_from_path_(path: pathlib.Path) -> StructuresDataset:
@@ -20,7 +18,7 @@ def _create_dataset_from_path_(path: pathlib.Path) -> StructuresDataset:
         print("Dataset path is not valid")
         raise FileNotFoundError
 
-    res._client = Client(silence_logs=logging.ERROR)
+    res._client = create_client()
     return res
 
 
