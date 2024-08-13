@@ -55,11 +55,11 @@ class CommandParser:
         dataset = _create_dataset_from_path_(self.args.file_path)
         dataset.generate_sequence()
 
-    def generate_distogram(self):
+    def generate_distograms(self):
         dataset = _create_dataset_from_path_(self.args.file_path)
         generate_distograms(dataset)
 
-    def read_distogram(self):
+    def read_distograms(self):
         print(read_distograms_from_file(self.args.file_path))
 
     def verify_chains(self):
