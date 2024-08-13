@@ -67,10 +67,10 @@ def __extract_coordinates__(file: str) -> tuple[tuple[float, float, float], ...]
 #
 #     return square_matrix
 
-def process_tuples(pdb_list: Tuple[Tuple[str, str], ...]):
+def __process_pdbs__(pdbs: Dict[str, str]):
     res = []
 
-    for code, content in pdb_list:
+    for code, content in pdbs.items():
         coords = __extract_coordinates__(content)
         if len(coords) == 0:
             print("No CA found in " + code)
@@ -81,10 +81,6 @@ def process_tuples(pdb_list: Tuple[Tuple[str, str], ...]):
             (code, distances)
         )
     return res
-
-
-def __process_pdbs__(pdbs: Dict[str, str]):
-    return process_tuples(tuple(pdbs.items()))
 
 
 def __save_result_batch_th_h5__(hf: h5py.File, results: Iterable[Tuple[str, np.ndarray]]):
