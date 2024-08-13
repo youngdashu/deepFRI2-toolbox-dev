@@ -42,7 +42,7 @@ def create_parser():
     generate_sequence_parser = subparsers.add_parser("generate_sequence", help="Generate sequences for ")
     generate_sequence_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
-    generate_distograms_parser = subparsers.add_parser("generate-_distograms", help="Generate distograms for ")
+    generate_distograms_parser = subparsers.add_parser("generate_distograms", help="Generate distograms for ")
     generate_distograms_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
     read_distograms_parser = subparsers.add_parser("read_distograms", help="Read distograms for ")
