@@ -1,5 +1,7 @@
 import json
 import os
+from _operator import iconcat, ior
+from functools import reduce
 from pathlib import Path
 from typing import Dict, Optional, List, Tuple, Iterable
 
@@ -43,7 +45,7 @@ class HandleIndexes:
             path = datasets_path_obj / f"{db_type.name}{SEPARATOR}*" / f"{index_type}.idx"
 
         try:
-            file_paths_jsons_list = db.read_text(path).map(json.loads).compute()
+            file_paths_jsons_list = db.read_text(str(path)).map(json.loads).compute()
         except Exception as e:
             file_paths_jsons_list = []
 
@@ -53,7 +55,7 @@ class HandleIndexes:
         print(f"Found {len(file_paths)} files")
 
     def find_present_and_missing_ids(self, index_type, requested_ids: Iterable[str]) -> Tuple[
-        Dict[str, str], List[str]]:
+        Dict[str, str], Iterable[str]]:
         file_paths = self.file_paths(index_type)
 
         ids_present = file_paths.keys()
@@ -87,41 +89,18 @@ class HandleIndexes:
 
         result_bag = db.from_sequence(requested_ids, partition_size=self.structures_dataset.batch_size).map(
             process_id_func
-        )
+        ).compute()
 
-        def partition_results(accumulator, item):
-            is_present, value = item
-            if is_present:
-                accumulator['present'].update(value)
-            else:
-                accumulator['missing'].append(value)
-            return accumulator
+        present, missing_ids = __splitter__(result_bag)
 
-        initial = {'present': {}, 'missing': []}
-
-        aggregated = result_bag.foldby(
-            key=lambda x: True,  # We're using a single partition
-            binop=partition_results,
-            combine=lambda x, y: {
-                'present': {**x['present'], **y['present']},
-                'missing': x['missing'] + y['missing']
-            },
-            initial=initial
-        )
-
-        # Compute the result
-        result = aggregated.compute()
-
-        # Extract the results
-        present_file_paths = result[0][1]['present']
-        missing_ids = result[0][1]['missing']
+        present_file_paths = reduce(ior, present, {})
 
         print(f"Found {len(present_file_paths)} present {index_type} files")
         print(f"Found {len(missing_ids)} missing {index_type} ids")
 
         return present_file_paths, missing_ids
 
-    def find_missing_protein_files(self, protein_index: Dict[str, str], missing: List[str]):
+    def find_missing_protein_files(self, protein_index: Dict[str, str], missing: Iterable[str]):
 
         missing_items: Dict[str, str] = {
             missing_protein_name: protein_index[missing_protein_name] for missing_protein_name in missing
@@ -142,3 +121,13 @@ class HandleIndexes:
         missing_protein, reversed_missing_proteins = self.find_missing_protein_files(protein_index, missing_ids)
 
         return SearchIndexResult(present=present, missing_protein_files=missing_protein, reversed_missing_protein_files=reversed_missing_proteins)
+
+
+def __splitter__(data):
+    yes, no = [], []
+    for d in data:
+        if d[0]:
+            yes.append(d[1])
+        else:
+            no.append(d[1])
+    return tuple(yes), tuple(no)
