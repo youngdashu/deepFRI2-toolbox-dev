@@ -30,7 +30,6 @@ def extract_sequence_from_pdb_string(pdb_string):
     return ''.join(sequence)
 
 
-
 if __name__ == '__main__':
     input = """
     ATOM      1  N   THR P  49    157.5729144.7042168.9863 1.00086.036           N 

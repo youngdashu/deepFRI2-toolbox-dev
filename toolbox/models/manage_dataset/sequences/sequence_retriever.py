@@ -1,16 +1,11 @@
-from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Iterable
 
-import dask.bag as db
 from distributed import progress
 
 from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
-from toolbox.models.manage_dataset.paths import datasets_path
-from toolbox.models.manage_dataset.sequences.load_fasta import extract_sequences_from_fasta
 from toolbox.models.manage_dataset.utils import groupby_dict_by_values
 from toolbox.models.utils.get_sequences import get_sequences_from_batch
-from toolbox.utlis.search_indexes import search_indexes
 
 
 class SequenceRetriever:
@@ -37,7 +32,7 @@ class SequenceRetriever:
             missing_protein_name: protein_index[missing_protein_name] for missing_protein_name in missing_sequences
         }
 
-        reversed: dict[str, List[str]] = groupby_dict_by_values(missing_items)
+        h5_file_to_codes: dict[str, List[str]] = groupby_dict_by_values(missing_items)
 
         sequences_file_path = structures_dataset.dataset_path() / "sequences.fasta"
 
@@ -51,13 +46,13 @@ class SequenceRetriever:
         print("Getting sequences from stored PDBs")
 
         futures = []
-        for proteins_file, codes in reversed.items():
+        for proteins_file, codes in h5_file_to_codes.items():
             future = structures_dataset._client.submit(get_sequences_from_batch, proteins_file, codes)
             futures.append(future)
         progress(futures)
         all_sequences: List[List[str]] = structures_dataset._client.gather(futures)
 
-        all_codes: List[List[str]] = reversed.values()
+        all_codes: Iterable[List[str]] = h5_file_to_codes.values()
 
         with open(sequences_file_path, 'w') as f:
             print("Saving sequences to fasta")

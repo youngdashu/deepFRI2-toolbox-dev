@@ -1,4 +1,4 @@
-from typing import List, Any, Callable, Generator, Tuple
+from typing import Any, Callable, Generator, Tuple
 
 import dask.distributed
 from dask.distributed import Client, Semaphore, as_completed, Future

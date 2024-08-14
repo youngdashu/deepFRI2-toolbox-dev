@@ -2,7 +2,7 @@ import argparse
 import pathlib
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
-from toolbox.models.manage_dataset.structures_dataset import CollectionType
+from toolbox.models.manage_dataset.collection_type import CollectionType
 from toolbox.scripts.command_parser import CommandParser
 
 

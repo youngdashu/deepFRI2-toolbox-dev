@@ -1,5 +1,5 @@
 import asyncio
-import dask
+import time
 import traceback
 import zipfile
 import zlib
@@ -7,13 +7,12 @@ from itertools import islice
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Iterable
 
-import time
-
 import biotite.database
 import biotite.database.rcsb
+import dask
 import h5py
 import numpy as np
-from dask.distributed import as_completed, Future, Semaphore, worker_client
+from dask.distributed import as_completed, worker_client
 from foldcomp import foldcomp
 from foldcomp.setup import download
 

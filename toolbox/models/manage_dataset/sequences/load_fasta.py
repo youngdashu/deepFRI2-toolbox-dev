@@ -1,9 +1,8 @@
 from pathlib import Path
-from typing import List, Dict, Iterable
+from typing import List
 
 from Bio import SeqIO
 from dask.bag import Bag
-from dask.delayed import Delayed, delayed
 
 
 def extract_sequences_from_fasta(file_path: Path, ids: Bag) -> Bag:

@@ -1,13 +1,11 @@
 import json
 import os
-from _operator import iconcat, ior
 from functools import reduce
 from pathlib import Path
-from typing import Dict, Optional, List, Tuple, Iterable
-
-import dotenv
+from typing import Dict, List, Tuple, Iterable
 
 import dask.bag as db
+import dotenv
 from pydantic import BaseModel
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
@@ -17,10 +15,12 @@ from toolbox.models.manage_dataset.utils import groupby_dict_by_values
 dotenv.load_dotenv()
 SEPARATOR = os.getenv("SEPARATOR")
 
+
 class SearchIndexResult(BaseModel):
     present: Dict[str, str]
     missing_protein_files: Dict[str, str]
     reversed_missing_protein_files: Dict[str, List[str]]
+
 
 class HandleIndexes:
     structures_dataset: "StructuresDataset"
@@ -73,7 +73,8 @@ class HandleIndexes:
                 else:
                     if id_ in pdb_code_to_pdb_with_chain_codes:
                         codes_with_chains: List[str] = pdb_code_to_pdb_with_chain_codes[id_]
-                        return True, {code_with_chain: file_paths[code_with_chain] for code_with_chain in codes_with_chains}
+                        return True, {code_with_chain: file_paths[code_with_chain] for code_with_chain in
+                                      codes_with_chains}
                     else:
                         return False, id_
 
@@ -124,7 +125,8 @@ class HandleIndexes:
 
         missing_protein, reversed_missing_proteins = self.find_missing_protein_files(protein_index, missing_ids)
 
-        return SearchIndexResult(present=present, missing_protein_files=missing_protein, reversed_missing_protein_files=reversed_missing_proteins)
+        return SearchIndexResult(present=present, missing_protein_files=missing_protein,
+                                 reversed_missing_protein_files=reversed_missing_proteins)
 
 
 def __splitter__(data):

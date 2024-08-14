@@ -1,22 +1,21 @@
 import csv
 import os
 import pathlib
+import time
 from pathlib import Path
-from typing import List, Tuple, Any, Union, Iterable, Dict
+from typing import List, Tuple, Any, Union, Iterable, Dict, Optional
 
 import dask.distributed
 import h5py
 import numpy as np
-from dask.distributed import as_completed, Client, progress, get_client
+from dask.distributed import Client
+from scipy.spatial.distance import pdist, squareform
 
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
+from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import datasets_path
-from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
 from toolbox.models.manage_dataset.utils import read_pdbs_from_h5
-
-from scipy.spatial.distance import pdist, squareform
-import time
 
 
 def __extract_coordinates__(file: str) -> tuple[tuple[float, float, float], ...]:
@@ -32,6 +31,7 @@ def __extract_coordinates__(file: str) -> tuple[tuple[float, float, float], ...]
                 ca_coords.append((x, y, z))
 
     return tuple(ca_coords)
+
 
 # @njit
 # def pdist_numba(X):
@@ -70,7 +70,6 @@ def __extract_coordinates__(file: str) -> tuple[tuple[float, float, float], ...]
 #     return square_matrix
 
 def __process_pdbs__(h5_file_path: str, codes: List[str]):
-
     pdbs = read_pdbs_from_h5(h5_file_path, codes)
 
     res = []
@@ -89,7 +88,6 @@ def __process_pdbs__(h5_file_path: str, codes: List[str]):
 
 
 def __save_result_batch_to_h5__(hf: h5py.File, results: Iterable[Tuple[str, np.ndarray]]):
-
     distogram_pdbs_saved = []
     for pdb_path, distogram in results:
 
@@ -130,7 +128,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
     hf = h5py.File(distograms_file, 'w')
 
     def run(input_data):
-        return client.submit(__process_pdbs__,*input_data)
+        return client.submit(__process_pdbs__, *input_data)
 
     def collect(result):
         partial = __save_result_batch_to_h5__(hf, result)
@@ -151,18 +149,23 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
     create_index(structures_dataset.distograms_index_path(), distogram_index)
 
 
-def read_distograms_from_file(distograms_file: Union[str, pathlib.Path]) -> dict:
+def read_distograms_from_file(distograms_file: Union[str, pathlib.Path], limit_keys: Optional[int] = None) -> Dict[
+    str, np.ndarray]:
     """
     Reads distograms from a h5py file.
 
+    :param limit_keys:
     :param distograms_file: Path to the h5py file.
     :return: distograms: A dictionary mapping pdb_path to the corresponding distogram.
     """
     distograms = {}
+
     try:
         with h5py.File(distograms_file, 'r') as hf:
-            for pdb_path in hf.keys():
-                print(pdb_path)
+            keys = hf.keys()
+            if limit_keys is not None:
+                keys = list(keys)[:limit_keys]
+            for pdb_path in keys:
                 distogram = hf[pdb_path]['distogram'][:]
                 distograms[pdb_path] = distogram
     except IOError:

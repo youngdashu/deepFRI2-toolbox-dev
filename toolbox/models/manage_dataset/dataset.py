@@ -1,10 +1,8 @@
-from enum import Enum
-from typing import List
 from pathlib import Path
+from typing import List
 
 from pydantic import BaseModel
 
-from toolbox.models.manage_dataset.index.handle_index import read_index
 from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
 from toolbox.models.protein import Protein
 from toolbox.models.proteinType import ProteinType
@@ -14,7 +12,7 @@ class Dataset(BaseModel):
     name: str
     proteins: List[Protein]
     type: ProteinType
-    n_batches: int # number of batches max 1k-10k proteins and max 10k subfolders
+    n_batches: int  # number of batches max 1k-10k proteins and max 10k subfolders
     disto_location: Path
     structures_dataset: StructuresDataset
 
@@ -33,7 +31,4 @@ class Dataset(BaseModel):
         pass
 
     def sequence_dict_to_fasta(self, new_fasta_file_name):
-        sequences_index_path = self.structures_dataset.sequences_path() / "sequences.idx"
-
-        index = read_index(sequences_index_path)
-
+        pass
