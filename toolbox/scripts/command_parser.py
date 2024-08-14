@@ -10,23 +10,21 @@ from toolbox.models.utils.create_client import create_client
 
 class CommandParser:
     def __init__(self, args: Namespace):
-        self.dataset = None
+        self.structures_dataset = None
         self.args = args
 
     def _create_dataset_from_path_(self) -> StructuresDataset:
-        res = None
         path = self.args.file_path
         if path.is_dir() and (path / "dataset.json").exists():
-            res = StructuresDataset.model_validate_json((path / "dataset.json").read_text())
+            self.structures_dataset = StructuresDataset.model_validate_json((path / "dataset.json").read_text())
         elif path.is_file():
-            res = StructuresDataset.model_validate_json(path.read_text())
+            self.structures_dataset = StructuresDataset.model_validate_json(path.read_text())
         else:
             print("Dataset path is not valid")
             raise FileNotFoundError
 
-        res._client = create_client()
-        self.dataset = res
-        return res
+        self.structures_dataset._client = create_client()
+        return self.structures_dataset
 
     def dataset(self):
         dataset = StructuresDataset(
@@ -39,7 +37,7 @@ class CommandParser:
             overwrite=self.args.overwrite,
             batch_size=self.args.batch_size
         )
-        self.dataset = dataset
+        self.structures_dataset = dataset
         dataset.create_dataset()
 
     def embedding(self):
@@ -54,18 +52,18 @@ class CommandParser:
 
     def generate_sequence(self):
         self._create_dataset_from_path_()
-        self.dataset.generate_sequence()
+        self.structures_dataset.generate_sequence()
 
     def generate_distograms(self):
         self._create_dataset_from_path_()
-        generate_distograms(self.dataset)
+        generate_distograms(self.structures_dataset)
 
     def read_distograms(self):
         print(read_distograms_from_file(self.args.file_path))
 
     def verify_chains(self):
         self._create_dataset_from_path_()
-        verify_chains(self.dataset, "./toolbox/pdb_seqres.txt")
+        verify_chains(self.structures_dataset, "./toolbox/pdb_seqres.txt")
 
     def run(self):
         command_method = getattr(self, self.args.command)
@@ -74,5 +72,5 @@ class CommandParser:
         else:
             raise ValueError(f"Unknown command - {self.args.command}")
 
-        if self.dataset is not None:
-            self.dataset.close()
+        if self.structures_dataset is not None:
+            self.structures_dataset.close()
