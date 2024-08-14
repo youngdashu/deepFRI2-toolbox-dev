@@ -1,7 +1,5 @@
 from typing import Dict
 
-from Bio import SeqIO
-
 from toolbox.models.manage_dataset.index.handle_index import read_index
 from toolbox.models.manage_dataset.sequences.from_pdb import aa_dict
 from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
@@ -32,6 +30,8 @@ def _parse_pdb_residue_(pdb_code, pdb_str):
 
 def verify_chains(structures_dataset: StructuresDataset, pdb_seqres_fasta_path):
     proteins_index = read_index(structures_dataset.dataset_path() / 'dataset_reversed.idx')
+
+    from Bio import SeqIO
 
     fasta_index = SeqIO.index(pdb_seqres_fasta_path, "fasta")
 
