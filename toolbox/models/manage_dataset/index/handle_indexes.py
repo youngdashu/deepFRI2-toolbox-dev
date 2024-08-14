@@ -81,7 +81,7 @@ class HandleIndexes:
         else:
             def process_id(id_):
                 if id_ in ids_present:
-                    return True, (id_, file_paths[id_])
+                    return True, {id_, file_paths[id_]}
                 else:
                     return False, id_
 
