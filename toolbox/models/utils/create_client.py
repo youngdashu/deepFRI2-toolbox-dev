@@ -3,6 +3,9 @@ import os
 
 from dask.distributed import LocalCluster, Client
 
+import warnings
+import distributed
+
 
 def create_client():
     # Get the total number of CPUs available on the machine
@@ -21,4 +24,7 @@ def create_client():
 
     client = Client(cluster)
     print(client.dashboard_link)
+
+    warnings.simplefilter("ignore", distributed.comm.core.CommClosedError)
+
     return client
