@@ -118,7 +118,8 @@ class StructuresDataset(BaseModel):
                     missing_ids) > 0:
                 raise RuntimeError("Missing ids are not allowed when subsetting all DBs!")
 
-            self.download_ids(missing_ids)
+            if len(missing_ids) > 0:
+                self.download_ids(missing_ids)
         else:
             if self.overwrite:
                 print("Overwriting ")
