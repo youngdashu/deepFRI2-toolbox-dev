@@ -1,5 +1,4 @@
 import contextlib
-import dask
 import os
 import time
 from datetime import datetime
@@ -10,7 +9,7 @@ from urllib.request import urlopen
 import dask.bag as db
 import dotenv
 from Bio.PDB import PDBList
-from dask.distributed import Client, Semaphore, as_completed
+from dask.distributed import Client, as_completed, LocalCluster
 from pydantic import BaseModel, field_validator
 
 from toolbox.models.manage_dataset.collection_type import CollectionType
@@ -132,6 +131,15 @@ class StructuresDataset(BaseModel):
                 self.download_ids(None)
 
         self.save_dataset_metadata()
+
+        self.close()
+
+    def close(self):
+        if self._client is not None:
+            cluster: LocalCluster = self._client.cluster
+            self._client.close()
+            cluster.close()
+            self._client = None
 
     def generate_sequence(self):
         self._sequence_retriever.retrieve()

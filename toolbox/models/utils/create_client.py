@@ -1,7 +1,7 @@
 import logging
 import os
 
-from distributed import LocalCluster, Client
+from dask.distributed import LocalCluster, Client
 
 
 def create_client():
