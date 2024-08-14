@@ -157,27 +157,28 @@ def mkdir_for_batches(base_path: Path, batch_count: int):
 
 
 def alphafold_chunk_to_h5(db_path: str, structures_path_for_batch: str, ids: List[str]):
-    res_pdbs = []
+    protein_codes = []
     contents = []
 
     with foldcomp.open(db_path, ids=ids) as db:
         for (_, content), file_name in zip(db, ids):
             if ".pdb" not in file_name:
                 file_name = f"{file_name}.pdb"
+            protein_id = file_name.removesuffix("-model_v4.pdb").removeprefix("AF-")
 
             contents.append(content)
-            res_pdbs.append(file_name)
+            protein_codes.append(protein_id)
 
     h5_file = compress_and_save_h5(
         Path(structures_path_for_batch),
-        (res_pdbs, contents, [])
+        (protein_codes, contents, [])
     )
 
     if h5_file is None:
         return {}
 
     return {
-        protein_name: h5_file for protein_name in res_pdbs
+        protein_code: h5_file for protein_code in protein_codes
     }
 
 
