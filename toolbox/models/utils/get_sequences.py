@@ -1,7 +1,5 @@
 from typing import List, Dict
 
-import dask.bag as db
-
 from toolbox.models.manage_dataset.sequences.from_pdb import extract_sequence_from_pdb_string
 from toolbox.models.manage_dataset.utils import read_pdbs_from_h5
 
