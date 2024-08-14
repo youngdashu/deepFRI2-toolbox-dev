@@ -93,7 +93,11 @@ class HandleIndexes:
 
         present, missing_ids = __splitter__(result_bag)
 
-        present_file_paths = reduce(ior, present, {})
+        def merge_dicts(d1, d2):
+            d1.update(d2)
+            return d1
+
+        present_file_paths = reduce(merge_dicts, present, {})
 
         print(f"Found {len(present_file_paths)} present {index_type} files")
         print(f"Found {len(missing_ids)} missing {index_type} ids")
