@@ -164,7 +164,7 @@ def alphafold_chunk_to_h5(db_path: str, structures_path_for_batch: str, ids: Lis
         for (_, content), file_name in zip(db, ids):
             if ".pdb" not in file_name:
                 file_name = f"{file_name}.pdb"
-            protein_id = file_name.removesuffix("-model_v4.pdb").removeprefix("AF-")
+            protein_id = file_name.removesuffix("-F1-model_v4.pdb").removeprefix("AF-")
 
             contents.append(content)
             protein_codes.append(protein_id)
