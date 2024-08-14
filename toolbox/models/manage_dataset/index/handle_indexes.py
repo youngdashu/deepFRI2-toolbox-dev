@@ -61,8 +61,8 @@ class HandleIndexes:
         ids_present = file_paths.keys()
 
         if self.structures_dataset.db_type == DatabaseType.PDB:
-            short_pdb_codes = {key: key.split('_')[0] for key in file_paths.keys()}
-            pdb_code_to_pdb_with_chain_codes = groupby_dict_by_values(short_pdb_codes)
+            chain_codes_to_short = {key: key.split('_')[0] for key in file_paths.keys()}
+            pdb_code_to_pdb_with_chain_codes = groupby_dict_by_values(chain_codes_to_short)
 
             def process_pdb_id(id_):
                 if '_' in id_:
@@ -71,7 +71,7 @@ class HandleIndexes:
                     else:
                         return False, id_
                 else:
-                    if id_ in short_pdb_codes:
+                    if id_ in pdb_code_to_pdb_with_chain_codes:
                         codes_with_chains: List[str] = pdb_code_to_pdb_with_chain_codes[id_]
                         return True, {code_with_chain: file_paths[code_with_chain] for code_with_chain in codes_with_chains}
                     else:
