@@ -110,6 +110,12 @@ def compress_and_save_h5(path_for_batch: Path, results: Tuple[List[str], List[st
     pdbs_file = path_for_batch / 'pdbs.hdf5'
     all_res_pdbs = results[0]
     all_contents = results[1]
+    if len(all_contents) == 0 or len(all_res_pdbs) == 0:
+        print("No files to save")
+        return None
+    if len(all_res_pdbs) != len(all_res_pdbs):
+        print("Wrong length of names and pdb contents")
+        return None
     with h5py.File(pdbs_file, 'w') as hf:
         files_group = hf.create_group("files")
         files_together = zlib.compress("|".join(all_contents).encode('utf-8'))
@@ -166,6 +172,9 @@ def alphafold_chunk_to_h5(db_path: str, structures_path_for_batch: str, ids: Lis
         Path(structures_path_for_batch),
         (res_pdbs, contents, [])
     )
+
+    if h5_file is None:
+        return {}
 
     return {
         protein_name: h5_file for protein_name in res_pdbs
