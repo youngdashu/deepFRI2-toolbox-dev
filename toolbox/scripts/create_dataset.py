@@ -14,7 +14,6 @@ def create_parser():
 
     subparsers = parser.add_subparsers(dest="command", help="Sub-command help")
 
-    # Subparser for creating dataset
     parser_dataset = subparsers.add_parser("dataset", help="Create protein dataset")
     parser_dataset.add_argument("-d", "--db", required=True, choices=db_types, metavar="name",
                                 help=f"Database Types: {' '.join(db_types)}")

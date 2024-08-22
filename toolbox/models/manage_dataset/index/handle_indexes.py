@@ -19,7 +19,7 @@ SEPARATOR = os.getenv("SEPARATOR")
 class SearchIndexResult(BaseModel):
     present: Dict[str, str]
     missing_protein_files: Dict[str, str]
-    reversed_missing_protein_files: Dict[str, List[str]]
+    grouped_missing_proteins: Dict[str, List[str]]
 
 
 class HandleIndexes:
@@ -123,10 +123,10 @@ class HandleIndexes:
 
         present, missing_ids = self.find_present_and_missing_ids(index_type, requested_ids)
 
-        missing_protein, reversed_missing_proteins = self.find_missing_protein_files(protein_index, missing_ids)
+        missing_protein, grouped_missing_proteins = self.find_missing_protein_files(protein_index, missing_ids)
 
         return SearchIndexResult(present=present, missing_protein_files=missing_protein,
-                                 reversed_missing_protein_files=reversed_missing_proteins)
+                                 grouped_missing_proteins=grouped_missing_proteins)
 
 
 def __splitter__(data):

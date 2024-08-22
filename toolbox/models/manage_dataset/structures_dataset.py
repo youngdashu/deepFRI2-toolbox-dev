@@ -132,7 +132,6 @@ class StructuresDataset(BaseModel):
 
         self.save_dataset_metadata()
 
-        self.close()
 
     def close(self):
         if self._client is not None:

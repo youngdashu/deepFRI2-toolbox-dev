@@ -136,7 +136,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     compute_batches = ComputeBatches(structures_dataset._client, run, collect)
 
-    inputs = (item for item in search_index_result.reversed_missing_protein_files.items())
+    inputs = (item for item in search_index_result.grouped_missing_proteins.items())
 
     start = time.time()
     compute_batches.compute(inputs)

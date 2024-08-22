@@ -1,10 +1,10 @@
 from typing import Dict, List, Iterable
 
-from distributed import progress
+from distributed import progress, Client
 
+from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
-from toolbox.models.manage_dataset.utils import groupby_dict_by_values
 from toolbox.models.utils.get_sequences import get_sequences_from_batch
 
 
@@ -22,46 +22,33 @@ class SequenceRetriever:
         protein_index = read_index(structures_dataset.dataset_index_file_path())
         print(len(protein_index))
 
-        self.handle_indexes.read_indexes('sequences')
-        sequences_index, missing_sequences = self.handle_indexes.find_present_and_missing_ids(
-            'sequences',
-            protein_index.keys()
-        )
+        search_index_result = self.handle_indexes.full_handle('sequences', protein_index)
 
-        missing_items: Dict[str, str] = {
-            missing_protein_name: protein_index[missing_protein_name] for missing_protein_name in missing_sequences
-        }
-
-        h5_file_to_codes: dict[str, List[str]] = groupby_dict_by_values(missing_items)
-
-        sequences_file_path = structures_dataset.dataset_path() / "sequences.fasta"
-
-        # if structures_dataset.seqres_file is not None:
-        #     print("Getting sequences from provided fasta")
-        #     missing_ids = db.from_sequence(missing_sequences,
-        #                                    partition_size=structures_dataset.batch_size)
-        #     tasks = extract_sequences_from_fasta(structures_dataset.seqres_file, missing_ids)
-        # else:
+        h5_file_to_codes = search_index_result.grouped_missing_proteins
+        missing_sequences = search_index_result.missing_protein_files.keys()
+        sequences_index = search_index_result.present
 
         print("Getting sequences from stored PDBs")
 
-        futures = []
-        for proteins_file, codes in h5_file_to_codes.items():
-            future = structures_dataset._client.submit(get_sequences_from_batch, proteins_file, codes)
-            futures.append(future)
-        progress(futures)
-        all_sequences: List[List[str]] = structures_dataset._client.gather(futures)
+        client: Client = self.structures_dataset._client
 
-        all_codes: Iterable[List[str]] = h5_file_to_codes.values()
+        def run(input_data):
+            return client.submit(get_sequences_from_batch, *input_data)
+
+        sequences_file_path = structures_dataset.dataset_path() / "sequences.fasta"
 
         with open(sequences_file_path, 'w') as f:
-            print("Saving sequences to fasta")
-            for sequences, codes in zip(all_sequences, all_codes):
-                for sequence, code in zip(sequences, codes):
-                    transformed_code = str(code).removesuffix(".pdb")
-                    f.write(
-                        f">{transformed_code}\n{sequence}\n"
-                    )
+
+            def collect(result):
+                f.writelines(result)
+
+            compute = ComputeBatches(client, run, collect)
+
+            inputs = ((file, codes) for file, codes in h5_file_to_codes.items())
+
+            compute.compute(inputs)
+
+
 
         print("Save new index with all proteins")
         for id_ in missing_sequences:

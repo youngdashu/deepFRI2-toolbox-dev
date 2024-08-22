@@ -71,6 +71,3 @@ class CommandParser:
             command_method()
         else:
             raise ValueError(f"Unknown command - {self.args.command}")
-
-        if self.structures_dataset is not None:
-            self.structures_dataset.close()

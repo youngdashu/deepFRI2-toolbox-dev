@@ -4,6 +4,7 @@ from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 
 def plot_first_histogram(histograms_path: str):
@@ -34,19 +35,16 @@ def visualize_distograms_3d(histograms_path, num_distograms: Optional[int] = 5):
     with open(histograms_path, 'rb') as f:
         histograms_dict = pickle.load(f)
 
-    # Select a subset of distograms
-    keys = list(histograms_dict.keys())[:num_distograms] if num_distograms is not None else list(histograms_dict.keys())
-
-    print(len(keys))
-
-    exit(0)
+    # Select a subset of distograms and sort them by their length
+    keys = sorted(histograms_dict.keys(), key=lambda x: len(histograms_dict[x]['hist']), reverse=True)
+    keys = keys[:num_distograms] if num_distograms is not None else keys
 
     # Create the 3D plot
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
 
     # Plot each histogram
-    for i, key in enumerate(keys):
+    for i, key in tqdm(enumerate(keys)):
         hist_data = histograms_dict[key]
         hist = hist_data['hist']
         bin_edges = hist_data['bin_edges']
@@ -64,13 +62,13 @@ def visualize_distograms_3d(histograms_path, num_distograms: Optional[int] = 5):
 
     # Customize the plot
     ax.set_xlabel('Distance')
-    ax.set_ylabel('Distogram Index')
+    # ax.set_ylabel('Distogram Index')
     ax.set_zlabel('Frequency')
     ax.set_title(f'3D Visualization of {len(keys)} Distograms')
 
     # Set y-axis ticks to distogram indices
-    ax.set_yticks(range(len(keys)))
-    ax.set_yticklabels(range(1, len(keys) + 1))
+    # ax.set_yticks(range(len(keys)))
+    # ax.set_yticklabels(range(1, len(keys) + 1))
 
     plt.savefig("3d_distogram_visualization.png")
     plt.show()
@@ -78,4 +76,4 @@ def visualize_distograms_3d(histograms_path, num_distograms: Optional[int] = 5):
 
 if __name__ == "__main__":
     # plot_first_histogram('../distograms_hist_exp/histograms.pkl')
-    visualize_distograms_3d('../distograms_hist_exp/histograms.pkl', None)
+    visualize_distograms_3d('../distograms_hist_exp/histograms.pkl', 2000)
