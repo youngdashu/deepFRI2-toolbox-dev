@@ -32,10 +32,12 @@ class ComputeBatches:
         i = 1
 
         while True:
-            next_value = next(inputs, None)
-            if next_value is None:
-                break
             if max_workers > semaphore.get_value():
+
+                next_value = next(inputs, None)
+                if next_value is None:
+                    break
+
                 semaphore.acquire()
                 print(i)
                 i += 1
