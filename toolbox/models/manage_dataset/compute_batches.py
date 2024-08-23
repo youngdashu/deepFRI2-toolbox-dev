@@ -1,15 +1,16 @@
 from typing import Any, Callable, Generator, Tuple
 
 import dask.distributed
-from dask.distributed import Client, Semaphore, as_completed, Future
+from dask.distributed import Client, Semaphore, as_completed, Future, performance_report
 
 
 class ComputeBatches:
 
-    def __init__(self, client: Client, run_f, collect_f):
+    def __init__(self, client: Client, run_f, collect_f, name: str):
         self.client = client
         self.run_f: Callable[[Any], Future] = run_f
         self.collect_f: Callable[[Any], None] = collect_f
+        self.name: str = name
 
     def compute(self, inputs: Generator[Tuple[Any], Any, None], factor=10):
         max_workers = max(len(self.client.nthreads()) // factor, 1)
@@ -31,20 +32,22 @@ class ComputeBatches:
 
         i = 1
 
-        while True:
-            if max_workers > semaphore.get_value():
+        with performance_report(filename=f"report_{self.name}_{len(self.client.nthreads())}_{factor}.html"):
 
-                next_value = next(inputs, None)
-                if next_value is None:
-                    break
+            while True:
+                if max_workers > semaphore.get_value():
 
-                semaphore.acquire()
-                print(i)
-                i += 1
-                future = self.run_f(next_value)
-                futures.append(future)
-            else:
-                collect()
-                futures.clear()
+                    next_value = next(inputs, None)
+                    if next_value is None:
+                        break
 
-        collect()
+                    semaphore.acquire()
+                    print(i)
+                    i += 1
+                    future = self.run_f(next_value)
+                    futures.append(future)
+                else:
+                    collect()
+                    futures.clear()
+
+            collect()

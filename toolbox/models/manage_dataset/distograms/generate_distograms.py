@@ -134,7 +134,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
         partial = __save_result_batch_to_h5__(hf, result)
         distogram_pdbs_saved.extend(partial)
 
-    compute_batches = ComputeBatches(structures_dataset._client, run, collect)
+    compute_batches = ComputeBatches(structures_dataset._client, run, collect, "distograms")
 
     inputs = (item for item in search_index_result.grouped_missing_proteins.items())
 

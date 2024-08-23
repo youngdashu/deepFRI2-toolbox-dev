@@ -42,7 +42,7 @@ class SequenceRetriever:
             def collect(result):
                 f.writelines(result)
 
-            compute = ComputeBatches(client, run, collect)
+            compute = ComputeBatches(client, run, collect, "sequences")
 
             inputs = ((file, codes) for file, codes in h5_file_to_codes.items())
 
