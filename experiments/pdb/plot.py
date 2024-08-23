@@ -73,12 +73,12 @@ for i, (category, data) in enumerate(categories.items()):
     ind = np.arange(len(labels))  # the x locations for the groups
     ax.bar(ind, sizes, color=colors)
     ax.set_xticks(ind)
-    ax.set_xticklabels(labels, fontsize=16, rotation=30)  # Adjust rotation here
-    ax.set_title(category, fontsize=18)
+    ax.set_xticklabels(labels, fontsize=24, rotation=20)  # Adjust rotation here
+    ax.set_title(category, fontsize=24)
 
     # Set both ticks and labels to be fontsize 14
     for tick in ax.xaxis.get_major_ticks():
-        tick.label.set_fontsize(14)
+        tick.label.set_fontsize(20)
     for tick in ax.yaxis.get_major_ticks():
         tick.label.set_fontsize(14)
 
@@ -87,8 +87,6 @@ plt.tight_layout()
 
 # Save the figure as SVG
 plt.savefig('pdb_structures_metadata.pdf', dpi=1200, bbox_inches='tight')
-
-print("The visualization has been saved as 'data_visualization.svg'")
 
 plt.show()
 
