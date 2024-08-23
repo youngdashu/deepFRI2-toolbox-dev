@@ -11,8 +11,8 @@ class ComputeBatches:
         self.run_f: Callable[[Any], Future] = run_f
         self.collect_f: Callable[[Any], None] = collect_f
 
-    def compute(self, inputs: Generator[Tuple[Any], Any, None]):
-        max_workers = max(len(self.client.nthreads()) // 10, 1)
+    def compute(self, inputs: Generator[Tuple[Any], Any, None], factor=10):
+        max_workers = max(len(self.client.nthreads()) // factor, 1)
         semaphore = Semaphore(max_leases=max_workers)
 
         print(f"Max parallel workers {max_workers}")
