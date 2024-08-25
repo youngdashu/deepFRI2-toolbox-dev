@@ -241,6 +241,7 @@ def cif_to_pdb(cif: str, pdb_code: str) -> Dict[str, str]:
 
     return result
 
+
 def parse_atom_data(atom_data, occupancy=None, temp_factor=None):
     pdb_lines = []
     serial_number = 1  # Start serial numbering from 1
@@ -306,7 +307,19 @@ def binary_cif_to_pdb(cif_bytes: BytesIO, pdb_code: str) -> Dict[str, str]:
 
     model_nums = b_f.block['atom_site']["pdbx_PDB_model_num"].as_array(int)
 
-    stack = biotite.structure.io.pdbx.get_structure(b_f, model_nums[0])
+    def get_struct(i=0):
+        try:
+            return biotite.structure.io.pdbx.get_structure(b_f, model_nums[i])
+        except ValueError as e:
+            print(pdb_code, model_nums[i], e)
+            if i + 1 < len(model_nums):
+                return get_struct(i + i)
+            else:
+                None
+
+    stack = get_struct()
+    if stack is None:
+        return {}
 
     all_pdbs = str(stack)
 
