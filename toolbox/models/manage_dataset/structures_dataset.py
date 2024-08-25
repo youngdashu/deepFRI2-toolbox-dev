@@ -107,11 +107,15 @@ class StructuresDataset(BaseModel):
 
         if self.collection_type is CollectionType.subset or self.collection_type is CollectionType.all:
 
-            self._handle_indexes.read_indexes('dataset')
-            requested_ids = self.requested_ids()
+            if self.overwrite:
+                present_file_paths = {}
+                missing_ids = self.requested_ids()
+            else:
+                self._handle_indexes.read_indexes('dataset')
+                requested_ids = self.requested_ids()
 
-            present_file_paths, missing_ids = self._handle_indexes.find_present_and_missing_ids('dataset',
-                                                                                                requested_ids)
+                present_file_paths, missing_ids = self._handle_indexes.find_present_and_missing_ids('dataset',
+                                                                                                    requested_ids)
 
             create_index(self.dataset_index_file_path(), present_file_paths)
 
@@ -122,14 +126,14 @@ class StructuresDataset(BaseModel):
             if len(missing_ids) > 0:
                 self.download_ids(missing_ids)
         else:
-            if self.overwrite:
-                print("Overwriting ")
-                # TODO
-                # find previous version of the same db_type and type
-                # remove previous
-                # download new one
-            else:
-                self.download_ids(None)
+            # if self.overwrite:
+            #     print("Overwriting ")
+            #     # TODO
+            #     # find previous version of the same db_type and type
+            #     # remove previous
+            #     # download new one
+            # else:
+            self.download_ids(None)
 
         self.save_dataset_metadata()
 
