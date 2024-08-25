@@ -30,6 +30,7 @@ def create_parser():
     parser_dataset.add_argument('-o', '--overwrite', action='store_true',
                                 help="Should overwrite existing files? Default - false")
     parser_dataset.add_argument('-b', '--batch-size', type=int, default=None)
+    parser_dataset.add_argument('--binary', action='store_true', help='Download binary CIF in PDB db')
 
     embedding_parser = subparsers.add_parser("embedding", help="Create embeddings from datasets")
     embedding_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path,

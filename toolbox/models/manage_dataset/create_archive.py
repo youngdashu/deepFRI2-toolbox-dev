@@ -1,7 +1,7 @@
 import os
 import zipfile
 from pathlib import Path
-
+import time
 
 def get_file_size_in_mb(file_path):
     size_in_bytes = os.path.getsize(file_path)
@@ -25,6 +25,7 @@ def save_file_sizes_and_names(zip_path, file_type):
 
 
 def create_zip_archive(path_for_batch: Path, results):
+    start_time = time.time()
     zip_path = path_for_batch / 'cif_files.zip'
     cif_files = results[2]
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -35,10 +36,14 @@ def create_zip_archive(path_for_batch: Path, results):
             zipf.writestr(cif_file_name, cif_str)
 
     save_file_sizes_and_names(zip_path, "cif")
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f'Cif compression: {execution_time}')
     return str(zip_path)
 
 
 def create_pdb_zip_archive(path_for_batch: Path, results):
+    start_time = time.time()
     zip_path = path_for_batch / 'pdb_files.zip'
     all_res_pdbs = results[0]
     all_contents = results[1]
@@ -48,4 +53,7 @@ def create_pdb_zip_archive(path_for_batch: Path, results):
             zipf.writestr(pdb_file_name, pdb_str)
 
     save_file_sizes_and_names(zip_path, "pdb")
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f'Pdb compression: {execution_time}')
     return str(zip_path)

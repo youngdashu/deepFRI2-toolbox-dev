@@ -35,7 +35,8 @@ class CommandParser:
             ids_file=self.args.ids,
             seqres_file=self.args.seqres,
             overwrite=self.args.overwrite,
-            batch_size=self.args.batch_size
+            batch_size=self.args.batch_size,
+            binary_data_download=self.args.binary,
         )
         self.structures_dataset = dataset
         dataset.create_dataset()

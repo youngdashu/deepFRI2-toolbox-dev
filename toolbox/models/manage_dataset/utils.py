@@ -197,11 +197,12 @@ def compress_and_save_h5(path_for_batch: Path, results: Tuple[List[str], List[st
 def retrieve_pdb_chunk_to_h5(
         path_for_batch: Path,
         pdb_ids: Iterable[str],
+        is_binary: bool,
 ) -> Tuple[List[str], str]:
     with worker_client() as client:
         start_time = time.time()
 
-        pdb_futures = client.map(retrieve_binary_cifs_to_pdbs, pdb_ids)
+        pdb_futures = client.map(retrieve_binary_cifs_to_pdbs if is_binary else retrieve_cifs_to_pdbs, pdb_ids)
         download_start_time = time.time()
         aggregated = client.submit(aggregate_results, pdb_futures, download_start_time)
 
