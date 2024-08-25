@@ -1,4 +1,8 @@
+from io import BytesIO
 from typing import Dict, Literal, Tuple, List, Union, Optional
+
+import biotite.structure.io.pdbx
+import biotite.structure.io.pdbx.bcif as bcif
 
 from toolbox.models.manage_dataset.sequences.from_pdb import aa_dict
 
@@ -234,5 +238,90 @@ def cif_to_pdb(cif: str, pdb_code: str) -> Dict[str, str]:
             continue
         pdb_str = "".join(pdb_atoms)
         result[f"{pdb_code}_{chain_id}.pdb"] = pdb_str
+
+    return result
+
+def parse_atom_data(atom_data, occupancy=None, temp_factor=None):
+    pdb_lines = []
+    serial_number = 1  # Start serial numbering from 1
+
+    # Default values if not provided
+    if occupancy is None:
+        occupancy = [1.00] * len(atom_data.splitlines())
+    if temp_factor is None:
+        temp_factor = [0.00] * len(atom_data.splitlines())
+
+    occ_index = 0  # Index for occupancy and temp factor arrays
+
+    for line in atom_data.splitlines():
+        parts = line.split()
+
+        if parts[0] == "HET":
+            continue
+
+        # Extract information
+        chain_id = parts[0]
+        residue_number = parts[1]
+        residue_name = parts[2]
+        atom_name = parts[3]
+        element_symbol = parts[4]
+        x = float(parts[5])
+        y = float(parts[6])
+        z = float(parts[7])
+
+        # Get occupancy and temp factor for the current atom
+        occ = occupancy[occ_index]
+        temp = temp_factor[occ_index]
+        occ_index += 1
+
+        # Format the PDB line
+        pdb_line = f"ATOM  {serial_number:>5}  {atom_name:<4}{residue_name} {chain_id}{residue_number:>4}    {x:>8.3f}{y:>8.3f}{z:>8.3f}  {occ:>5.2f}  {temp:>5.2f}           {element_symbol:>2}"
+        pdb_lines.append((chain_id, pdb_line))  # Store with chain_id
+
+        # Increment the serial number
+        serial_number += 1
+
+    return pdb_lines
+
+
+def split_by_chain(pdb_lines) -> Dict[str, str]:
+    chain_dict = {}
+
+    for chain_id, pdb_line in pdb_lines:
+        if chain_id not in chain_dict:
+            chain_dict[chain_id] = []
+        chain_dict[chain_id].append(pdb_line)
+
+    for k in chain_dict:
+        chain_dict[k] = '\n'.join(chain_dict[k])
+
+    return chain_dict
+
+
+def binary_cif_to_pdb(cif_bytes: BytesIO, pdb_code: str) -> Dict[str, str]:
+    b_f = bcif.BinaryCIFFile.read(cif_bytes)
+
+    occupancies = b_f.block['atom_site']["occupancy"].as_array(float)
+    b_factor = b_f.block['atom_site']["B_iso_or_equiv"].as_array(float)
+
+    model_nums = b_f.block['atom_site']["pdbx_PDB_model_num"].as_array(int)
+
+    stack = biotite.structure.io.pdbx.get_structure(b_f, model_nums[0])
+
+    all_pdbs = str(stack)
+
+    chain_pdbs = parse_atom_data(
+        all_pdbs,
+        occupancies,
+        b_factor
+    )
+
+    atoms_per_chain = split_by_chain(chain_pdbs)
+
+    result = {}
+    for chain_id, pdb_atoms in atoms_per_chain.items():
+        if pdb_atoms is None or len(pdb_atoms) == 0:
+            continue
+        result[f"{pdb_code}_{chain_id}.pdb"] = pdb_atoms
 
     return result

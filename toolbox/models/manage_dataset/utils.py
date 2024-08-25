@@ -1,8 +1,10 @@
 import asyncio
+import os
 import time
 import traceback
 import zipfile
 import zlib
+from io import BytesIO, StringIO
 from itertools import islice
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Iterable
@@ -16,7 +18,8 @@ from dask.distributed import as_completed, worker_client
 from foldcomp import foldcomp
 from foldcomp.setup import download
 
-from toolbox.models.utils.cif2pdb import cif_to_pdb
+from toolbox.models.manage_dataset.create_archive import create_zip_archive, create_pdb_zip_archive
+from toolbox.models.utils.cif2pdb import cif_to_pdb, binary_cif_to_pdb
 
 
 def foldcomp_download(db: str, output_dir: str):
@@ -51,7 +54,18 @@ def retrieve_cifs_to_pdbs(pdb: str) -> Tuple[Dict[str, str], Optional[Tuple[str,
             print(f"Retrying downloading {pdb} {retry_num}")
 
         try:
-            cif_file: str = biotite.database.rcsb.fetch(pdb, "cif").getvalue()
+            cif_file: StringIO = biotite.database.rcsb.fetch(pdb, "cif")
+
+            # Calculate size in bytes
+            # cif_file.seek(0, 2)  # Move the cursor to the end of the file
+            # size_in_bytes = cif_file.tell()  # Get the cursor position which is the file size
+            # cif_file.seek(0)  # Reset the cursor position to the beginning
+            #
+            # # Convert size to MB
+            # size_in_mb = size_in_bytes / (1024 * 1024)
+            # print(f"CIF file size: {size_in_mb:.2f} MB")
+
+            cif_file: str = cif_file.getvalue()
         except Exception:
             cif_file = None
 
@@ -73,6 +87,40 @@ def retrieve_cifs_to_pdbs(pdb: str) -> Tuple[Dict[str, str], Optional[Tuple[str,
     return converted, (pdb, cif_file)
 
 
+def retrieve_binary_cifs_to_pdbs(pdb: str) -> Tuple[Dict[str, str], Optional[Tuple[str, str]]]:
+    retry_num: int = 0
+    binary_file_bytes_io: Optional[BytesIO] = None
+
+    while retry_num <= 3 and binary_file_bytes_io is None:
+
+        if retry_num > 0:
+            print(f"Retrying downloading {pdb} {retry_num}")
+
+        try:
+            binary_file_bytes_io: BytesIO = biotite.database.rcsb.fetch(pdb, "bcif")
+            # size_in_mb = binary_file_bytes_io.getbuffer().nbytes / (1024 * 1024)  # calculate size in MB
+            # print(f"binary, size: {size_in_mb:.2f} MB")
+        except Exception:
+            binary_file_bytes_io = None
+
+        if not binary_file_bytes_io:
+            retry_num += 1
+
+    if retry_num > 3:
+        print(f"Failed retrying {pdb}")
+        return {}, None
+
+    converted = {}
+    try:
+        converted = binary_cif_to_pdb(binary_file_bytes_io, pdb)
+    except Exception as e:
+        traceback.print_exc()
+        print(e)
+        print("Error in converting cif " + pdb)
+
+    return converted, (pdb, binary_file_bytes_io)
+
+
 def process_future(future: Tuple[Dict[str, str], Tuple[str, str]]):
     # Directly use future since it's a tuple containing the results
     chains: Dict[str, str] = future[0]
@@ -81,8 +129,13 @@ def process_future(future: Tuple[Dict[str, str], Tuple[str, str]]):
     return chains.keys(), chains.values(), cif_file
 
 
-def aggregate_results(protein_pdbs_with_cif: List[Tuple[Dict[str, str], Tuple[str, str]]]) -> Tuple[
+def aggregate_results(protein_pdbs_with_cif: List[Tuple[Dict[str, str], Tuple[str, str]]],
+                      download_start_time: float) -> Tuple[
     List[str], List[str], List[Tuple[str, str]]]:
+    end_time = time.time()
+
+    print(f"Download time: {end_time - download_start_time}")
+
     all_res_pdbs = []
     all_contents = []
     cif_files = []
@@ -95,17 +148,29 @@ def aggregate_results(protein_pdbs_with_cif: List[Tuple[Dict[str, str], Tuple[st
     return all_res_pdbs, all_contents, cif_files
 
 
-def create_zip_archive(path_for_batch: Path, results):
-    zip_path = path_for_batch / 'cif_files.zip'
-    cif_files = results[2]
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for cif_file_name, cif_str in cif_files:
-            cif_file_name = cif_file_name if cif_file_name.endswith('.cif') else cif_file_name + '.cif'
-            zipf.writestr(cif_file_name, cif_str)
-    return str(zip_path)
+# def create_zip_archive(path_for_batch: Path, results):
+#     zip_path = path_for_batch / 'cif_files.zip'
+#     cif_files = results[2]
+#     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+#         for cif_file_name, cif_str in cif_files:
+#             cif_file_name = cif_file_name if cif_file_name.endswith('.cif') else cif_file_name + '.cif'
+#             zipf.writestr(cif_file_name, cif_str)
+#     return str(zip_path)
+#
+#
+# def create_pdb_zip_archive(path_for_batch: Path, results):
+#     zip_path = path_for_batch / 'pdb_files.zip'
+#     all_res_pdbs = results[0]
+#     all_contents = results[1]
+#     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+#         for pdb_file_name, pdb_str in zip(all_res_pdbs, all_contents):
+#             pdb_file_name = pdb_file_name if pdb_file_name.endswith('.pdb') else pdb_file_name + '.pdb'
+#             zipf.writestr(pdb_file_name, pdb_str)
+#     return str(zip_path)
 
 
 def compress_and_save_h5(path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]):
+    start_time = time.time()
     pdbs_file = path_for_batch / 'pdbs.hdf5'
     all_res_pdbs = results[0]
     all_contents = results[1]
@@ -123,6 +188,9 @@ def compress_and_save_h5(path_for_batch: Path, results: Tuple[List[str], List[st
             name=";".join(all_res_pdbs),
             data=pdbs_content
         )
+    end_time = time.time()
+    total_time = end_time - start_time
+    print(f"Compress time: {total_time}")
     return str(pdbs_file)
 
 
@@ -133,19 +201,22 @@ def retrieve_pdb_chunk_to_h5(
     with worker_client() as client:
         start_time = time.time()
 
-        pdb_futures = client.map(retrieve_cifs_to_pdbs, pdb_ids)
-        aggregated = client.submit(aggregate_results, pdb_futures)
+        pdb_futures = client.map(retrieve_binary_cifs_to_pdbs, pdb_ids)
+        download_start_time = time.time()
+        aggregated = client.submit(aggregate_results, pdb_futures, download_start_time)
 
         # Create delayed tasks for H5 and ZIP creation
         h5_task = client.submit(compress_and_save_h5, path_for_batch, aggregated, pure=False)
         zip_task = client.submit(create_zip_archive, path_for_batch, aggregated, pure=False)
+        pdb_zip_task = client.submit(create_pdb_zip_archive, path_for_batch, aggregated, pure=False)
 
         # Compute the tasks
-        aggregated_results, h5_file_path, zip_file_path = client.gather([aggregated, h5_task, zip_task])
+        aggregated_results, h5_file_path, zip_file_path, pdb_file_path = client.gather(
+            [aggregated, h5_task, zip_task, pdb_zip_task])
 
         end_time = time.time()
         total_time = end_time - start_time
-        dask.distributed.print("Total processing time: ", total_time)
+        print(f"Total processing time {path_for_batch.stem}: {total_time}")
 
         return aggregated_results[0], h5_file_path
 
@@ -280,13 +351,19 @@ if __name__ == '__main__':
     #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/subset_/20240731_1535/structures/0/pdbs.hdf5"
     # )
 
-    d = read_all_pdbs_from_h5(
-        "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240813_0238/structures/1/pdbs.hdf5")
+    code = '1j6t'
 
-    for k in d.keys():
-        if k.startswith('5dat'):
-            print(k)
+    retrieve_binary_cifs_to_pdbs(code)
 
-            print(d[k])
+    retrieve_cifs_to_pdbs(code)
+
+    # d = read_all_pdbs_from_h5(
+    #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240813_0238/structures/1/pdbs.hdf5")
+    #
+    # for k in d.keys():
+    #     if k.startswith('5dat'):
+    #         print(k)
+    #
+    #         print(d[k])
 
     # print(d['1hhz_F.pdb'])

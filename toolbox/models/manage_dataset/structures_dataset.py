@@ -37,7 +37,7 @@ class StructuresDataset(BaseModel):
     ids_file: Optional[Path] = None
     seqres_file: Optional[Path] = None  # to delete
     overwrite: bool = False
-    batch_size: int = 1000
+    batch_size: int = 100
     _client: Optional[Client] = None
     _handle_indexes: Optional[HandleIndexes] = None
     _sequence_retriever: Optional[SequenceRetriever] = None
@@ -48,7 +48,7 @@ class StructuresDataset(BaseModel):
 
     @field_validator('batch_size', mode='before')
     def set_batch_size(cls, size):
-        return size or 1000
+        return size or 100
 
     def __init__(self, **data: Any):
         super().__init__(**data)
@@ -153,7 +153,7 @@ class StructuresDataset(BaseModel):
                 print(f"PDBList().get_all_entries time: {elapsed_time} seconds")
                 url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
                 with contextlib.closing(urlopen(url)) as handle:
-                    res = list(filter_pdb_codes(handle, all_pdbs))
+                    res = list(filter_pdb_codes(handle, all_pdbs))[:100]
                     print(f"After removing non protein codes {len(res)}")
             case DatabaseType.AFDB:
                 res = []

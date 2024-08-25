@@ -95,7 +95,7 @@ class Embedding:
             "--input-fasta", f"{self.embeddings_path}/{self.Fasta_file}",
             "--output-file", f"{self.embeddings_path}/outputs/{self.Embedding_output_file}",
             "--model-type", "ankh",
-            "--database", f"{self.embeddings_path}/dbs/{self.Db_file}.npz",
+            # "--database", f"{self.embeddings_path}/dbs/{self.Db_file}.npz",
             "--cache-dir", f"{EMBEDDINGS_PATH}/cache"
         ]
 

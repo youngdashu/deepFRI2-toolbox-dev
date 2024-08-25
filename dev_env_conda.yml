@@ -11,11 +11,11 @@ dependencies:
       - scipy>=1.14.0
       - h5py
       - matplotlib
+      - biotite>=0.41.2
   - dask>=2024.4.2,<2025.0.0
   - dask[dataframe]  # Ensure the latest version matches with your dask
   - distributed>=2024.4.2,<2025.0.0
   - python-dotenv
-  - biotite
   - tables
   - numpy>=1.26.4,<1.27.0
   - numba
