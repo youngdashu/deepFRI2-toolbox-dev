@@ -39,6 +39,7 @@ class StructuresDataset(BaseModel):
     overwrite: bool = False
     batch_size: int = 1000
     binary_data_download: bool = False
+    is_hpc_cluster: bool = False
     _client: Optional[Client] = None
     _handle_indexes: Optional[HandleIndexes] = None
     _sequence_retriever: Optional[SequenceRetriever] = None
@@ -85,7 +86,7 @@ class StructuresDataset(BaseModel):
 
     def add_client(self):
         if self._client is None:
-            self._client = create_client()
+            self._client = create_client(self.is_hpc_cluster)
 
     def requested_ids(self) -> List[str]:
         if self.collection_type is CollectionType.subset:

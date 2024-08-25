@@ -37,6 +37,7 @@ class CommandParser:
             overwrite=self.args.overwrite,
             batch_size=self.args.batch_size,
             binary_data_download=self.args.binary,
+            is_hpc_cluster=self.args.slurm
         )
         self.structures_dataset = dataset
         dataset.create_dataset()

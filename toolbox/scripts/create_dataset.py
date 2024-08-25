@@ -15,6 +15,7 @@ def create_parser():
     subparsers = parser.add_subparsers(dest="command", help="Sub-command help")
 
     parser_dataset = subparsers.add_parser("dataset", help="Create protein dataset")
+    parser_dataset.add_argument('--slurm', action='store_true', help="Use SLURM job scheduler")
     parser_dataset.add_argument("-d", "--db", required=True, choices=db_types, metavar="name",
                                 help=f"Database Types: {' '.join(db_types)}")
     parser_dataset.add_argument("-c", "--collection", required=True, choices=collection_types, metavar="name",
@@ -33,22 +34,28 @@ def create_parser():
     parser_dataset.add_argument('--binary', action='store_true', help='Download binary CIF in PDB db')
 
     embedding_parser = subparsers.add_parser("embedding", help="Create embeddings from datasets")
+    embedding_parser.add_argument('--slurm', action='store_true', help="Use SLURM job scheduler")
     embedding_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path,
                                   help="Path to the datasets file")
 
     load_dataset_parser = subparsers.add_parser("load", help="Load a dataset from json")
+    load_dataset_parser.add_argument('--slurm', action='store_true', help="Use SLURM job scheduler")
     load_dataset_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
     generate_sequence_parser = subparsers.add_parser("generate_sequence", help="Generate sequences for ")
+    generate_sequence_parser.add_argument('--slurm', action='store_true', help="Use SLURM job scheduler")
     generate_sequence_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
     generate_distograms_parser = subparsers.add_parser("generate_distograms", help="Generate distograms for ")
+    generate_distograms_parser.add_argument('--slurm', action='store_true', help="Use SLURM job scheduler")
     generate_distograms_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
     read_distograms_parser = subparsers.add_parser("read_distograms", help="Read distograms for ")
+    read_distograms_parser.add_argument('--slurm', action='store_true', help="Use SLURM job scheduler")
     read_distograms_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
     verify_chains_parser = subparsers.add_parser("verify_chains", help="Verify chains for ")
+    verify_chains_parser.add_argument('--slurm', action='store_true', help="Use SLURM job scheduler")
     verify_chains_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
 
     return parser
