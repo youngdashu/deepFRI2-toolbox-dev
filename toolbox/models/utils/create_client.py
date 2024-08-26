@@ -7,13 +7,10 @@ import warnings
 import distributed
 
 
-
 def create_client(is_slurm_client: bool):
     # Get the total number of CPUs available on the machine
 
     if is_slurm_client:
-        print("1!!!!!")
-        print(os.getcwd())
         client = Client(scheduler_file='./scheduler.json')
     else:
 
