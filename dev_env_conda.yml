@@ -15,6 +15,8 @@ dependencies:
   - dask>=2024.4.2,<2025.0.0
   - dask[dataframe]  # Ensure the latest version matches with your dask
   - dask-mpi
+  - anaconda::mpi4py
+  - conda-forge::openmpi
   - distributed>=2024.4.2,<2025.0.0
   - python-dotenv
   - tables
