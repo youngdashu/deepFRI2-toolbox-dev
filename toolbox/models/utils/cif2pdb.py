@@ -305,17 +305,17 @@ def binary_cif_to_pdb(cif_bytes: BytesIO, pdb_code: str) -> Dict[str, str]:
     occupancies = b_f.block['atom_site']["occupancy"].as_array(float)
     b_factor = b_f.block['atom_site']["B_iso_or_equiv"].as_array(float)
 
-    model_nums = b_f.block['atom_site']["pdbx_PDB_model_num"].as_array(int)
+    model_nums_iter = iter(set(b_f.block['atom_site']["pdbx_PDB_model_num"].as_array(int)))
 
-    def get_struct(i=0):
+    def get_struct():
         try:
-            return biotite.structure.io.pdbx.get_structure(b_f, model_nums[i])
+            model_num = next(model_nums_iter)
+            return biotite.structure.io.pdbx.get_structure(b_f, model_num)
         except ValueError as e:
-            print(pdb_code, model_nums[i], e)
-            if i + 1 < len(model_nums):
-                return get_struct(i + i)
-            else:
-                None
+            print(pdb_code, model_num, e)
+            return get_struct()
+        except StopIteration:
+            return None
 
     stack = get_struct()
     if stack is None:
