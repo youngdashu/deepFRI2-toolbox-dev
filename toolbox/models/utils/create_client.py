@@ -1,7 +1,6 @@
 import logging
 import os
 
-import dask_mpi
 from dask.distributed import LocalCluster, Client
 
 import warnings
@@ -13,8 +12,9 @@ def create_client(is_slurm_client: bool):
     # Get the total number of CPUs available on the machine
 
     if is_slurm_client:
-        dask_mpi.initialize(dashboard_address='0.0.0.0:8989', memory_limit='16 GiB',)
-        client = Client()
+        print("1!!!!!")
+        print(os.getcwd())
+        client = Client(scheduler_file='./scheduler.json')
     else:
 
         total_cores = os.environ.get('SLURM_CPUS_PER_TASK')
