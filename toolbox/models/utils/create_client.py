@@ -31,5 +31,6 @@ def create_client(is_slurm_client: bool):
     print(client.dashboard_link)
 
     warnings.simplefilter("ignore", distributed.comm.core.CommClosedError)
+    warnings.filterwarnings("ignore", message=".*Creating scratch directories is taking a surprisingly long time.*")
 
     return client
