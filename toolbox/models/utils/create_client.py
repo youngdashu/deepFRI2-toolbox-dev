@@ -10,13 +10,19 @@ import distributed
 def create_client(is_slurm_client: bool):
     # Get the total number of CPUs available on the machine
 
-    if is_slurm_client:
-        client = Client(scheduler_file='./scheduler.json')
-    else:
+    total_cores = os.environ.get('SLURM_CPUS_PER_TASK')
+    if total_cores is None:
+        total_cores = os.cpu_count()
 
-        total_cores = os.environ.get('SLURM_CPUS_PER_TASK')
-        if total_cores is None:
-            total_cores = os.cpu_count()
+    if is_slurm_client:
+
+        total_nodes = os.environ.get('SLURM_NTASKS')
+
+        total_workers = (int(total_cores) * int(total_nodes)) - 2
+
+        client = Client(scheduler_file='./scheduler.json')
+        client.wait_for_workers(total_workers, 300.0)
+    else:
 
         # Create a LocalCluster with the calculated number of workers
         cluster = LocalCluster(

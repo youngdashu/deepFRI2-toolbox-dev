@@ -13,7 +13,7 @@ class ComputeBatches:
         self.name: str = name
 
     def compute(self, inputs: Generator[Tuple[Any], Any, None], factor=10):
-        max_workers = max(len(self.client.nthreads()) // factor, 1)
+        max_workers = max(self._workers_num_() // factor, 1)
         semaphore = Semaphore(max_leases=max_workers)
 
         print(f"Max parallel workers {max_workers}")
@@ -32,7 +32,7 @@ class ComputeBatches:
 
         i = 1
 
-        with performance_report(filename=f"report_{self.name}_{len(self.client.nthreads())}_{factor}.html"):
+        with performance_report(filename=f"report_{self.name}_{self._workers_num_()}_{factor}.html"):
 
             while True:
                 if max_workers > semaphore.get_value():
@@ -51,3 +51,6 @@ class ComputeBatches:
                     futures.clear()
 
             collect()
+
+    def _workers_num_(self):
+        return len(self.client.scheduler_info()['workers'])
