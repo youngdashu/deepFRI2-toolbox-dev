@@ -233,7 +233,7 @@ class StructuresDataset(BaseModel):
             downloaded_pdbs, file_path = result
             new_files_index.update({k: file_path for k in downloaded_pdbs})
 
-        compute_batches = ComputeBatches(self._client, run, collect, "pdb")
+        compute_batches = ComputeBatches(self._client, run, collect, "pdb" + "_b" if self.binary_data_download else "")
 
         inputs = ((pdb_repo_path / f"{i}", ids_chunk) for i, ids_chunk in enumerate(chunks))
 

@@ -31,8 +31,8 @@ class ComputeBatches:
             dask.distributed.print(f"{count} results collected")
 
         i = 1
-
-        with performance_report(filename=f"report_{self.name}_{self._workers_num_()}_{factor}.html"):
+        name = f"report_{self.name}_{self._workers_num_()}_{factor}"
+        with performance_report(filename=f"{name}.html"):
 
             while True:
                 if max_workers > semaphore.get_value():
