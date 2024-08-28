@@ -138,13 +138,6 @@ class StructuresDataset(BaseModel):
 
         self.save_dataset_metadata()
 
-    def close(self):
-        if self._client is not None:
-            cluster: LocalCluster = self._client.cluster
-            self._client.close()
-            cluster.close()
-            self._client = None
-
     def generate_sequence(self):
         self._sequence_retriever.retrieve()
 

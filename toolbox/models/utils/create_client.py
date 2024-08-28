@@ -18,6 +18,9 @@ def create_client(is_slurm_client: bool):
 
         total_nodes = os.environ.get('SLURM_NTASKS')
 
+        print("Total cores:", total_cores)
+        print("Total nodes:", total_nodes)
+
         total_workers = (int(total_cores) * int(total_nodes)) - 2
 
         client = Client(scheduler_file='./scheduler.json')
@@ -35,6 +38,7 @@ def create_client(is_slurm_client: bool):
 
         client = Client(cluster)
     print(client.dashboard_link)
+    print("Workers count: ", len(client.scheduler_info()['workers']))
 
     warnings.simplefilter("ignore", distributed.comm.core.CommClosedError)
     warnings.filterwarnings("ignore", message=".*Creating scratch directories is taking a surprisingly long time.*")
