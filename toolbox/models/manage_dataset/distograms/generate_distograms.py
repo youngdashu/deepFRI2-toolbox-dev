@@ -139,7 +139,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
     inputs = (item for item in search_index_result.grouped_missing_proteins.items())
 
     start = time.time()
-    compute_batches.compute(inputs, 1)
+    compute_batches.compute(inputs, 10)
     hf.close()
     end = time.time()
     print(f"Time taken (save to h5): {end - start} seconds")
