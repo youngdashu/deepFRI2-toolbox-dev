@@ -30,4 +30,5 @@ def add_new_files_to_index(dataset_index_file_path, new_files_index):
         current_index.update(new_files_index)
         create_index(dataset_index_file_path, current_index)
     except Exception as e:
+        print("Exception in add_new_files_to_index")
         print(e)

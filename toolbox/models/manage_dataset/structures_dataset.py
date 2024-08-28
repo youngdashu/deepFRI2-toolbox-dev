@@ -213,6 +213,8 @@ class StructuresDataset(BaseModel):
         self.add_new_files_to_index(new_files_index)
 
     def add_new_files_to_index(self, new_files_index):
+        print("Getting len ")
+        print(len(new_files_index))
         add_new_files_to_index(self.dataset_index_file_path(), new_files_index)
 
     def _download_pdb_(self, ids: List[str]):
@@ -231,6 +233,7 @@ class StructuresDataset(BaseModel):
 
         def collect(result):
             downloaded_pdbs, file_path = result
+            print("Updating new_files_index", len(downloaded_pdbs))
             new_files_index.update({k: file_path for k in downloaded_pdbs})
 
         compute_batches = ComputeBatches(self._client, run, collect, "pdb" + "_b" if self.binary_data_download else "")
@@ -239,7 +242,13 @@ class StructuresDataset(BaseModel):
 
         compute_batches.compute(inputs)
 
-        self.add_new_files_to_index(new_files_index)
+        print("Adding new files to index")
+
+        try:
+            self.add_new_files_to_index(new_files_index)
+        except Exception as e:
+            print("Failed to update index")
+            print(e)
 
     def foldcomp_decompress(self):
 
