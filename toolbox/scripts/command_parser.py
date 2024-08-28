@@ -23,7 +23,9 @@ class CommandParser:
             print("Dataset path is not valid")
             raise FileNotFoundError
 
-        self.structures_dataset._client = create_client()
+        self.structures_dataset._client = create_client(
+            True if self.args.slurm else self.structures_dataset.is_hpc_cluster
+        )
         return self.structures_dataset
 
     def dataset(self):
