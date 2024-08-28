@@ -3,6 +3,8 @@ from typing import Any, Callable, Generator, Tuple
 import dask.distributed
 from dask.distributed import Client, Semaphore, as_completed, Future, performance_report
 
+from toolbox.models.utils.create_client import total_workers
+
 
 class ComputeBatches:
 
@@ -53,4 +55,4 @@ class ComputeBatches:
             collect()
 
     def _workers_num_(self):
-        return len(self.client.scheduler_info()['workers'])
+        return total_workers()
