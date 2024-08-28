@@ -24,8 +24,7 @@ def save_file_sizes_and_names(zip_path, file_type):
             f.write(f"{file_info.filename}\n")
 
 
-def create_zip_archive(path_for_batch: Path, results):
-    start_time = time.time()
+def create_cif_files_zip_archive(path_for_batch: Path, results):
     zip_path = path_for_batch / 'cif_files.zip'
     cif_files = results[2]
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -35,15 +34,11 @@ def create_zip_archive(path_for_batch: Path, results):
                 cif_str = cif_str.getbuffer()
             zipf.writestr(cif_file_name, cif_str)
 
-    save_file_sizes_and_names(zip_path, "cif")
-    end_time = time.time()
-    execution_time = end_time - start_time
-    print(f'Cif compression: {execution_time}')
+    # save_file_sizes_and_names(zip_path, "cif")
     return str(zip_path)
 
 
 def create_pdb_zip_archive(path_for_batch: Path, results):
-    start_time = time.time()
     zip_path = path_for_batch / 'pdb_files.zip'
     all_res_pdbs = results[0]
     all_contents = results[1]
@@ -52,8 +47,5 @@ def create_pdb_zip_archive(path_for_batch: Path, results):
             pdb_file_name = pdb_file_name if pdb_file_name.endswith('.pdb') else pdb_file_name + '.pdb'
             zipf.writestr(pdb_file_name, pdb_str)
 
-    save_file_sizes_and_names(zip_path, "pdb")
-    end_time = time.time()
-    execution_time = end_time - start_time
-    print(f'Pdb compression: {execution_time}')
+    # save_file_sizes_and_names(zip_path, "pdb")
     return str(zip_path)

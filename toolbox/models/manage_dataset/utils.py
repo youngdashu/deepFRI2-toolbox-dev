@@ -16,7 +16,7 @@ from dask.distributed import as_completed, worker_client
 from foldcomp import foldcomp
 from foldcomp.setup import download
 
-from toolbox.models.manage_dataset.create_archive import create_zip_archive, create_pdb_zip_archive
+from toolbox.models.manage_dataset.create_archive import create_cif_files_zip_archive, create_pdb_zip_archive
 from toolbox.models.utils.cif2pdb import cif_to_pdb, binary_cif_to_pdb
 
 
@@ -42,28 +42,17 @@ def chunk(data, size):
         yield chunk_data
 
 
-def retrieve_cifs_to_pdbs(pdb: str) -> Tuple[Dict[str, str], Optional[Tuple[str, str]]]:
+def retrieve_cif(pdb: str) -> Tuple[Optional[str], str]:
     retry_num: int = 0
     cif_file: Optional[str] = None
 
     while retry_num <= 3 and cif_file is None:
-
         if retry_num > 0:
             print(f"Retrying downloading {pdb} {retry_num}")
 
         try:
-            cif_file: StringIO = biotite.database.rcsb.fetch(pdb, "cif")
-
-            # Calculate size in bytes
-            # cif_file.seek(0, 2)  # Move the cursor to the end of the file
-            # size_in_bytes = cif_file.tell()  # Get the cursor position which is the file size
-            # cif_file.seek(0)  # Reset the cursor position to the beginning
-            #
-            # # Convert size to MB
-            # size_in_mb = size_in_bytes / (1024 * 1024)
-            # print(f"CIF file size: {size_in_mb:.2f} MB")
-
-            cif_file: str = cif_file.getvalue()
+            cif_file_io: StringIO = biotite.database.rcsb.fetch(pdb, "cif")
+            cif_file: str = cif_file_io.getvalue()
         except Exception:
             cif_file = None
 
@@ -72,7 +61,15 @@ def retrieve_cifs_to_pdbs(pdb: str) -> Tuple[Dict[str, str], Optional[Tuple[str,
 
     if retry_num > 3:
         print(f"Failed retrying {pdb}")
-        return {}, None
+        return None, pdb
+
+    return cif_file, pdb
+
+
+def cif_to_pdbs(input_data) -> Tuple[Dict[str, str], Tuple[str, Optional[str]]]:
+    cif_file, pdb = input_data
+    if cif_file is None:
+        return {}, (pdb, None)
 
     converted = {}
     try:
@@ -85,7 +82,22 @@ def retrieve_cifs_to_pdbs(pdb: str) -> Tuple[Dict[str, str], Optional[Tuple[str,
     return converted, (pdb, cif_file)
 
 
-def retrieve_binary_cifs_to_pdbs(pdb: str) -> Tuple[Dict[str, str], Optional[Tuple[str, str]]]:
+def binary_cif_to_pdbs(input_data) -> Tuple[Dict[str, str], Tuple[str, BytesIO | None]]:
+    binary_file_bytes_io, pdb = input_data
+    if binary_file_bytes_io is None:
+        return {}, (pdb, None)
+    converted = {}
+    try:
+        converted = binary_cif_to_pdb(binary_file_bytes_io, pdb)
+    except Exception as e:
+        traceback.print_exc()
+        print(e)
+        print("Error in converting cif " + pdb)
+
+    return converted, (pdb, binary_file_bytes_io)
+
+
+def retrieve_binary_cif(pdb: str) -> tuple[BytesIO | None, str]:
     retry_num: int = 0
     binary_file_bytes_io: Optional[BytesIO] = None
 
@@ -96,8 +108,6 @@ def retrieve_binary_cifs_to_pdbs(pdb: str) -> Tuple[Dict[str, str], Optional[Tup
 
         try:
             binary_file_bytes_io: BytesIO = biotite.database.rcsb.fetch(pdb, "bcif")
-            # size_in_mb = binary_file_bytes_io.getbuffer().nbytes / (1024 * 1024)  # calculate size in MB
-            # print(f"binary, size: {size_in_mb:.2f} MB")
         except Exception:
             binary_file_bytes_io = None
 
@@ -106,17 +116,10 @@ def retrieve_binary_cifs_to_pdbs(pdb: str) -> Tuple[Dict[str, str], Optional[Tup
 
     if retry_num > 3:
         print(f"Failed retrying {pdb}")
-        return {}, None
+        return None, pdb
 
-    converted = {}
-    try:
-        converted = binary_cif_to_pdb(binary_file_bytes_io, pdb)
-    except Exception as e:
-        traceback.print_exc()
-        print(e)
-        print("Error in converting cif " + pdb)
+    return binary_file_bytes_io, pdb
 
-    return converted, (pdb, binary_file_bytes_io)
 
 
 def process_future(future: Tuple[Dict[str, str], Tuple[str, str]]):
@@ -200,13 +203,14 @@ def retrieve_pdb_chunk_to_h5(
     with worker_client() as client:
         start_time = time.time()
 
-        pdb_futures = client.map(retrieve_binary_cifs_to_pdbs if is_binary else retrieve_cifs_to_pdbs, pdb_ids)
+        pdb_futures = client.map(retrieve_binary_cif if is_binary else retrieve_cif, pdb_ids)
+        converted_pdb_futures = client.map(binary_cif_to_pdbs if is_binary else cif_to_pdbs, pdb_futures)
         download_start_time = time.time()
-        aggregated = client.submit(aggregate_results, pdb_futures, download_start_time)
+        aggregated = client.submit(aggregate_results, converted_pdb_futures, download_start_time)
 
         # Create delayed tasks for H5 and ZIP creation
         h5_task = client.submit(compress_and_save_h5, path_for_batch, aggregated, pure=False)
-        zip_task = client.submit(create_zip_archive, path_for_batch, aggregated, pure=False)
+        zip_task = client.submit(create_cif_files_zip_archive, path_for_batch, aggregated, pure=False)
         pdb_zip_task = client.submit(create_pdb_zip_archive, path_for_batch, aggregated, pure=False)
 
         # Compute the tasks
@@ -352,9 +356,9 @@ if __name__ == '__main__':
 
     code = '1j6t'
 
-    retrieve_binary_cifs_to_pdbs(code)
-
-    retrieve_cifs_to_pdbs(code)
+    # retrieve_binary_cifs_to_pdbs(code)
+    #
+    # retrieve_cifs_to_pdbs(code)
 
     # d = read_all_pdbs_from_h5(
     #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240813_0238/structures/1/pdbs.hdf5")
