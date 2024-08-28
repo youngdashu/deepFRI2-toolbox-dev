@@ -116,7 +116,11 @@ def _fetch_atoms_from_cif(protein_code: str, row_type: Literal['A', 'H', 'AH'], 
         else:
             break
 
-    return atoms, fields
+    try:
+        return atoms, fields
+    except UnboundLocalError as e:
+        print(f"Fields not found in {protein_code}")
+        print(e.with_traceback(None))
 
 
 def _create_pdb_atoms_from_cif(cif_atoms, cif_fields, identifier, with_acids_validation=False) -> Optional[List[str]]:
