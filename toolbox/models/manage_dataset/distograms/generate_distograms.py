@@ -9,6 +9,7 @@ import dask.distributed
 import h5py
 import numpy as np
 from dask.distributed import Client
+from distributed import Queue
 from scipy.spatial.distance import pdist, squareform
 
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
@@ -121,31 +122,48 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
     print("Missing distograms")
     print(len(search_index_result.missing_protein_files))
 
-    distogram_pdbs_saved = []
-
     client: Client = structures_dataset._client
-    distograms_file = structures_dataset.dataset_path() / 'distograms.hdf5'
-    hf = h5py.File(distograms_file, 'w')
+
+    path = structures_dataset.dataset_path() / 'distograms'
+    path.mkdir(exist_ok=True, parents=True)
+
+    partial_result_data_q = Queue(name='partial_result_data_q')
+
 
     def run(input_data):
         return client.submit(__process_pdbs__, *input_data)
 
     def collect(result):
+        f = client.submit(collect_parallel, result)
+        partial_result_data_q.put(f)
+
+    def collect_parallel(result):
+        if len(result) == 0:
+            return {}
+        hsh = hash(result[0][0])
+        distograms_file = path / f'distograms_{hsh}.hdf5'
+        hf = h5py.File(distograms_file, 'w')
         partial = __save_result_batch_to_h5__(hf, result)
-        distogram_pdbs_saved.extend(partial)
+        hf.close()
+        return {id_: str(distograms_file) for id_ in partial}
+
 
     compute_batches = ComputeBatches(structures_dataset._client, run, collect, "distograms")
 
     inputs = (item for item in search_index_result.grouped_missing_proteins.items())
 
     start = time.time()
-    compute_batches.compute(inputs, 10)
-    hf.close()
+    compute_batches.compute(inputs, 1)
+
     end = time.time()
     print(f"Time taken (save to h5): {end - start} seconds")
 
-    for id_ in distogram_pdbs_saved:
-        distogram_index[id_] = str(distograms_file)
+    distogram_pdbs_saved_futures = partial_result_data_q.get(batch=True)
+
+    distogram_pdbs_saved = client.gather(distogram_pdbs_saved_futures)
+
+    for dict_id_to_h5_file in distogram_pdbs_saved:
+        distogram_index.update(dict_id_to_h5_file)
     create_index(structures_dataset.distograms_index_path(), distogram_index)
 
 
