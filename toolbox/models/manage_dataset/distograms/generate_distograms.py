@@ -34,42 +34,6 @@ def __extract_coordinates__(file: str) -> tuple[tuple[float, float, float], ...]
     return tuple(ca_coords)
 
 
-# @njit
-# def pdist_numba(X):
-#     n = X.shape[0]
-#     m = X.shape[1]
-#     k = n * (n - 1) // 2
-#     D = np.empty(k, dtype=np.float16)
-#     l = 0
-#     for i in range(n - 1):
-#         for j in range(i + 1, n):
-#             d = 0.0
-#             for x in range(m):
-#                 tmp = X[i, x] - X[j, x]
-#                 d += tmp * tmp
-#             D[l] = np.sqrt(d)
-#             l += 1
-#     return D
-
-
-# @njit
-# def squareform_numba(distances_1d):
-#     # Calculate the size of the square matrix
-#     n = int(np.ceil(np.sqrt(distances_1d.size * 2)))
-#
-#     # Initialize the square matrix
-#     square_matrix = np.zeros((n, n), dtype=distances_1d.dtype)
-#
-#     # Fill the upper triangle of the matrix
-#     k = 0
-#     for i in range(n - 1):
-#         for j in range(i + 1, n):
-#             square_matrix[i, j] = distances_1d[k]
-#             square_matrix[j, i] = distances_1d[k]  # Mirror the value to lower triangle
-#             k += 1
-#
-#     return square_matrix
-
 def __process_pdbs__(h5_file_path: str, codes: List[str]):
     pdbs = read_pdbs_from_h5(h5_file_path, codes)
 
@@ -129,13 +93,12 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     partial_result_data_q = Queue(name='partial_result_data_q')
 
-
     def run(input_data):
-        return client.submit(__process_pdbs__, *input_data)
+        data_f = client.submit(__process_pdbs__, *input_data)
+        return client.submit(collect_parallel, data_f)
 
     def collect(result):
-        f = client.submit(collect_parallel, result)
-        partial_result_data_q.put(f)
+        partial_result_data_q.put(result)
 
     def collect_parallel(result):
         if len(result) == 0:
@@ -147,13 +110,12 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
         hf.close()
         return {id_: str(distograms_file) for id_ in partial}
 
-
     compute_batches = ComputeBatches(structures_dataset._client, run, collect, "distograms")
 
     inputs = (item for item in search_index_result.grouped_missing_proteins.items())
 
     start = time.time()
-    compute_batches.compute(inputs, 1)
+    compute_batches.compute(inputs, 5)
 
     end = time.time()
     print(f"Time taken (save to h5): {end - start} seconds")
