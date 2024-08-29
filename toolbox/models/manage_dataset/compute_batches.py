@@ -1,6 +1,9 @@
+import threading
+import time
 from typing import Any, Callable, Generator, Tuple
 
 import dask.distributed
+from dask import delayed
 from dask.distributed import Client, Semaphore, as_completed, Future, performance_report
 from distributed import Variable
 
@@ -15,50 +18,10 @@ class ComputeBatches:
         self.collect_f: Callable[[Any], None] = collect_f
         self.name: str = name
 
-    def compute2(self, inputs: Generator[Tuple[Any], Any, None], factor=10):
-        max_workers = max(self._workers_num_() // factor, 1)
-        semaphore = Semaphore(max_leases=max_workers)
-
-        print(f"Max parallel workers {max_workers}")
-
-        futures = []
-
-        def collect(fs):
-            dask.distributed.print("Collecting results")
-            count = 0
-            for batch in as_completed(fs, with_results=True).batches():
-                for _, result in batch:
-                    self.collect_f(result)
-                    count += 1
-                    semaphore.release()
-            dask.distributed.print(f"{count} results collected")
-            fs.clear()
-
-        i = 1
-        name = f"report_{self.name}_{self._workers_num_()}_{factor}"
-        with performance_report(filename=f"{name}.html"):
-
-            while True:
-                if max_workers > semaphore.get_value():
-
-                    next_value = next(inputs, None)
-                    if next_value is None:
-                        break
-
-                    semaphore.acquire()
-                    print(i)
-                    i += 1
-                    future = self.run_f(next_value)
-                    futures.append(future)
-                else:
-                    collect(futures)
-                    # futures.clear()
-
-            collect()
-
     def compute(self, inputs: Generator[Tuple[Any], Any, None], factor=10):
         max_workers = max(self._workers_num_() // factor, 1)
-        semaphore = Semaphore(max_leases=max_workers)
+        sem_name = "sem" + self.name
+        semaphore = Semaphore(max_leases=max_workers, name=sem_name)
 
         print(f"Max parallel workers {max_workers}")
 
@@ -71,7 +34,8 @@ class ComputeBatches:
 
             ac = as_completed([], with_results=True)
 
-            collect_job = self.client.submit(collect, (ac, self.collect_f, semaphore))
+            collect_thread = threading.Thread(target=collect, args=(ac, self.collect_f, semaphore))
+            collect_thread.start()
 
             while True:
                 semaphore.acquire()
@@ -85,7 +49,9 @@ class ComputeBatches:
                 future = self.run_f(next_value)
                 ac.add(future)
 
-            collect_job.result()
+            var.set(True)
+
+            collect_thread.join()
 
     def _workers_num_(self):
         return total_workers()
@@ -94,14 +60,47 @@ class ComputeBatches:
 def collect(ac: as_completed, collect_f, semaphore: Semaphore):
     dask.distributed.print("Collecting results")
     count = 0
+    total_time = 0
     stop_var = Variable('stopping-criterion')
-
     while True:
+
+        while ac.is_empty() and not stop_var.get():
+            if ac.is_empty() and stop_var.get():
+                print("Collect results time:", total_time)
+                return
+            time.sleep(1)
+
+        if ac.is_empty() and stop_var.get():
+            print("Collect results time:", total_time)
+            return
+
         future_c, result = next(ac)
+        start_time = time.time()
         collect_f(result)
+        end_time = time.time()
+        total_time += end_time - start_time
+        del future_c
         dask.distributed.print("Collected {}".format(count))
         count += 1
         semaphore.release()
 
         if ac.is_empty() and stop_var.get():
-            break
+            print("Collect results time:", total_time)
+            return
+
+
+if __name__ == '__main__':
+    import h5py
+
+    # Open the hdf5 file
+    f = h5py.File('/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/datasets/PDB-all--20240828_1627/distograms.hdf5',
+                  'r')
+
+    # Display the keys
+    print("Keys:", list(f.keys()))
+
+    # Display the length of keys
+    print("Number of keys:", len(f.keys()))
+
+    # Don't forget to close the file
+    f.close()
