@@ -110,7 +110,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
         hf.close()
         return {id_: str(distograms_file) for id_ in partial}
 
-    compute_batches = ComputeBatches(structures_dataset._client, run, collect, "distograms")
+    compute_batches = ComputeBatches(structures_dataset._client, run, collect, f"distograms_{structures_dataset.db_type}")
 
     inputs = (item for item in search_index_result.grouped_missing_proteins.items())
 
