@@ -10,6 +10,7 @@ import dask.bag as db
 import dotenv
 from Bio.PDB import PDBList
 from dask.distributed import Client, as_completed, LocalCluster
+from distributed import performance_report
 from pydantic import BaseModel, field_validator
 
 from toolbox.models.manage_dataset.collection_type import CollectionType
@@ -259,28 +260,31 @@ class StructuresDataset(BaseModel):
         batches = list(self.chunk(ids))
         mkdir_for_batches(structures_path, len(batches))
 
-        futures = [
-            self._client.submit(
-                alphafold_chunk_to_h5,
-                db_path,
-                str(structures_path / f"{number}"),
-                list(batch)
-            )
-            for number, batch in enumerate(batches)
-        ]
+        name = f"report_AFDB_{self.version}_{self._workers_num_()}_{1}"
+        with performance_report(filename=f"{name}.html"):
 
-        result_index = {}
+            futures = [
+                self._client.submit(
+                    alphafold_chunk_to_h5,
+                    db_path,
+                    str(structures_path / f"{number}"),
+                    list(batch)
+                )
+                for number, batch in enumerate(batches)
+            ]
 
-        i = 0
-        total = len(futures)
+            result_index = {}
 
-        for batch in as_completed(futures, with_results=True).batches():
-            for _, single_batch_index in batch:
-                result_index.update(single_batch_index)
-                print(f"{i}/{total}")
-                i += 1
+            i = 0
+            total = len(futures)
 
-        create_index(self.dataset_index_file_path(), result_index)
+            for batch in as_completed(futures, with_results=True).batches():
+                for _, single_batch_index in batch:
+                    result_index.update(single_batch_index)
+                    print(f"{i}/{total}")
+                    i += 1
+
+            create_index(self.dataset_index_file_path(), result_index)
 
     def handle_afdb(self):
         match self.collection_type:
