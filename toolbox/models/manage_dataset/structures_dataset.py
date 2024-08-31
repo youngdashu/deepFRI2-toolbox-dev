@@ -2,6 +2,7 @@ import contextlib
 import os
 import time
 from datetime import datetime
+from itertools import cycle
 from pathlib import Path
 from typing import List, Optional, Any
 from urllib.request import urlopen
@@ -23,7 +24,7 @@ from toolbox.models.manage_dataset.utils import foldcomp_download, mkdir_for_bat
     alphafold_chunk_to_h5
 from toolbox.models.manage_dataset.index.handle_index import create_index, add_new_files_to_index
 from toolbox.models.manage_dataset.utils import chunk
-from toolbox.models.utils.create_client import create_client, total_workers
+from toolbox.models.utils.create_client import create_client, total_workers, get_cluster_machines
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 
 dotenv.load_dotenv()
@@ -222,8 +223,13 @@ class StructuresDataset(BaseModel):
 
         new_files_index = {}
 
+        machines = get_cluster_machines(self._client)
+        machines_c = cycle(list(machines))
+
         def run(input_data):
-            return self._client.submit(retrieve_pdb_chunk_to_h5, *input_data, self.binary_data_download)
+            machine = next(machines_c)
+            print("Machine: ", str(machine))
+            return self._client.submit(retrieve_pdb_chunk_to_h5, *input_data, self.binary_data_download, [machine], workers=[machine])
 
         def collect(result):
             downloaded_pdbs, file_path = result

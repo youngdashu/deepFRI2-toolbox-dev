@@ -199,18 +199,19 @@ def retrieve_pdb_chunk_to_h5(
         path_for_batch: Path,
         pdb_ids: Iterable[str],
         is_binary: bool,
+        workers: List[str] = None
 ) -> Tuple[List[str], str]:
     with worker_client() as client:
         start_time = time.time()
 
-        pdb_futures = client.map(retrieve_binary_cif if is_binary else retrieve_cif, pdb_ids)
-        converted_pdb_futures = client.map(binary_cif_to_pdbs if is_binary else cif_to_pdbs, pdb_futures)
+        pdb_futures = client.map(retrieve_binary_cif if is_binary else retrieve_cif, pdb_ids, workers=workers)
+        converted_pdb_futures = client.map(binary_cif_to_pdbs if is_binary else cif_to_pdbs, pdb_futures, workers=workers)
         download_start_time = time.time()
-        aggregated = client.submit(aggregate_results, converted_pdb_futures, download_start_time)
+        aggregated = client.submit(aggregate_results, converted_pdb_futures, download_start_time, workers=workers)
 
         # Create delayed tasks for H5 and ZIP creation
-        h5_task = client.submit(compress_and_save_h5, path_for_batch, aggregated, pure=False)
-        get_ids_task = client.submit(lambda results: results[0], aggregated)
+        h5_task = client.submit(compress_and_save_h5, path_for_batch, aggregated, pure=False, workers=workers)
+        get_ids_task = client.submit(lambda results: results[0], aggregated, workers=workers)
         # zip_task = client.submit(create_cif_files_zip_archive, path_for_batch, aggregated, pure=False)
         # pdb_zip_task = client.submit(create_pdb_zip_archive, path_for_batch, aggregated, pure=False)
 
