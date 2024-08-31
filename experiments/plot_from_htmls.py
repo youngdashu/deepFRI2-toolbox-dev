@@ -315,7 +315,7 @@ def plot_grid(df):
     axs[1, 1].set_title('Average Time vs Number of Cores (All Tasks)')
     axs[1, 1].set_xticks(df['cores'])
     axs[1, 1].grid(True)
-    axs[1, 1].legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    axs[1, 1].legend(loc='upper left')
 
     plt.tight_layout()
     plt.savefig('grid_plot.pdf', dpi=1200, bbox_inches='tight')
