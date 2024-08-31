@@ -210,18 +210,20 @@ def retrieve_pdb_chunk_to_h5(
 
         # Create delayed tasks for H5 and ZIP creation
         h5_task = client.submit(compress_and_save_h5, path_for_batch, aggregated, pure=False)
-        zip_task = client.submit(create_cif_files_zip_archive, path_for_batch, aggregated, pure=False)
-        pdb_zip_task = client.submit(create_pdb_zip_archive, path_for_batch, aggregated, pure=False)
+        get_ids_task = client.submit(lambda results: results[0], aggregated)
+        # zip_task = client.submit(create_cif_files_zip_archive, path_for_batch, aggregated, pure=False)
+        # pdb_zip_task = client.submit(create_pdb_zip_archive, path_for_batch, aggregated, pure=False)
 
         # Compute the tasks
-        aggregated_results, h5_file_path, zip_file_path, pdb_file_path = client.gather(
-            [aggregated, h5_task, zip_task, pdb_zip_task])
+        pdb_ids, h5_file_path = client.gather(
+            [get_ids_task, h5_task]
+            )
 
         end_time = time.time()
         total_time = end_time - start_time
         print(f"Total processing time {path_for_batch.stem}: {total_time}")
 
-        return aggregated_results[0], h5_file_path
+        return pdb_ids, h5_file_path
 
 
 def mkdir_for_batches(base_path: Path, batch_count: int):

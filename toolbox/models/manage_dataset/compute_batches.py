@@ -3,7 +3,6 @@ import time
 from typing import Any, Callable, Generator, Tuple
 
 import dask.distributed
-from dask import delayed
 from dask.distributed import Client, Semaphore, as_completed, Future, performance_report
 from distributed import Variable
 
@@ -87,20 +86,3 @@ def collect(ac: as_completed, collect_f, semaphore: Semaphore):
         if ac.is_empty() and stop_var.get():
             print("Collect results time:", total_time)
             return
-
-
-if __name__ == '__main__':
-    import h5py
-
-    # Open the hdf5 file
-    f = h5py.File('/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/datasets/PDB-all--20240828_1627/distograms.hdf5',
-                  'r')
-
-    # Display the keys
-    print("Keys:", list(f.keys()))
-
-    # Display the length of keys
-    print("Number of keys:", len(f.keys()))
-
-    # Don't forget to close the file
-    f.close()

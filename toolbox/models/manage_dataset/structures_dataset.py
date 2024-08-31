@@ -23,7 +23,7 @@ from toolbox.models.manage_dataset.utils import foldcomp_download, mkdir_for_bat
     alphafold_chunk_to_h5
 from toolbox.models.manage_dataset.index.handle_index import create_index, add_new_files_to_index
 from toolbox.models.manage_dataset.utils import chunk
-from toolbox.models.utils.create_client import create_client
+from toolbox.models.utils.create_client import create_client, total_workers
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 
 dotenv.load_dotenv()
@@ -234,7 +234,8 @@ class StructuresDataset(BaseModel):
 
         inputs = ((pdb_repo_path / f"{i}", ids_chunk) for i, ids_chunk in enumerate(chunks))
 
-        compute_batches.compute(inputs)
+        factor = 20 if total_workers() > 2000 else 10
+        compute_batches.compute(inputs, factor=factor)
 
         print("Adding new files to index")
 
