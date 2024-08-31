@@ -240,7 +240,9 @@ class StructuresDataset(BaseModel):
 
         inputs = ((pdb_repo_path / f"{i}", ids_chunk) for i, ids_chunk in enumerate(chunks))
 
-        factor = 20 if total_workers() > 2000 else 10
+        factor = 10
+        factor = 15 if total_workers() > 1500 else factor
+        factor = 20 if total_workers() > 2000 else factor
         compute_batches.compute(inputs, factor=factor)
 
         print("Adding new files to index")
