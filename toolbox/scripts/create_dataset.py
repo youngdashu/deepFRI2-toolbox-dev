@@ -38,6 +38,11 @@ def create_parser():
     embedding_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path,
                                   help="Path to the datasets file")
 
+    embedding_parser = subparsers.add_parser("embedding_single_file", help="Create embeddings from datasets")
+    embedding_parser.add_argument('--slurm', action='store_true', help="Use SLURM job scheduler")
+    embedding_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path,
+                                  help="Path to the FASTA file")
+
     load_dataset_parser = subparsers.add_parser("load", help="Load a dataset from json")
     load_dataset_parser.add_argument('--slurm', action='store_true', help="Use SLURM job scheduler")
     load_dataset_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)

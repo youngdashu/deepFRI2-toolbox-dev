@@ -1,5 +1,6 @@
 import pathlib
 from argparse import Namespace
+from datetime import datetime
 
 from toolbox.models.chains.verify_chains import verify_chains
 from toolbox.models.embedding.embedding import Embedding
@@ -46,9 +47,13 @@ class CommandParser:
 
     def embedding(self):
         embedding = Embedding(datasets_file_path=self.args.file_path)
-        embedding.sequences_to_single_fasta()
-        embedding.build_db()
+        embedding.sequences_to_multiple_fasta()
         embedding.create_embeddings()
+
+    def embedding_single_file(self):
+        embedding = Embedding(datasets_file_path=None)
+        time_now = datetime.now().strftime('%Y%m%d_%H%M%S')
+        embedding.create_embedding_from_file(str(self.args.file_path), f"output_{time_now}.embedding")
 
     def load(self):
         dataset = self._create_dataset_from_path_()
