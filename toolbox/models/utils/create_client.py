@@ -17,6 +17,12 @@ def total_workers():
 
     return (int(total_cores) * int(total_nodes)) - 2
 
+def get_cluster_machines(client):
+    scheduler_info = client.scheduler_info()
+    workers = scheduler_info['workers']
+    machines = set(worker_info['host'] for worker_info in workers.values())
+    return machines
+
 
 def create_client(is_slurm_client: bool):
     # Get the total number of CPUs available on the machine
@@ -38,6 +44,7 @@ def create_client(is_slurm_client: bool):
         client = Client(cluster)
     print(client.dashboard_link)
     print("Workers count: ", len(client.scheduler_info()['workers']))
+    print(f"Machines: {get_cluster_machines(client)}")
 
     warnings.simplefilter("ignore", distributed.comm.core.CommClosedError)
     warnings.filterwarnings("ignore", message=".*Creating scratch directories is taking a surprisingly long time.*")
