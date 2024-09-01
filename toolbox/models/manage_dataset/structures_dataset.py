@@ -223,11 +223,7 @@ class StructuresDataset(BaseModel):
 
         new_files_index = {}
 
-        machines = get_cluster_machines(self._client)
-        machines_c = cycle(list(machines))
-
-        def run(input_data):
-            machine = next(machines_c)
+        def run(input_data, machine):
             print("Machine: ", str(machine))
             return self._client.submit(retrieve_pdb_chunk_to_h5, *input_data, self.binary_data_download, [machine], workers=[machine])
 

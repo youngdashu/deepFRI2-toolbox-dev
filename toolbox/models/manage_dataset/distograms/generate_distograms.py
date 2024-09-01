@@ -93,9 +93,9 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     partial_result_data_q = Queue(name='partial_result_data_q')
 
-    def run(input_data):
-        data_f = client.submit(__process_pdbs__, *input_data)
-        return client.submit(collect_parallel, data_f)
+    def run(input_data, machine):
+        data_f = client.submit(__process_pdbs__, *input_data, workers=machine)
+        return client.submit(collect_parallel, data_f, workers=machine)
 
     def collect(result):
         partial_result_data_q.put(result)

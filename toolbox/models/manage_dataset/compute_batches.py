@@ -1,23 +1,28 @@
 import threading
 import time
+from itertools import cycle
 from typing import Any, Callable, Generator, Tuple
 
 import dask.distributed
 from dask.distributed import Client, Semaphore, as_completed, Future, performance_report
 from distributed import Variable
 
-from toolbox.models.utils.create_client import total_workers
+from toolbox.models.utils.create_client import total_workers, get_cluster_machines
 
 
 class ComputeBatches:
 
     def __init__(self, client: Client, run_f, collect_f, name: str):
         self.client = client
-        self.run_f: Callable[[Any], Future] = run_f
+        self.run_f: Callable[[Any, str], Future] = run_f
         self.collect_f: Callable[[Any], None] = collect_f
         self.name: str = name
 
     def compute(self, inputs: Generator[Tuple[Any], Any, None], factor=10):
+
+        machines = get_cluster_machines(self.client)
+        machines_c = cycle(machines)
+
         max_workers = max(self._workers_num_() // factor, 1)
         sem_name = "sem" + self.name
         semaphore = Semaphore(max_leases=max_workers, name=sem_name)
@@ -45,7 +50,7 @@ class ComputeBatches:
 
                 print(i)
                 i += 1
-                future = self.run_f(next_value)
+                future = self.run_f(next_value, next(machines_c))
                 ac.add(future)
 
             var.set(True)
