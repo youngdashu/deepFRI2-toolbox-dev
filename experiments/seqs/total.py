@@ -1,8 +1,5 @@
-
-
 from experiments.plot_from_htmls import plot_from_htmls
 
-from distributed import sizeof
 
 if __name__ == "__main__":
     html_files_dir = "/Users/youngdashu/sano/deepFRI2-toolbox-dev/experiments/seqs/reports_seq"  # replace with actual path

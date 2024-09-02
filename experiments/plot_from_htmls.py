@@ -12,8 +12,8 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from dask.distributed import get_client
 
+BASE_CORE_COUNT = 190
 
-BASE_CORE_COUNT=190
 
 def parse_html_to_json(html_file_path: str, parser='html.parser'):
     with open(html_file_path, 'r') as file:
@@ -100,9 +100,9 @@ def analyze_single_task(data, task_name):
 
 
 def analyze_task_times(json_data, task_names):
-    with get_client() as client:
-        task_bag = db.from_sequence(task_names)
-        results = task_bag.map(lambda name: analyze_single_task(json_data, name)).compute()
+    # with get_client() as client:
+    #     task_bag = db.from_sequence(task_names)
+    results = map(lambda name: analyze_single_task(json_data, name), task_names)
     return {result['name']: result for result in results}
 
 
@@ -269,6 +269,19 @@ def plot_efficiency(df):
 
 
 def plot_grid(df):
+    # Define font size variables
+    SMALL_FONT = 16
+    MEDIUM_FONT = 17
+    LARGE_FONT = 20
+    EXTRA_LARGE_FONT = 26
+
+    # Define marker (dot) and line size variables
+    MARKER_SIZE = 8  # Increased from the default of 6
+    LINE_WIDTH = 2  # Increased from the default of 1
+
+    # Increase the default font size
+    plt.rcParams.update({'font.size': MEDIUM_FONT})
+
     duration_df = df.groupby('cores')['total_duration_seconds'].first().reset_index()
     duration_df = duration_df.sort_values('cores')
 
@@ -279,28 +292,34 @@ def plot_grid(df):
     fig, axs = plt.subplots(2, 2, figsize=(20, 20))
 
     # Duration plot
-    axs[0, 0].plot(duration_df['cores'], duration_df['total_duration_seconds'], marker='o', color='blue')
-    axs[0, 0].set_xlabel('Number of Cores')
-    axs[0, 0].set_ylabel('Total Job Duration (seconds)')
-    axs[0, 0].set_title('Duration vs Number of Cores')
+    axs[0, 0].plot(duration_df['cores'], duration_df['total_duration_seconds'], marker='o', color='blue',
+                   markersize=MARKER_SIZE, linewidth=LINE_WIDTH)
+    axs[0, 0].set_xlabel('Number of Cores', fontsize=LARGE_FONT)
+    axs[0, 0].set_ylabel('Total Job Duration (seconds)', fontsize=LARGE_FONT)
+    axs[0, 0].set_title('Duration vs Number of Cores', fontsize=EXTRA_LARGE_FONT)
     axs[0, 0].set_xticks(df['cores'])
     axs[0, 0].grid(True)
+    axs[0, 0].tick_params(axis='both', which='major', labelsize=MEDIUM_FONT)
 
     # Speedup plot
-    axs[0, 1].plot(duration_df['cores'], duration_df['speedup'], marker='o', color='red')
-    axs[0, 1].set_xlabel('Number of Cores')
-    axs[0, 1].set_ylabel('Speedup')
-    axs[0, 1].set_title('Speedup vs Number of Cores')
+    axs[0, 1].plot(duration_df['cores'], duration_df['speedup'], marker='o', color='red',
+                   markersize=MARKER_SIZE, linewidth=LINE_WIDTH)
+    axs[0, 1].set_xlabel('Number of Cores', fontsize=LARGE_FONT)
+    axs[0, 1].set_ylabel('Speedup', fontsize=LARGE_FONT)
+    axs[0, 1].set_title('Speedup vs Number of Cores', fontsize=EXTRA_LARGE_FONT)
     axs[0, 1].set_xticks(df['cores'])
     axs[0, 1].grid(True)
+    axs[0, 1].tick_params(axis='both', which='major', labelsize=MEDIUM_FONT)
 
     # Efficiency plot
-    axs[1, 0].plot(duration_df['cores'], duration_df['efficiency'], marker='o', color='green')
-    axs[1, 0].set_xlabel('Number of Cores')
-    axs[1, 0].set_ylabel('Efficiency')
-    axs[1, 0].set_title('Efficiency vs Number of Cores')
+    axs[1, 0].plot(duration_df['cores'], duration_df['efficiency'], marker='o', color='green',
+                   markersize=MARKER_SIZE, linewidth=LINE_WIDTH)
+    axs[1, 0].set_xlabel('Number of Cores', fontsize=LARGE_FONT)
+    axs[1, 0].set_ylabel('Efficiency', fontsize=LARGE_FONT)
+    axs[1, 0].set_title('Efficiency vs Number of Cores', fontsize=EXTRA_LARGE_FONT)
     axs[1, 0].set_xticks(df['cores'])
     axs[1, 0].grid(True)
+    axs[1, 0].tick_params(axis='both', which='major', labelsize=MEDIUM_FONT)
 
     # Average time plot (all tasks)
     tasks = df['name'].unique()
@@ -308,19 +327,20 @@ def plot_grid(df):
 
     for task, color in zip(tasks, colors):
         task_df = df[df['name'] == task].sort_values('cores')
-        axs[1, 1].plot(task_df['cores'], task_df['average_time_s'], marker='o', label=task, color=color)
+        axs[1, 1].plot(task_df['cores'], task_df['average_time_s'], marker='o', label=task, color=color,
+                       markersize=MARKER_SIZE, linewidth=LINE_WIDTH)
 
-    axs[1, 1].set_xlabel('Number of Cores')
-    axs[1, 1].set_ylabel('Average Execution Time (seconds)')
-    axs[1, 1].set_title('Average Time vs Number of Cores (All Tasks)')
+    axs[1, 1].set_xlabel('Number of Cores', fontsize=LARGE_FONT)
+    axs[1, 1].set_ylabel('Average Execution Time (seconds)', fontsize=LARGE_FONT)
+    axs[1, 1].set_title('Average Time vs Number of Cores (All Tasks)', fontsize=EXTRA_LARGE_FONT)
     axs[1, 1].set_xticks(df['cores'])
     axs[1, 1].grid(True)
-    axs[1, 1].legend(loc='upper left')
+    axs[1, 1].legend(loc='upper left', fontsize=SMALL_FONT)
+    axs[1, 1].tick_params(axis='both', which='major', labelsize=MEDIUM_FONT)
 
     plt.tight_layout()
     plt.savefig('grid_plot.pdf', dpi=1200, bbox_inches='tight')
     plt.show()
-
 
 def plot_from_htmls(
         html_files_dir: str,
@@ -332,14 +352,20 @@ def plot_from_htmls(
     # Find all HTML files in the specified directory
     html_files = [os.path.join(html_files_dir, f) for f in os.listdir(html_files_dir) if f.endswith('.html')]
 
+    print(html_files)
+
     def process_file(html_file):
         process_html_file(html_file, task_names, output_dir)
 
-    client = dask.distributed.Client()
+    # client = dask.distributed.Client()
+
+    for file in html_files:
+        process_file(file)
+
 
     # Process HTML files and generate CSVs
-    files = client.map(process_file, html_files)
-    dask.distributed.progress(files)
+    # files = client.map(process_file, html_files)
+    # dask.distributed.progress(files)
 
     # Read CSV files and create visualization
     df = read_csv_files(output_dir)

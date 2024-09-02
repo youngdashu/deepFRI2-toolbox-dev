@@ -1,10 +1,10 @@
 from experiments.plot_from_htmls import plot_from_htmls
 
 if __name__ == "__main__":
-    html_files_dir = "/Users/youngdashu/sano/deepFRI2-toolbox-dev/experiments/download/reports"  # replace with actual path
+    html_files_dir = "/Users/youngdashu/sano/deepFRI2-toolbox-dev/experiments/download_pdb_nb/reports"  # replace with actual path
     task_names = [
-        "retrieve_binary_cif",
-        "binary_cif_to_pdbs",
+        "retrieve_cif",
+        "cif_to_pdbs",
         "aggregate_results",
         # "create_pdb_zip_archive",
         "compress_and_save_h5",
