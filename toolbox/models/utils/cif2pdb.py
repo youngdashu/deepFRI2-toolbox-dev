@@ -119,8 +119,7 @@ def _fetch_atoms_from_cif(protein_code: str, row_type: Literal['A', 'H', 'AH'], 
     try:
         return atoms, fields
     except UnboundLocalError as e:
-        print(f"Fields not found in {protein_code}")
-        print(e.with_traceback(None))
+        return None, None
 
 
 def _create_pdb_atoms_from_cif(cif_atoms, cif_fields, identifier, with_acids_validation=False) -> Optional[List[str]]:
@@ -225,6 +224,9 @@ def _create_pdb_atoms_from_cif(cif_atoms, cif_fields, identifier, with_acids_val
 
 def cif_to_pdb(cif: str, pdb_code: str) -> Dict[str, str]:
     all_atoms, fields = _fetch_atoms_from_cif(pdb_code, 'A', cif)
+
+    if all_atoms is None or fields is None:
+        return None
 
     # split atoms by auth_asym_id field
     chain_id_field_number = fields[KEY_CHAIN]

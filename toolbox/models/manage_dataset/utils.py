@@ -78,6 +78,10 @@ def cif_to_pdbs(input_data) -> Tuple[Dict[str, str], Tuple[str, Optional[str]]]:
         traceback.print_exc()
         print(e)
         print("Error in converting cif " + pdb)
+        return {}, (pdb, None)
+
+    if converted is None:
+        return {}, (pdb, None)
 
     return converted, (pdb, cif_file)
 
