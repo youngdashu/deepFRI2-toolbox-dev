@@ -265,45 +265,51 @@ class StructuresDataset(BaseModel):
         batches = list(self.chunk(ids))
         mkdir_for_batches(structures_path, len(batches))
 
-        name = f"report_AFDB_{self.version}_{self._workers_num_()}_{1}"
-        with performance_report(filename=f"{name}.html"):
+        futures = [
+            self._client.submit(
+                alphafold_chunk_to_h5,
+                db_path,
+                str(structures_path / f"{number}"),
+                list(batch)
+            )
+            for number, batch in enumerate(batches)
+        ]
 
-            futures = [
-                self._client.submit(
-                    alphafold_chunk_to_h5,
-                    db_path,
-                    str(structures_path / f"{number}"),
-                    list(batch)
-                )
-                for number, batch in enumerate(batches)
-            ]
+        result_index = {}
 
-            result_index = {}
+        i = 0
+        total = len(futures)
 
-            i = 0
-            total = len(futures)
+        for batch in as_completed(futures, with_results=True).batches():
+            for _, single_batch_index in batch:
+                result_index.update(single_batch_index)
+                print(f"{i}/{total}")
+                i += 1
 
-            for batch in as_completed(futures, with_results=True).batches():
-                for _, single_batch_index in batch:
-                    result_index.update(single_batch_index)
-                    print(f"{i}/{total}")
-                    i += 1
-
-            create_index(self.dataset_index_file_path(), result_index)
+        create_index(self.dataset_index_file_path(), result_index)
 
     def handle_afdb(self):
-        match self.collection_type:
-            case CollectionType.all:
-                pass
-            case CollectionType.part:
-                foldcomp_download(self.type_str, str(self.dataset_repo_path()))
-                self.foldcomp_decompress()
-            case CollectionType.clust:
-                foldcomp_download(self.type_str, str(self.dataset_repo_path()))
-                self.foldcomp_decompress()
-            case CollectionType.subset:
-                # TODO handle file from disk
-                pass
+
+        name = f"report_AFDB_{self.version}_{total_workers()}_{1}"
+        with performance_report(filename=f"{name}.html"):
+
+            match self.collection_type:
+                case CollectionType.all:
+                    pass
+                case CollectionType.part:
+
+                    f = self._client.submit(
+                        foldcomp_download, (self.type_str, str(self.dataset_repo_path())),
+                        pure=False
+                    )
+                    f.result()
+                    self.foldcomp_decompress()
+                case CollectionType.clust:
+                    foldcomp_download(self.type_str, str(self.dataset_repo_path()))
+                    self.foldcomp_decompress()
+                case CollectionType.subset:
+                    # TODO handle file from disk
+                    pass
 
     def handle_esma(self):
         match self.collection_type:
