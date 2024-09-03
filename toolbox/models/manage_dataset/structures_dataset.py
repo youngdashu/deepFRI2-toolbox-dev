@@ -299,7 +299,7 @@ class StructuresDataset(BaseModel):
                 case CollectionType.part:
 
                     f = self._client.submit(
-                        foldcomp_download, (self.type_str, str(self.dataset_repo_path())),
+                        foldcomp_download, self.type_str, str(self.dataset_repo_path()),
                         pure=False
                     )
                     f.result()
