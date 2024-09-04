@@ -28,7 +28,7 @@ def create_client(is_slurm_client: bool):
     # Get the total number of CPUs available on the machine
 
     if is_slurm_client:
-        client = Client(scheduler_file='./scheduler.json')
+        client = Client(scheduler_file='~/scheduler.json')
         client.wait_for_workers(total_workers(), 300.0)
     else:
         total_cores = os.cpu_count()

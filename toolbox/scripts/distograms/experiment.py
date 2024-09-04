@@ -69,6 +69,7 @@ def histograms(path_with_files):
     futures = []
     start_index = 0
     for file, num_keys in zip(hdf5_files, keys_per_file):
+        print("Appending delayed")
         futures.append(dask.delayed(process_file)(file, start_index))
         start_index += num_keys
 
@@ -77,6 +78,7 @@ def histograms(path_with_files):
 
     # Flatten the results
     inputs = [item for sublist in results for item in sublist]
+    print("Get inputs", len(inputs))
 
     # Sort inputs by key
     inputs.sort(key=lambda x: x[0])
@@ -84,8 +86,10 @@ def histograms(path_with_files):
     # Create the 3D plot
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
-
+    i = 0
     for _, data in inputs:
+        print(i)
+        i += 1
         ax.bar3d(*data, shade=True, alpha=0.8)
 
     # Customize the plot
