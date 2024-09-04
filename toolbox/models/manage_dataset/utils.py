@@ -16,6 +16,8 @@ from dask.distributed import as_completed, worker_client
 from foldcomp import foldcomp
 from foldcomp.setup import download
 
+from toolbox.models.manage_dataset.compress_experiment.exp import compress_and_save_h5_individual, \
+    compress_and_save_h5_individual_lzf, compress_and_save_h5_combined, compress_and_save_h5_combined_lzf
 from toolbox.models.manage_dataset.create_archive import create_cif_files_zip_archive, create_pdb_zip_archive
 from toolbox.models.utils.cif2pdb import cif_to_pdb, binary_cif_to_pdb
 
@@ -125,7 +127,6 @@ def retrieve_binary_cif(pdb: str) -> tuple[BytesIO | None, str]:
     return binary_file_bytes_io, pdb
 
 
-
 def process_future(future: Tuple[Dict[str, str], Tuple[str, str]]):
     # Directly use future since it's a tuple containing the results
     chains: Dict[str, str] = future[0]
@@ -199,6 +200,28 @@ def compress_and_save_h5(path_for_batch: Path, results: Tuple[List[str], List[st
     return str(pdbs_file)
 
 
+def compress_and_save_experiment(path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]):
+    fs = [
+        compress_and_save_h5_individual,
+        compress_and_save_h5_individual_lzf,
+        compress_and_save_h5_combined,
+        compress_and_save_h5_combined_lzf,
+        compress_and_save_h5
+    ]
+
+    descriptions = [
+        'individual gzip',
+        'individual lzf',
+        'combined gzip',
+        'combined lzf',
+        'combined zlib'
+    ]
+
+    for f, desc in zip(fs, descriptions):
+        print(desc)
+        f(path_for_batch, results)
+
+
 def retrieve_pdb_chunk_to_h5(
         path_for_batch: Path,
         pdb_ids: Iterable[str],
@@ -209,7 +232,8 @@ def retrieve_pdb_chunk_to_h5(
         start_time = time.time()
 
         pdb_futures = client.map(retrieve_binary_cif if is_binary else retrieve_cif, pdb_ids, workers=workers)
-        converted_pdb_futures = client.map(binary_cif_to_pdbs if is_binary else cif_to_pdbs, pdb_futures, workers=workers)
+        converted_pdb_futures = client.map(binary_cif_to_pdbs if is_binary else cif_to_pdbs, pdb_futures,
+                                           workers=workers)
         download_start_time = time.time()
         aggregated = client.submit(aggregate_results, converted_pdb_futures, download_start_time, workers=workers)
 
@@ -222,7 +246,7 @@ def retrieve_pdb_chunk_to_h5(
         # Compute the tasks
         pdb_ids, h5_file_path = client.gather(
             [get_ids_task, h5_task]
-            )
+        )
 
         end_time = time.time()
         total_time = end_time - start_time
