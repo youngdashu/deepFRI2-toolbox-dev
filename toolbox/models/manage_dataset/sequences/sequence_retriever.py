@@ -32,8 +32,8 @@ class SequenceRetriever:
 
         client: Client = self.structures_dataset._client
 
-        def run(input_data):
-            return client.submit(get_sequences_from_batch, *input_data)
+        def run(input_data, workers):
+            return client.submit(get_sequences_from_batch, *input_data, workers=workers)
 
         sequences_file_path = structures_dataset.dataset_path() / "sequences.fasta"
 
