@@ -7,6 +7,8 @@ from matplotlib import pyplot as plt
 import dask
 from dask.distributed import Client, progress
 
+from toolbox.models.utils.create_client import create_client
+
 
 def process_distogram_file(file_path):
     histograms_dict = {}
@@ -49,7 +51,7 @@ def process_file(file_path, start_index):
 
 
 def histograms(path_with_files):
-    client = Client()  # Start a Dask client
+    client = create_client(True)  # Start a Dask client
 
     # Get all HDF5 files in the directory
     hdf5_files = [os.path.join(path_with_files, f) for f in os.listdir(path_with_files) if f.endswith('.hdf5')]
