@@ -3,11 +3,11 @@ from argparse import Namespace
 from datetime import datetime
 
 from toolbox.models.chains.verify_chains import verify_chains
-from toolbox.scripts.archive import create_archive
 from toolbox.models.embedding.embedding import Embedding
 from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms, read_distograms_from_file
 from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
 from toolbox.models.utils.create_client import create_client
+from toolbox.scripts.archive import create_archive
 
 
 class CommandParser:

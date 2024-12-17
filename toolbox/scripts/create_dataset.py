@@ -71,6 +71,10 @@ def create_parser():
     input_generation_parser.add_argument('--slurm', action='store_true', help="Use SLURM job scheduler")
     add_dataset_parser_arguments(input_generation_parser)
 
+    create_archive_parser = subparsers.add_parser("create_archive", help="Create PDB archive ")
+    create_archive_parser.add_argument('--slurm', action='store_true', help="Use SLURM job scheduler")
+    create_archive_parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
+
     return parser
 
 

@@ -253,31 +253,45 @@ def plot_efficiency(df):
     duration_df = duration_df.sort_values('cores')
 
     T1 = duration_df.loc[duration_df['cores'] == BASE_CORE_COUNT, 'total_duration_seconds'].values[0]
+    P1 = BASE_CORE_COUNT
+
     duration_df['speedup'] = T1 / duration_df['total_duration_seconds']
-    duration_df['efficiency'] = duration_df['speedup'] / duration_df['cores']
+    duration_df['efficiency'] = (T1 / duration_df['total_duration_seconds']) / (duration_df['cores'] / P1)
+
+    # Set efficiency to 100% for the BASE_CORE_COUNT
+    duration_df.loc[duration_df['cores'] == BASE_CORE_COUNT, 'efficiency'] = 1.0
 
     plt.figure(figsize=(10, 6))
-    plt.plot(duration_df['cores'], duration_df['efficiency'], marker='o', color='green')
+    plt.plot(duration_df['cores'], duration_df['efficiency'] * 100, marker='o', color='green', markersize=8,
+             linewidth=2)
 
-    plt.xlabel('Number of Cores')
-    plt.ylabel('Efficiency')
-    plt.title('Efficiency vs Number of Cores')
-    plt.xticks(ticks=df['cores'])
+    plt.xlabel('Number of Cores', fontsize=12)
+    plt.ylabel('Efficiency (%)', fontsize=12)
+    plt.title('Efficiency vs Number of Cores', fontsize=14)
+    plt.xticks(ticks=df['cores'], fontsize=10)
+    plt.yticks(fontsize=10)
     plt.grid(True)
+    plt.ylim(0, 105)  # Set y-axis limit to 105% for better visibility
+
+    # Add efficiency values as text above each point
+    for x, y in zip(duration_df['cores'], duration_df['efficiency']):
+        plt.text(x, y * 100 + 2, f'{y * 100:.1f}%', ha='center', va='bottom', fontsize=9)
+
+    plt.tight_layout()
     plt.savefig('efficiency_plot.pdf', dpi=1200, bbox_inches='tight')
     plt.show()
 
 
-def plot_grid(df):
+def plot_grid(df, plot_dir='.'):
     # Define font size variables
-    SMALL_FONT = 16
-    MEDIUM_FONT = 17
-    LARGE_FONT = 20
-    EXTRA_LARGE_FONT = 26
+    SMALL_FONT = 18
+    MEDIUM_FONT = 19
+    LARGE_FONT = 22
+    EXTRA_LARGE_FONT = 29
 
     # Define marker (dot) and line size variables
-    MARKER_SIZE = 8  # Increased from the default of 6
-    LINE_WIDTH = 2  # Increased from the default of 1
+    MARKER_SIZE = 8
+    LINE_WIDTH = 2
 
     # Increase the default font size
     plt.rcParams.update({'font.size': MEDIUM_FONT})
@@ -286,8 +300,13 @@ def plot_grid(df):
     duration_df = duration_df.sort_values('cores')
 
     T1 = duration_df.loc[duration_df['cores'] == BASE_CORE_COUNT, 'total_duration_seconds'].values[0]
+    P1 = BASE_CORE_COUNT
+
     duration_df['speedup'] = T1 / duration_df['total_duration_seconds']
-    duration_df['efficiency'] = duration_df['speedup'] / duration_df['cores']
+    duration_df['efficiency'] = (duration_df['speedup'] / duration_df['cores']) * (P1 / 1)
+
+    # Set efficiency to 100% for the BASE_CORE_COUNT
+    duration_df.loc[duration_df['cores'] == BASE_CORE_COUNT, 'efficiency'] = 1.0
 
     fig, axs = plt.subplots(2, 2, figsize=(20, 20))
 
@@ -312,10 +331,10 @@ def plot_grid(df):
     axs[0, 1].tick_params(axis='both', which='major', labelsize=MEDIUM_FONT)
 
     # Efficiency plot
-    axs[1, 0].plot(duration_df['cores'], duration_df['efficiency'], marker='o', color='green',
+    axs[1, 0].plot(duration_df['cores'], duration_df['efficiency'] * 100, marker='o', color='green',
                    markersize=MARKER_SIZE, linewidth=LINE_WIDTH)
     axs[1, 0].set_xlabel('Number of Cores', fontsize=LARGE_FONT)
-    axs[1, 0].set_ylabel('Efficiency', fontsize=LARGE_FONT)
+    axs[1, 0].set_ylabel('Efficiency (%)', fontsize=LARGE_FONT)
     axs[1, 0].set_title('Efficiency vs Number of Cores', fontsize=EXTRA_LARGE_FONT)
     axs[1, 0].set_xticks(df['cores'])
     axs[1, 0].grid(True)
@@ -339,14 +358,16 @@ def plot_grid(df):
     axs[1, 1].tick_params(axis='both', which='major', labelsize=MEDIUM_FONT)
 
     plt.tight_layout()
-    plt.savefig('grid_plot.pdf', dpi=1200, bbox_inches='tight')
+    plt.savefig(plot_dir + '/grid_plot.pdf', dpi=1200, bbox_inches='tight')
     plt.show()
+
 
 def plot_from_htmls(
         html_files_dir: str,
         task_names: List[str],
 ):
-    output_dir = "results"
+    output_dir = html_files_dir + "/../results"
+    grid_plot_dir = html_files_dir + "/.."
     os.makedirs(output_dir, exist_ok=True)
 
     # Find all HTML files in the specified directory
@@ -362,24 +383,19 @@ def plot_from_htmls(
     for file in html_files:
         process_file(file)
 
-
-    # Process HTML files and generate CSVs
-    # files = client.map(process_file, html_files)
-    # dask.distributed.progress(files)
-
     # Read CSV files and create visualization
     df = read_csv_files(output_dir)
 
     # Plot average time
-    plot_scalability(df, plot_type='average')
-
-    # Plot total time
-    plot_scalability(df, plot_type='total')
-
-    # Plot total duration
-    plot_scalability(df, plot_type='duration')
-
-    # New plots
-    plot_speedup(df)
-    plot_efficiency(df)
-    plot_grid(df)
+    # plot_scalability(df, plot_type='average')
+    #
+    # # Plot total time
+    # plot_scalability(df, plot_type='total')
+    #
+    # # Plot total duration
+    # plot_scalability(df, plot_type='duration')
+    #
+    # # New plots
+    # plot_speedup(df)
+    # plot_efficiency(df)
+    plot_grid(df, grid_plot_dir)

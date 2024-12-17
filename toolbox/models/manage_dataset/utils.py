@@ -337,13 +337,13 @@ def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
         return None
 
 
-def read_pdbs_from_h5(h5_file_path: str, codes: List[str]) -> Optional[Dict[str, str]]:
+def read_pdbs_from_h5(h5_file_path: str, codes: Optional[List[str]]) -> Optional[Dict[str, str]]:
     h5_file_path_obj = Path(h5_file_path)
     if not h5_file_path_obj.exists():
         dask.distributed.print(f"Error: File {h5_file_path_obj} does not exist.")
         return None
 
-    codes = set(codes)
+    codes = None if not codes else set(codes)
 
     try:
         with h5py.File(h5_file_path_obj, 'r') as hf:
@@ -356,9 +356,13 @@ def read_pdbs_from_h5(h5_file_path: str, codes: List[str]) -> Optional[Dict[str,
                 all_pdbs = decompressed.split("|")
                 all_file_names_split = pdb_file_names.split(";")
 
+                if codes:
                 # Only include the codes that are in the 'codes' list
-                for code, pdb in zip(all_file_names_split, all_pdbs):
-                    if code in codes:
+                    for code, pdb in zip(all_file_names_split, all_pdbs):
+                        if code in codes:
+                            result[code] = pdb
+                else:
+                    for code, pdb in zip(all_file_names_split, all_pdbs):
                         result[code] = pdb
 
             return result
