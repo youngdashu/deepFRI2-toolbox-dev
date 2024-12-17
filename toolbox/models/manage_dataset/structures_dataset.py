@@ -1,18 +1,17 @@
-import contextlib
+import io
 import os
 import time
 from datetime import datetime
-from itertools import cycle
 from pathlib import Path
 from typing import List, Optional, Any
-from urllib.request import urlopen
 
 import dask.bag as db
 import dotenv
 from Bio.PDB import PDBList
-from dask.distributed import Client, as_completed, LocalCluster
+from dask.distributed import Client, as_completed
 from distributed import performance_report
 from pydantic import BaseModel, field_validator
+import requests
 
 from toolbox.models.manage_dataset.collection_type import CollectionType
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
@@ -24,7 +23,7 @@ from toolbox.models.manage_dataset.utils import foldcomp_download, mkdir_for_bat
     alphafold_chunk_to_h5
 from toolbox.models.manage_dataset.index.handle_index import create_index, add_new_files_to_index
 from toolbox.models.manage_dataset.utils import chunk
-from toolbox.models.utils.create_client import create_client, total_workers, get_cluster_machines
+from toolbox.models.utils.create_client import create_client, total_workers
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 
 dotenv.load_dotenv()
@@ -140,8 +139,8 @@ class StructuresDataset(BaseModel):
 
         self.save_dataset_metadata()
 
-    def generate_sequence(self):
-        self._sequence_retriever.retrieve()
+    def generate_sequence(self, ca_mask: bool = False, substitute_non_standard_aminoacids: bool=True):
+        self._sequence_retriever.retrieve(ca_mask, substitute_non_standard_aminoacids)
 
     def get_all_ids(self):
         match self.db_type:
@@ -152,10 +151,12 @@ class StructuresDataset(BaseModel):
                 end_time = time.time()
                 elapsed_time = end_time - start_time
                 print(f"PDBList().get_all_entries time: {elapsed_time} seconds")
-                url = "ftp://ftp.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
-                with contextlib.closing(urlopen(url)) as handle:
-                    res = list(filter_pdb_codes(handle, all_pdbs))
-                    print(f"After removing non protein codes {len(res)}")
+                url = "http://files.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
+
+                response = requests.get(url)
+                response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)    
+                res = filter_pdb_codes(response.text, all_pdbs)
+                print(f"After removing non protein codes {len(res)}")
             case DatabaseType.AFDB:
                 res = []
             case DatabaseType.ESMatlas:
@@ -224,7 +225,6 @@ class StructuresDataset(BaseModel):
         new_files_index = {}
 
         def run(input_data, machine):
-            print("Machine: ", str(machine))
             return self._client.submit(retrieve_pdb_chunk_to_h5, *input_data, self.binary_data_download, [machine], workers=[machine])
 
         def collect(result):
@@ -291,25 +291,25 @@ class StructuresDataset(BaseModel):
     def handle_afdb(self):
 
         name = f"report_AFDB_{self.version}_{total_workers()}_{1}"
-        with performance_report(filename=f"{name}.html"):
+        # with performance_report(filename=f"{name}.html"):
 
-            match self.collection_type:
-                case CollectionType.all:
-                    pass
-                case CollectionType.part:
+        match self.collection_type:
+            case CollectionType.all:
+                pass
+            case CollectionType.part:
 
-                    f = self._client.submit(
-                        foldcomp_download, self.type_str, str(self.dataset_repo_path()),
-                        pure=False
-                    )
-                    f.result()
-                    self.foldcomp_decompress()
-                case CollectionType.clust:
-                    foldcomp_download(self.type_str, str(self.dataset_repo_path()))
-                    self.foldcomp_decompress()
-                case CollectionType.subset:
-                    # TODO handle file from disk
-                    pass
+                f = self._client.submit(
+                    foldcomp_download, self.type_str, str(self.dataset_repo_path()),
+                    pure=False
+                )
+                f.result()
+                self.foldcomp_decompress()
+            case CollectionType.clust:
+                foldcomp_download(self.type_str, str(self.dataset_repo_path()))
+                self.foldcomp_decompress()
+            case CollectionType.subset:
+                # TODO handle file from disk
+                pass
 
     def handle_esma(self):
         match self.collection_type:

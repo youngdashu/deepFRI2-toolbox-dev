@@ -28,16 +28,18 @@ def create_client(is_slurm_client: bool):
     # Get the total number of CPUs available on the machine
 
     if is_slurm_client:
-        client = Client(scheduler_file='~/scheduler.json')
-        client.wait_for_workers(total_workers(), 300.0)
+        client = Client(scheduler_file=os.environ.get('DEEPFRI_PATH') + "/scheduler.json")
+        n = total_workers()
+        print("Waiting for {} clients".format(n))
+        client.wait_for_workers(n, 300.0)
     else:
         total_cores = os.cpu_count()
         # Create a LocalCluster with the calculated number of workers
         cluster = LocalCluster(
             dashboard_address='0.0.0.0:8989',
-            n_workers=int(total_cores) - 2,
+            n_workers=10 - 2,
             threads_per_worker=1,
-            memory_limit='16 GiB',
+            memory_limit='80 GiB',
             silence_logs=logging.ERROR
         )
 

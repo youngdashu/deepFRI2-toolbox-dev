@@ -19,19 +19,88 @@ from toolbox.models.manage_dataset.paths import datasets_path
 from toolbox.models.manage_dataset.utils import read_pdbs_from_h5
 
 
-def __extract_coordinates__(file: str) -> tuple[tuple[float, float, float], ...]:
+def __extract_coordinates__(file: str) -> tuple[tuple[float, float, float], tuple[float | None, float | None, float | None]]:
     ca_coords = []
+    coords_with_breaks = []
+    previous_residue_sequence_number = None
+    max_residue_number = 0  # Track the highest residue number encountered in the file
 
     for line in file.splitlines():
         if line.startswith('ATOM'):
             atom_type = line[12:16].strip()
+            # Adjust indices for your specific PDB format if needed
+            current_residue_sequence_number = int(line[22:26].strip())
+            # Track the highest residue number encountered
+            if current_residue_sequence_number > max_residue_number:
+                max_residue_number = current_residue_sequence_number
+
             if atom_type == 'CA':
+                # If we have a previous residue and the current residue is not the immediate next,
+                # fill the gap with None
+                if (previous_residue_sequence_number is not None and 
+                    current_residue_sequence_number > previous_residue_sequence_number + 1):
+                    for _ in range(previous_residue_sequence_number + 1, current_residue_sequence_number):
+                        coords_with_breaks.append((None, None, None))
+
                 x = float(line[30:38])
                 y = float(line[38:46])
                 z = float(line[46:54])
-                ca_coords.append((x, y, z))
 
-    return tuple(ca_coords)
+                ca_coords.append((x, y, z))
+                coords_with_breaks.append((x, y, z))
+                previous_residue_sequence_number = current_residue_sequence_number
+
+    # After processing all lines, use the last encountered residue number as final_residue_number
+    # If the last CA residue number is not equal to the max_residue_number, fill with None
+    if (previous_residue_sequence_number is not None and 
+        max_residue_number > previous_residue_sequence_number):
+        for _ in range(previous_residue_sequence_number + 1, max_residue_number + 1):
+            coords_with_breaks.append((None, None, None))
+
+    return tuple(ca_coords), tuple(coords_with_breaks)
+
+
+def improved_distances_calculation(coords, coords_with_breaks):
+    # Calculate base distances from coords without breaks
+    distances_1d = pdist(coords).astype(np.float16)
+    distances_base = squareform(distances_1d) # 2d array
+
+    n = distances_base.shape[0]
+    
+    # 2. Wyliczyć medianę z diagonali +1 (wartości distances_base[i, i+1])
+    # Sprawdzamy tylko elementy powyżej głównej przekątnej (pierwsza nadprzekątna).
+    if n > 1:
+        diag_plus_one = distances_base[np.arange(n-1), np.arange(1, n)]
+        median_diag = np.nanmedian(diag_plus_one)
+    else:
+        # Jeżeli jest tylko jeden punkt, medianę ustawiamy np. na 0 lub np.nan
+        median_diag = 0.0
+    
+    # Create array with NaNs for missing coordinates
+    n_full = len(coords_with_breaks)
+    distances_with_nans = np.full((n_full, n_full), np.nan, dtype=np.float16)
+    
+    # Create mask of valid coordinates
+    valid_indices = [i for i, coord in enumerate(coords_with_breaks) if coord[0] is not None]
+    
+    # Fill in distances for valid coordinates
+    for i, vi in enumerate(valid_indices):
+        for j, vj in enumerate(valid_indices):
+            distances_with_nans[vi, vj] = distances_base[i, j]
+    
+    # Fill in median_diag values around NaN diagonal elements
+    for i in range(n_full):
+        if np.isnan(distances_with_nans[i, i]):
+            distances_with_nans[i, i] = 0.0  # Set diagonal to 0
+            # Set adjacent cells to median_diag if they exist
+            if i > 0:  # Left
+                distances_with_nans[i, i-1] = median_diag
+                distances_with_nans[i-1, i] = median_diag  # Symmetric
+            if i < n_full-1:  # Right
+                distances_with_nans[i, i+1] = median_diag
+                distances_with_nans[i+1, i] = median_diag  # Symmetric
+            
+    return distances_with_nans
 
 
 def __process_pdbs__(h5_file_path: str, codes: List[str]):
@@ -40,12 +109,11 @@ def __process_pdbs__(h5_file_path: str, codes: List[str]):
     res = []
 
     for code, content in pdbs.items():
-        coords = __extract_coordinates__(content)
+        coords, coords_with_breaks = __extract_coordinates__(content)
         if len(coords) == 0:
             dask.distributed.print("No CA found in " + code)
             continue
-        distances_1d = pdist(coords).astype(np.float16)
-        distances = squareform(distances_1d)
+        distances = improved_distances_calculation(coords, coords_with_breaks)
         res.append(
             (code, distances)
         )

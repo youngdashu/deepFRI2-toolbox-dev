@@ -3,6 +3,7 @@ from argparse import Namespace
 from datetime import datetime
 
 from toolbox.models.chains.verify_chains import verify_chains
+from toolbox.scripts.archive import create_archive
 from toolbox.models.embedding.embedding import Embedding
 from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms, read_distograms_from_file
 from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
@@ -38,12 +39,13 @@ class CommandParser:
             ids_file=self.args.ids,
             seqres_file=self.args.seqres,
             overwrite=self.args.overwrite,
-            batch_size=self.args.batch_size,
+            batch_size=None if self.args.batch_size is None else int(self.args.batch_size),
             binary_data_download=self.args.binary,
             is_hpc_cluster=self.args.slurm
         )
         self.structures_dataset = dataset
         dataset.create_dataset()
+        return dataset
 
     def embedding(self):
         embedding = Embedding(datasets_file_path=self.args.file_path)
@@ -61,7 +63,7 @@ class CommandParser:
 
     def generate_sequence(self):
         self._create_dataset_from_path_()
-        self.structures_dataset.generate_sequence()
+        self.structures_dataset.generate_sequence(self.args.ca_mask, self.args.no_substitution)
 
     def generate_distograms(self):
         self._create_dataset_from_path_()
@@ -73,6 +75,28 @@ class CommandParser:
     def verify_chains(self):
         self._create_dataset_from_path_()
         verify_chains(self.structures_dataset, "./toolbox/pdb_seqres.txt")
+
+    def create_archive(self):
+        self._create_dataset_from_path_()
+        create_archive(self.structures_dataset)
+
+    def input_generation(self):
+        try:
+            print("Creating dataset")
+            self.dataset()
+        except Exception as e:
+            print(f"Error: {e}")
+        try:
+            print("Generating sequences")
+            self.structures_dataset.generate_sequence()
+        except Exception as e:
+            print(f"Error: {e}")
+        try:
+            print("Generating distograms")
+            generate_distograms(self.structures_dataset)
+        except Exception as e:
+            print(f"Error: {e}")
+
 
     def run(self):
         command_method = getattr(self, self.args.command)

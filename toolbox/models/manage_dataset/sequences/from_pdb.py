@@ -1,3 +1,7 @@
+from io import StringIO
+from pdbfixer import PDBFixer
+from openmm.app import PDBFile
+
 aa_dict = {
     'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
     'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
@@ -6,34 +10,77 @@ aa_dict = {
     'UNK': 'X'
 }
 
+def replace_non_standard_residues(pdb_string: str):
+    fixer = PDBFixer(pdbfile=StringIO(pdb_string))
 
-def extract_sequence_from_pdb_string(pdb_string):
+    fixer.findNonstandardResidues()
+    fixer.replaceNonstandardResidues()
+
+    output = StringIO()
+
+    PDBFile.writeFile(fixer.topology, fixer.positions, output)
+
+    return output.getvalue()
+
+empty_chain_part_sign = 'X'
+
+
+def extract_sequence_from_pdb_string(pdb_string: str, code: str,  ca_mask=False, substitute_non_standard_aminoacids=True):
+
+    if substitute_non_standard_aminoacids:
+        try:
+            pdb_string = replace_non_standard_residues(pdb_string)
+        except Exception as e:
+            print("Exception when transforming ", code)
+            print(e)
+
+
     sequence = []
     current_residue = None
+
+    ca_residue_indexes = []
+    all_residue_indexes = []
 
     for line in pdb_string.split('\n'):
         if line.startswith('ATOM'):
             residue_name = line[17:20].strip()
             residue_number = int(line[22:26])
+            
+            atom_name = line[12:16].strip()
+            if ca_mask and atom_name == 'CA':
+                ca_residue_indexes.append(residue_number)
 
             if (residue_number, residue_name) != current_residue:
 
                 if current_residue is not None:
                     residue_number_diff = residue_number - current_residue[0]
                     if residue_number_diff > 1:
-                        sequence.append('-' * (residue_number_diff - 1))
+                        sequence.extend([empty_chain_part_sign] * (residue_number_diff - 1))
+                        all_residue_indexes.extend([None] * (residue_number_diff - 1))
 
                 current_residue = (residue_number, residue_name)
                 if residue_name in aa_dict:
                     sequence.append(aa_dict[residue_name])
+                    all_residue_indexes.append(residue_number)
+                else:
+                    sequence.append(empty_chain_part_sign)
+                    all_residue_indexes.append(None)
+
+    if ca_mask:
+
+        for i, residue_number in enumerate(all_residue_indexes):
+            if not residue_number in ca_residue_indexes:
+                sequence[i] = empty_chain_part_sign
 
     return ''.join(sequence)
 
 
+
+
 if __name__ == '__main__':
     input = """
-    ATOM      1  N   THR P  49    157.5729144.7042168.9863 1.00086.036           N 
-ATOM      2  CA  THR P  49    157.5779145.5472170.1763 1.00086.036           C 
+ATOM      1  N   THR P  49    157.5729144.7042168.9863 1.00086.036           N 
+ATOM      2  CC  THR P  49    157.5779145.5472170.1763 1.00086.036           C 
 ATOM      3  C   THR P  49    158.4599146.7722169.9563 1.00086.036           C 
 ATOM      4  O   THR P  49    159.5039146.6902169.3093 1.00086.036           O 
 ATOM      5  CB  THR P  49    158.0699144.7722171.4133 1.00086.036           C 
@@ -450,7 +497,7 @@ ATOM    415 HE1  PHE P 104    145.8469188.2132200.5123 1.00077.175           H
 ATOM    416 HE2  PHE P 104    147.2329187.9742196.7753 1.00077.175           H 
 ATOM    417  HZ  PHE P 104    147.4199188.7772198.9303 1.00077.175           H 
 ATOM    418  N   THR P 105    142.2889183.1002199.3043 1.00080.945           N 
-ATOM    419  CA  THR P 105    141.1339182.3322199.7603 1.00080.945           C 
+ATOM    419  CC  THR P 105    141.1339182.3322199.7603 1.00080.945           C 
 ATOM    420  C   THR P 105    140.9829181.0252198.9893 1.00080.945           C 
 ATOM    421  O   THR P 105    141.1029179.9412199.5603 1.00080.945           O 
 ATOM    422  CB  THR P 105    139.8259183.1472199.6373 1.00080.945           C 
@@ -463,8 +510,10 @@ ATOM    428 HG1  THR P 105    139.6359182.9222197.7643 1.00080.945           H
 ATOM    429 HG21 THR P 105    139.0489184.8752200.4603 1.00080.945           H 
 ATOM    430 HG22 THR P 105    139.9419184.0692201.4833 1.00080.945           H 
 ATOM    431 HG23 THR P 105    140.6229184.9192200.3413 1.00080.945           H 
-
-    """
+"""
 
     res = extract_sequence_from_pdb_string(input)
+    print(res)
+
+    res = extract_sequence_from_pdb_string(input, ca_mask=True)
     print(res)

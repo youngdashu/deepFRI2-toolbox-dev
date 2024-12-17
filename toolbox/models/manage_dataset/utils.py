@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 import traceback
 import zlib
@@ -16,8 +17,8 @@ from dask.distributed import as_completed, worker_client
 from foldcomp import foldcomp
 from foldcomp.setup import download
 
-from toolbox.models.manage_dataset.compress_experiment.exp import compress_and_save_h5_individual, \
-    compress_and_save_h5_individual_lzf, compress_and_save_h5_combined, compress_and_save_h5_combined_lzf
+from toolbox.models.manage_dataset.compress_experiment.exp import compress_and_save_h5_combined_lzf_shuffle, compress_and_save_h5_individual, \
+    compress_and_save_h5_individual_lzf, compress_and_save_h5_combined, compress_and_save_h5_combined_lzf, compress_and_save_h5_individual_lzf_shuffle
 from toolbox.models.manage_dataset.create_archive import create_cif_files_zip_archive, create_pdb_zip_archive
 from toolbox.models.utils.cif2pdb import cif_to_pdb, binary_cif_to_pdb
 
@@ -204,22 +205,38 @@ def compress_and_save_experiment(path_for_batch: Path, results: Tuple[List[str],
     fs = [
         compress_and_save_h5_individual,
         compress_and_save_h5_individual_lzf,
+        compress_and_save_h5_individual_lzf_shuffle,
         compress_and_save_h5_combined,
         compress_and_save_h5_combined_lzf,
+        compress_and_save_h5_combined_lzf_shuffle,
         compress_and_save_h5
     ]
 
     descriptions = [
         'individual gzip',
         'individual lzf',
+        'individual lzf shuffle',
         'combined gzip',
         'combined lzf',
+        'combined lzf shuffle',
         'combined zlib'
     ]
 
+    inputs = list(results)
+
+    def get_file_size_mb(file_path):
+        try:
+            size_in_bytes = os.path.getsize(file_path)
+            size_in_mb = size_in_bytes / (1024 * 1024)  # Convert bytes to megabytes
+            return round(size_in_mb, 2)
+        except Exception:
+            return None
+
     for f, desc in zip(fs, descriptions):
         print(desc)
-        f(path_for_batch, results)
+        path = f(path_for_batch, inputs)
+        print(path, get_file_size_mb(path))
+
 
 
 def retrieve_pdb_chunk_to_h5(
