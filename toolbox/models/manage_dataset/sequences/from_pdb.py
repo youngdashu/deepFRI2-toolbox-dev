@@ -2,38 +2,11 @@ from io import StringIO
 from pdbfixer import PDBFixer
 from openmm.app import PDBFile
 
-aa_dict = {
-    'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
-    'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
-    'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R',
-    'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y',
-    'UNK': 'X'
-}
-
-def replace_non_standard_residues(pdb_string: str):
-    fixer = PDBFixer(pdbfile=StringIO(pdb_string))
-
-    fixer.findNonstandardResidues()
-    fixer.replaceNonstandardResidues()
-
-    output = StringIO()
-
-    PDBFile.writeFile(fixer.topology, fixer.positions, output)
-
-    return output.getvalue()
+from toolbox.models.utils.cif2pdb import aa_dict
 
 empty_chain_part_sign = 'X'
 
-
 def extract_sequence_from_pdb_string(pdb_string: str, code: str,  ca_mask=False, substitute_non_standard_aminoacids=True):
-
-    if substitute_non_standard_aminoacids:
-        try:
-            pdb_string = replace_non_standard_residues(pdb_string)
-        except Exception as e:
-            print("Exception when transforming ", code)
-            print(e)
-
 
     sequence = []
     current_residue = None
@@ -43,31 +16,36 @@ def extract_sequence_from_pdb_string(pdb_string: str, code: str,  ca_mask=False,
 
     for line in pdb_string.split('\n'):
         if line.startswith('ATOM'):
-            residue_name = line[17:20].strip()
-            residue_number = int(line[22:26])
-            
-            atom_name = line[12:16].strip()
-            if ca_mask and atom_name == 'CA':
-                ca_residue_indexes.append(residue_number)
+            try:
+                residue_name = line[17:20].strip()
+                residue_number = int(line[22:26])
+                atom_name = line[12:16].strip()
+                
+                if ca_mask and atom_name == 'CA':
+                    ca_residue_indexes.append(residue_number)
 
-            if (residue_number, residue_name) != current_residue:
+                if (residue_number, residue_name) != current_residue:
 
-                if current_residue is not None:
-                    residue_number_diff = residue_number - current_residue[0]
-                    if residue_number_diff > 1:
-                        sequence.extend([empty_chain_part_sign] * (residue_number_diff - 1))
-                        all_residue_indexes.extend([None] * (residue_number_diff - 1))
+                    if current_residue is not None:
+                        residue_number_diff = residue_number - current_residue[0]
+                        if residue_number_diff > 1:
+                            sequence.extend([empty_chain_part_sign] * (residue_number_diff - 1))
+                            all_residue_indexes.extend([None] * (residue_number_diff - 1))
 
-                current_residue = (residue_number, residue_name)
-                if residue_name in aa_dict:
-                    sequence.append(aa_dict[residue_name])
-                    all_residue_indexes.append(residue_number)
-                else:
-                    sequence.append(empty_chain_part_sign)
-                    all_residue_indexes.append(None)
+                    current_residue = (residue_number, residue_name)
+                    if residue_name in aa_dict:
+                        sequence.append(aa_dict[residue_name])
+                        all_residue_indexes.append(residue_number)
+                    else:
+                        sequence.append(empty_chain_part_sign)
+                        all_residue_indexes.append(None)
+            except Exception as e:
+                #TODO logger
+                print(f"Error parsing line in {code}: {line}")
+                print(f"Error details: {e}")
+                continue
 
     if ca_mask:
-
         for i, residue_number in enumerate(all_residue_indexes):
             if not residue_number in ca_residue_indexes:
                 sequence[i] = empty_chain_part_sign
@@ -512,8 +490,3 @@ ATOM    430 HG22 THR P 105    139.9419184.0692201.4833 1.00080.945           H
 ATOM    431 HG23 THR P 105    140.6229184.9192200.3413 1.00080.945           H 
 """
 
-    res = extract_sequence_from_pdb_string(input)
-    print(res)
-
-    res = extract_sequence_from_pdb_string(input, ca_mask=True)
-    print(res)

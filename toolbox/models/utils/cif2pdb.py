@@ -4,8 +4,6 @@ from typing import Dict, Literal, Tuple, List, Union, Optional
 import biotite.structure.io.pdbx
 import biotite.structure.io.pdbx.bcif as bcif
 
-from toolbox.models.manage_dataset.sequences.from_pdb import aa_dict
-
 LOOP_ID = "loop_"
 LOOP_EL_ID = "_atom_site."
 ATOM_ID = "ATOM"
@@ -31,150 +29,33 @@ KEY_MODEL_NUM = "_atom_site.pdbx_PDB_model_num"  # model number
 
 # https://github.com/openmm/pdbfixer/blob/master/pdbfixer/pdbfixer.py
 substitutions = {
-    '2AS': 'ASP',
-    '3AH': 'HIS',
-    '5HP': 'GLU',
-    '5OW': 'LYS',
-    'ACL': 'ARG',
-    'AGM': 'ARG',
-    'AIB': 'ALA',
-    'ALM': 'ALA',
-    'ALO': 'THR',
-    'ALY': 'LYS',
-    'ARM': 'ARG',
-    'ASA': 'ASP',
-    'ASB': 'ASP',
-    'ASK': 'ASP',
-    'ASL': 'ASP',
-    'ASQ': 'ASP',
-    'AYA': 'ALA',
-    'BCS': 'CYS',
-    'BHD': 'ASP',
-    'BMT': 'THR',
-    'BNN': 'ALA',
-    'BUC': 'CYS',
-    'BUG': 'LEU',
-    'C5C': 'CYS',
-    'C6C': 'CYS',
-    'CAS': 'CYS',
-    'CCS': 'CYS',
-    'CEA': 'CYS',
-    'CGU': 'GLU',
-    'CHG': 'ALA',
-    'CLE': 'LEU',
-    'CME': 'CYS',
-    'CSD': 'ALA',
-    'CSO': 'CYS',
-    'CSP': 'CYS',
-    'CSS': 'CYS',
-    'CSW': 'CYS',
-    'CSX': 'CYS',
-    'CXM': 'MET',
-    'CY1': 'CYS',
-    'CY3': 'CYS',
-    'CYG': 'CYS',
-    'CYM': 'CYS',
-    'CYQ': 'CYS',
-    'DAH': 'PHE',
-    'DAL': 'ALA',
-    'DAR': 'ARG',
-    'DAS': 'ASP',
-    'DCY': 'CYS',
-    'DGL': 'GLU',
-    'DGN': 'GLN',
-    'DHA': 'ALA',
-    'DHI': 'HIS',
-    'DIL': 'ILE',
-    'DIV': 'VAL',
-    'DLE': 'LEU',
-    'DLY': 'LYS',
-    'DNP': 'ALA',
-    'DPN': 'PHE',
-    'DPR': 'PRO',
-    'DSN': 'SER',
-    'DSP': 'ASP',
-    'DTH': 'THR',
-    'DTR': 'TRP',
-    'DTY': 'TYR',
-    'DVA': 'VAL',
-    'EFC': 'CYS',
-    'FLA': 'ALA',
-    'FME': 'MET',
-    'GGL': 'GLU',
-    'GL3': 'GLY',
-    'GLZ': 'GLY',
-    'GMA': 'GLU',
-    'GSC': 'GLY',
-    'HAC': 'ALA',
-    'HAR': 'ARG',
-    'HIC': 'HIS',
-    'HIP': 'HIS',
-    'HMR': 'ARG',
-    'HPQ': 'PHE',
-    'HTR': 'TRP',
-    'HYP': 'PRO',
-    'IAS': 'ASP',
-    'IIL': 'ILE',
-    'IYR': 'TYR',
-    'KCX': 'LYS',
-    'LLP': 'LYS',
-    'LLY': 'LYS',
-    'LTR': 'TRP',
-    'LYM': 'LYS',
-    'LYZ': 'LYS',
-    'MAA': 'ALA',
-    'MEN': 'ASN',
-    'MHS': 'HIS',
-    'MIS': 'SER',
-    'MK8': 'LEU',
-    'MLE': 'LEU',
-    'MPQ': 'GLY',
-    'MSA': 'GLY',
-    'MSE': 'MET',
-    'MVA': 'VAL',
-    'NEM': 'HIS',
-    'NEP': 'HIS',
-    'NLE': 'LEU',
-    'NLN': 'LEU',
-    'NLP': 'LEU',
-    'NMC': 'GLY',
-    'OAS': 'SER',
-    'OCS': 'CYS',
-    'OMT': 'MET',
-    'PAQ': 'TYR',
-    'PCA': 'GLU',
-    'PEC': 'CYS',
-    'PHI': 'PHE',
-    'PHL': 'PHE',
-    'PR3': 'CYS',
-    'PRR': 'ALA',
-    'PTR': 'TYR',
-    'PYX': 'CYS',
-    'SAC': 'SER',
-    'SAR': 'GLY',
-    'SCH': 'CYS',
-    'SCS': 'CYS',
-    'SCY': 'CYS',
-    'SEL': 'SER',
-    'SEP': 'SER',
-    'SET': 'SER',
-    'SHC': 'CYS',
-    'SHR': 'LYS',
-    'SMC': 'CYS',
-    'SOC': 'CYS',
-    'STY': 'TYR',
-    'SVA': 'SER',
-    'TIH': 'ALA',
-    'TPL': 'TRP',
-    'TPO': 'THR',
-    'TPQ': 'ALA',
-    'TRG': 'LYS',
-    'TRO': 'TRP',
-    'TYB': 'TYR',
-    'TYI': 'TYR',
-    'TYQ': 'TYR',
-    'TYS': 'TYR',
-    'TYY': 'TYR'
+    '2AS':'ASP', '3AH':'HIS', '5HP':'GLU', 'ACL':'ARG', 'AGM':'ARG', 'AIB':'ALA', 'ALM':'ALA', 'ALO':'THR', 'ALY':'LYS', 'ARM':'ARG',
+    'ASA':'ASP', 'ASB':'ASP', 'ASK':'ASP', 'ASL':'ASP', 'ASQ':'ASP', 'AYA':'ALA', 'BCS':'CYS', 'BHD':'ASP', 'BMT':'THR', 'BNN':'ALA',
+    'BUC':'CYS', 'BUG':'LEU', 'C5C':'CYS', 'C6C':'CYS', 'CAS':'CYS', 'CCS':'CYS', 'CEA':'CYS', 'CGU':'GLU', 'CHG':'ALA', 'CLE':'LEU', 'CME':'CYS',
+    'CSD':'ALA', 'CSO':'CYS', 'CSP':'CYS', 'CSS':'CYS', 'CSW':'CYS', 'CSX':'CYS', 'CXM':'MET', 'CY1':'CYS', 'CY3':'CYS', 'CYG':'CYS',
+    'CYM':'CYS', 'CYQ':'CYS', 'DAH':'PHE', 'DAL':'ALA', 'DAR':'ARG', 'DAS':'ASP', 'DCY':'CYS', 'DGL':'GLU', 'DGN':'GLN', 'DHA':'ALA',
+    'DHI':'HIS', 'DIL':'ILE', 'DIV':'VAL', 'DLE':'LEU', 'DLY':'LYS', 'DNP':'ALA', 'DPN':'PHE', 'DPR':'PRO', 'DSN':'SER', 'DSP':'ASP',
+    'DTH':'THR', 'DTR':'TRP', 'DTY':'TYR', 'DVA':'VAL', 'EFC':'CYS', 'FLA':'ALA', 'FME':'MET', 'GGL':'GLU', 'GL3':'GLY', 'GLZ':'GLY',
+    'GMA':'GLU', 'GSC':'GLY', 'HAC':'ALA', 'HAR':'ARG', 'HIC':'HIS', 'HIP':'HIS', 'HMR':'ARG', 'HPQ':'PHE', 'HTR':'TRP', 'HYP':'PRO',
+    'IAS':'ASP', 'IIL':'ILE', 'IYR':'TYR', 'KCX':'LYS', 'LLP':'LYS', 'LLY':'LYS', 'LTR':'TRP', 'LYM':'LYS', 'LYZ':'LYS', 'MAA':'ALA', 'MEN':'ASN',
+    'MHS':'HIS', 'MIS':'SER', 'MLE':'LEU', 'MPQ':'GLY', 'MSA':'GLY', 'MSE':'MET', 'MVA':'VAL', 'NEM':'HIS', 'NEP':'HIS', 'NLE':'LEU',
+    'NLN':'LEU', 'NLP':'LEU', 'NMC':'GLY', 'OAS':'SER', 'OCS':'CYS', 'OMT':'MET', 'PAQ':'TYR', 'PCA':'GLU', 'PEC':'CYS', 'PHI':'PHE',
+    'PHL':'PHE', 'PR3':'CYS', 'PRR':'ALA', 'PTR':'TYR', 'PYX':'CYS', 'SAC':'SER', 'SAR':'GLY', 'SCH':'CYS', 'SCS':'CYS', 'SCY':'CYS',
+    'SEL':'SER', 'SEP':'SER', 'SET':'SER', 'SHC':'CYS', 'SHR':'LYS', 'SMC':'CYS', 'SOC':'CYS', 'STY':'TYR', 'SVA':'SER', 'TIH':'ALA',
+    'TPL':'TRP', 'TPO':'THR', 'TPQ':'ALA', 'TRG':'LYS', 'TRO':'TRP', 'TYB':'TYR', 'TYI':'TYR', 'TYQ':'TYR', 'TYS':'TYR', 'TYY':'TYR'
+}
+proteinResidues = ['ALA', 'ASN', 'CYS', 'GLU', 'HIS', 'LEU', 'MET', 'PRO', 'THR', 'TYR', 'ARG', 'ASP', 'GLN', 'GLY', 'ILE', 'LYS', 'PHE', 'SER', 'TRP', 'VAL']
+rnaResidues = ['A', 'G', 'C', 'U', 'I']
+dnaResidues = ['DA', 'DG', 'DC', 'DT', 'DI']
+
+unwanted_residues = rnaResidues + dnaResidues
+
+aa_dict = {
+    'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
+    'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
+    'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R',
+    'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y',
+    'UNK': 'X'
 }
 
 
@@ -417,14 +298,17 @@ def parse_atom_data(atom_data, occupancy=None, temp_factor=None):
         # Extract information
         chain_id = parts[0]
         residue_number = parts[1]
-        residue_name = parts[2]
+        residue_name = parts[2].strip()
+        if residue_name in unwanted_residues:
+            continue
         residue_name = substitutions.get(residue_name, residue_name)
+        residue_name = aa_dict.get(residue_name)
 
         atom_name = parts[3]
         element_symbol = parts[4]
-        x = float(parts[5])
-        y = float(parts[6])
-        z = float(parts[7])
+        x = parts[5]
+        y = parts[6]
+        z = parts[7]
 
         # Get occupancy and temp factor for the current atom
         occ = occupancy[occ_index]
@@ -432,7 +316,31 @@ def parse_atom_data(atom_data, occupancy=None, temp_factor=None):
         occ_index += 1
 
         # Format the PDB line
-        pdb_line = f"ATOM  {serial_number:>5}  {atom_name:<4}{residue_name} {chain_id}{residue_number:>4}    {x:>8.3f}{y:>8.3f}{z:>8.3f}  {occ:>5.2f}  {temp:>5.2f}           {element_symbol:>2}"
+        # pdb_line = f"ATOM  {serial_number:>5}  {atom_name:<4}{residue_name} {chain_id[-1]}{residue_number:>4}    {x:>8.3f}{y:>8.3f}{z:>8.3f}  {occ:>5.2f}  {temp:>5.2f}           {element_symbol:>2}"
+
+        try:
+            int(residue_number[-4:])
+        except Exception as e:
+            continue
+
+        pdb_line = f"ATOM  " \
+               f"{str(serial_number)[-5:]:>5}" \
+               f" " \
+               f"{atom_name:^4}" \
+               f" " \
+               f"{residue_name:>3}" \
+               f" " \
+               f"{chain_id[-1]:>1}" \
+               f"{residue_number[-4:]:>4}" \
+               f"    " \
+               f"{x[:8]:>8}" \
+               f"{y[:8]:>8}" \
+               f"{z[:8]:>8}" \
+               f"{str(occ)[:6]:>6}" \
+               f"{str(temp)[:6]:>6}" \
+               f"          " \
+               f"{element_symbol:>2}" \
+
         pdb_lines.append((chain_id, pdb_line))  # Store with chain_id
 
         # Increment the serial number

@@ -14,6 +14,6 @@ def get_sequences_from_batch(
 
     return tuple( 
         [
-            f">{code.removesuffix('.pdb')}\n{extract_sequence_from_pdb_string(pdb, ca_mask, substitute_non_standard_aminoacids)}\n" for code, pdb in proteins.items()
+            f">{code.removesuffix('.pdb')}\n{extract_sequence_from_pdb_string(pdb, code, ca_mask, substitute_non_standard_aminoacids)}\n" for code, pdb in proteins.items()
         ]
     )

@@ -109,14 +109,17 @@ def __process_pdbs__(h5_file_path: str, codes: List[str]):
     res = []
 
     for code, content in pdbs.items():
-        coords, coords_with_breaks = __extract_coordinates__(content)
-        if len(coords) == 0:
-            dask.distributed.print("No CA found in " + code)
-            continue
-        distances = improved_distances_calculation(coords, coords_with_breaks)
-        res.append(
-            (code, distances)
-        )
+        try:
+            coords, coords_with_breaks = __extract_coordinates__(content)
+            if len(coords) == 0:
+                dask.distributed.print("No CA found in " + code)
+                continue
+            distances = improved_distances_calculation(coords, coords_with_breaks)
+            res.append((code, distances))
+        except Exception as e:
+            #TODO logger
+            print(f"Exception extracting coordinates in {code}: {e}")
+
     return res
 
 
@@ -219,62 +222,3 @@ def read_distograms_from_file(distograms_file: Union[str, pathlib.Path], limit_k
     except IOError:
         print(f"Error while reading the file {distograms_file}")
     return distograms
-
-
-def compression_test(distograms: List[Tuple[str, np.ndarray]], compression=None, compression_opts=None, shuffle=True):
-    # Path and filename
-
-    test_path = Path(datasets_path).parent / "tests"
-
-    filename = f"distograms_{compression if compression else 'none'}_opts{compression_opts}_shuffle{shuffle}.hdf5"
-    hf = h5py.File(test_path / filename, 'w')
-
-    # write pdb_path and corresponding distogram to hdf5 file
-    start = time.time()
-    for pdb_path, distogram in distograms:
-        protein_grp = hf.create_group(pdb_path)
-        protein_grp.create_dataset(
-            'distogram',
-            data=distogram,
-            compression=compression,
-            compression_opts=compression_opts,
-            shuffle=shuffle
-        )
-    hf.close()
-    end = time.time()
-
-    # Print the info
-    print(f"Compression: {compression}, Compression options: {compression_opts}")
-    print(f"Time taken (save to h5): {end - start} seconds")
-
-    # Get size in megabytes
-    size_mb = os.path.getsize(test_path / filename) / (1024 * 1024)
-    print(f"Size of the file: {size_mb} megabytes")
-
-    return end - start, size_mb
-
-
-def run_compression_tests(distograms: List[Tuple[str, np.ndarray]]):
-    opts: List[Tuple[str, Any, bool]] = [
-        ('gzip', 1, False),
-        ('gzip', 4, False),
-        ('gzip', 9, False),
-        ('szip', None, False),
-        ('lzf', None, False),
-    ]
-
-    test_path = Path(datasets_path).parent / "tests"
-
-    # File opening mode is chosen to be 'w' meaning write, you may choose 'a' for append if the file already exists
-    with open(test_path / 'test_compression_results.csv', 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Test Type", "Time(s)", "Size(MB)"])  # Column names
-
-        for op in opts:
-            time_s, size = compression_test(distograms, op[0], op[1], op[2])
-            writer.writerow([op, time_s, size])  # Write row with values in each column
-
-        for op in opts:
-            op = (op[0], op[1], not op[2])
-            time_s, size = compression_test(distograms, op[0], op[1], op[2])
-            writer.writerow([op, time_s, size])  # Write row with values in each column

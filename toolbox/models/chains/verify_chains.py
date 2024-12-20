@@ -1,9 +1,9 @@
 from typing import Dict
 
 from toolbox.models.manage_dataset.index.handle_index import read_index
-from toolbox.models.manage_dataset.sequences.from_pdb import aa_dict
 from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
 from toolbox.models.manage_dataset.utils import read_all_pdbs_from_h5
+from toolbox.models.utils.cif2pdb import aa_dict
 
 
 def _parse_pdb_residue_(pdb_code, pdb_str):
@@ -79,24 +79,3 @@ def _compare_from_pdb_vs_seqres_(code: str, from_pdb: Dict[int, str], from_seqre
                 return False
 
     return is_all_good
-
-    # for residue_num, acid in from_pdb.items():
-    #     if int(residue_num) not in sequence_dict or sequence_dict[int(residue_num)] != acid:
-    #         print(
-    #             f"Residue number {residue_num} or its corresponding acid {acid} does not match in sequence_dict for the code {code}.")
-
-
-if __name__ == '__main__':
-    fasta_index = SeqIO.index("", "fasta")
-
-    code = '3tmr_A'
-
-    from_seqres = fasta_index[code].seq
-
-    with open('/Users/youngdashu/sano/deepFRI2-toolbox-dev/toolbox/models/manage_dataset/pdbs/4186_3tmr_A.pdb',
-              'r') as f:
-        content = f.read()
-
-    from_pdb = _parse_pdb_residue_(code, content)
-
-    _compare_from_pdb_vs_seqres_(code, from_pdb, from_seqres)

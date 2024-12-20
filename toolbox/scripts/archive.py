@@ -52,7 +52,3 @@ def create_archive(structures_dataset: "StructuresDataset"):
             with open(archive_path, 'rb') as f:
                 archive_data = f.read()
                 final_zip.writestr(archive_name_in_final, archive_data)
-
-    # Optionally, clean up individual archives
-    # for archive_path in archive_paths:
-    #     os.remove(archive_path)

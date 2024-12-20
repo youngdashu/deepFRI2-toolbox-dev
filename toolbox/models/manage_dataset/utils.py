@@ -19,7 +19,6 @@ from foldcomp.setup import download
 
 from toolbox.models.manage_dataset.compress_experiment.exp import compress_and_save_h5_combined_lzf_shuffle, compress_and_save_h5_individual, \
     compress_and_save_h5_individual_lzf, compress_and_save_h5_combined, compress_and_save_h5_combined_lzf, compress_and_save_h5_individual_lzf_shuffle
-from toolbox.models.manage_dataset.create_archive import create_cif_files_zip_archive, create_pdb_zip_archive
 from toolbox.models.utils.cif2pdb import cif_to_pdb, binary_cif_to_pdb
 
 
