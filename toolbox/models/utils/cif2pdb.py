@@ -340,7 +340,7 @@ def parse_atom_data(atom_data, pdb_code: str, occupancy=None, temp_factor=None):
         
         none_values = [k for k,v in required_values.items() if v is None]
         if none_values:
-            print(f"Warning ${pdb_code}: Found None values for fields: {', '.join(none_values)}")
+            print(f"Warning ${pdb_code}: Found None values for fields: {', '.join(none_values)} ${line} | ${parts}")
             continue
             
         pdb_line = f"ATOM  " \
