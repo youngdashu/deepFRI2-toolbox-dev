@@ -12,7 +12,6 @@ from dask.distributed import Client, as_completed
 from distributed import performance_report
 from pydantic import BaseModel, field_validator
 import requests
-
 from toolbox.models.manage_dataset.collection_type import CollectionType
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.database_type import DatabaseType
@@ -259,6 +258,11 @@ class StructuresDataset(BaseModel):
             lambda line: line.split()[1]
         ).compute()
 
+        if self.ids_file:
+            subset_ids = self.ids_file.read_text().splitlines()
+            # Check if subset_id is included in any of the full ids
+            ids = [id for id in ids if any(subset_id in id for subset_id in subset_ids)]
+
         structures_path = self.structures_path()
         structures_path.mkdir(exist_ok=True, parents=True)
 
@@ -298,11 +302,7 @@ class StructuresDataset(BaseModel):
                 pass
             case CollectionType.part:
 
-                f = self._client.submit(
-                    foldcomp_download, self.type_str, str(self.dataset_repo_path()),
-                    pure=False
-                )
-                f.result()
+                foldcomp_download(self.type_str, str(self.dataset_repo_path()))
                 self.foldcomp_decompress()
             case CollectionType.clust:
                 foldcomp_download(self.type_str, str(self.dataset_repo_path()))
