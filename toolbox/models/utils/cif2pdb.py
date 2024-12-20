@@ -277,7 +277,7 @@ def cif_to_pdb(cif: str, pdb_code: str) -> Dict[str, str]:
     return result
 
 
-def parse_atom_data(atom_data, occupancy=None, temp_factor=None):
+def parse_atom_data(atom_data, pdb_code: str, occupancy=None, temp_factor=None):
     pdb_lines = []
     serial_number = 1  # Start serial numbering from 1
 
@@ -340,7 +340,7 @@ def parse_atom_data(atom_data, occupancy=None, temp_factor=None):
         
         none_values = [k for k,v in required_values.items() if v is None]
         if none_values:
-            print(f"Warning: Found None values for fields: {', '.join(none_values)}")
+            print(f"Warning ${pdb_code}: Found None values for fields: {', '.join(none_values)}")
             continue
             
         pdb_line = f"ATOM  " \
@@ -409,6 +409,7 @@ def binary_cif_to_pdb(cif_bytes: BytesIO, pdb_code: str) -> Dict[str, str]:
 
     chain_pdbs = parse_atom_data(
         all_pdbs,
+        pdb_code,
         occupancies,
         b_factor
     )
