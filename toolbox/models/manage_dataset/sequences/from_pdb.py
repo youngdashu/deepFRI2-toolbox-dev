@@ -1,7 +1,3 @@
-from io import StringIO
-from pdbfixer import PDBFixer
-from openmm.app import PDBFile
-
 from toolbox.models.utils.cif2pdb import aa_dict
 
 empty_chain_part_sign = 'X'

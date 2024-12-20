@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import Dict, Literal, Tuple, List, Union, Optional
+from typing import Dict, Literal, Tuple, List, Optional
 
 import biotite.structure.io.pdbx
 import biotite.structure.io.pdbx.bcif as bcif
@@ -323,6 +323,26 @@ def parse_atom_data(atom_data, occupancy=None, temp_factor=None):
         except Exception as e:
             continue
 
+        # Check if any required values are None
+        required_values = {
+            'serial_number': str(serial_number)[-5:],
+            'atom_name': atom_name, 
+            'residue_name': residue_name,
+            'chain_id': chain_id,
+            'residue_number': residue_number,
+            'x': x,
+            'y': y, 
+            'z': z,
+            'occ': occ,
+            'temp': temp,
+            'element_symbol': element_symbol
+        }
+        
+        none_values = [k for k,v in required_values.items() if v is None]
+        if none_values:
+            print(f"Warning: Found None values for fields: {', '.join(none_values)}")
+            continue
+            
         pdb_line = f"ATOM  " \
                f"{str(serial_number)[-5:]:>5}" \
                f" " \
@@ -339,7 +359,7 @@ def parse_atom_data(atom_data, occupancy=None, temp_factor=None):
                f"{str(occ)[:6]:>6}" \
                f"{str(temp)[:6]:>6}" \
                f"          " \
-               f"{element_symbol:>2}" \
+               f"{element_symbol:>2}"
 
         pdb_lines.append((chain_id, pdb_line))  # Store with chain_id
 
