@@ -34,28 +34,28 @@ class ComputeBatches:
 
         i = 1
         name = f"report_{self.name}_{self._workers_num_()}_{factor}"
-        with performance_report(filename=f"{name}.html"):
+        # with performance_report(filename=f"{name}.html"):
 
-            ac = as_completed([], with_results=True)
+        ac = as_completed([], with_results=True)
 
-            collect_thread = threading.Thread(target=collect, args=(ac, self.collect_f, semaphore))
-            collect_thread.start()
+        collect_thread = threading.Thread(target=collect, args=(ac, self.collect_f, semaphore))
+        collect_thread.start()
 
-            while True:
-                semaphore.acquire()
+        while True:
+            semaphore.acquire()
 
-                next_value = next(inputs, None)
-                if next_value is None:
-                    break
+            next_value = next(inputs, None)
+            if next_value is None:
+                break
 
-                print(i)
-                i += 1
-                future = self.run_f(next_value, next(machines_c))
-                ac.add(future)
+            print(i)
+            i += 1
+            future = self.run_f(next_value, next(machines_c))
+            ac.add(future)
 
-            var.set(True)
+        var.set(True)
 
-            collect_thread.join()
+        collect_thread.join()
 
     def _workers_num_(self):
         return total_workers()
