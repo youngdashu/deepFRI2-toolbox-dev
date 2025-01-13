@@ -29,6 +29,8 @@ def add_dataset_parser_arguments(parser):
                                 help="Should overwrite existing files? Default - false")
     parser.add_argument('-b', '--batch-size', type=str, default=None)
     parser.add_argument('--binary', action='store_true', help='Download binary CIF in PDB db')
+    parser.add_argument('--input-path', required=True, type=pathlib.Path,
+                                         help="Path to input directory or archive (zip/tar.gz) with protein files (pdb/cif)")
 
 
 def create_parser():

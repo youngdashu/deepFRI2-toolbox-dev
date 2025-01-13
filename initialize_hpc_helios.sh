@@ -47,6 +47,10 @@ else
   pip install bio~=1.7.0
   pip install foldcomp~=0.0.7
 
+  # cd $GROUP_DIR/deepfri
+
+  # conda create -n embedding_env python=3.9 pytorch torchvision torchaudio pytorch-cuda=12.4 -c pytorch -c nvidia
+
 fi
 
 PYTHONPATH='.' python3 -u ./toolbox/initialize_repository.py

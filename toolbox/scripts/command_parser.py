@@ -40,7 +40,8 @@ class CommandParser:
             overwrite=self.args.overwrite,
             batch_size=None if self.args.batch_size is None else int(self.args.batch_size),
             binary_data_download=self.args.binary,
-            is_hpc_cluster=self.args.slurm
+            is_hpc_cluster=self.args.slurm,
+            input_path=self.args.input_path,
         )
         self.structures_dataset = dataset
         dataset.create_dataset()

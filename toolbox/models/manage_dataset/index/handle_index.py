@@ -1,4 +1,5 @@
 import json
+import traceback
 from pathlib import Path
 from typing import Dict, Union, List
 
@@ -6,9 +7,12 @@ from toolbox.models.manage_dataset.utils import groupby_dict_by_values
 
 
 def read_index(index_file_path: Path) -> Dict[str, str]:
-    with index_file_path.open('r') as f:
-        index = json.load(f)
-        return index
+    try:
+        with index_file_path.open('r') as f:
+            index = json.load(f)
+            return index
+    except FileNotFoundError:
+        return {}
 
 
 def create_index(index_file_path: Path, values: Union[Dict[str, str], List[str]]):

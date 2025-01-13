@@ -1,4 +1,4 @@
-import io
+import os
 import os
 import time
 from datetime import datetime
@@ -7,21 +7,22 @@ from typing import List, Optional, Any
 
 import dask.bag as db
 import dotenv
+import requests
 from Bio.PDB import PDBList
 from dask.distributed import Client, as_completed
-from distributed import performance_report
 from pydantic import BaseModel, field_validator
-import requests
+
 from toolbox.models.manage_dataset.collection_type import CollectionType
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.database_type import DatabaseType
+from toolbox.models.manage_dataset.extract_archive import extract_archive, save_extracted_files
+from toolbox.models.manage_dataset.index.handle_index import create_index, add_new_files_to_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import datasets_path, repo_path
 from toolbox.models.manage_dataset.sequences.sequence_retriever import SequenceRetriever
+from toolbox.models.manage_dataset.utils import chunk
 from toolbox.models.manage_dataset.utils import foldcomp_download, mkdir_for_batches, retrieve_pdb_chunk_to_h5, \
     alphafold_chunk_to_h5
-from toolbox.models.manage_dataset.index.handle_index import create_index, add_new_files_to_index
-from toolbox.models.manage_dataset.utils import chunk
 from toolbox.models.utils.create_client import create_client, total_workers
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 
@@ -40,6 +41,7 @@ class StructuresDataset(BaseModel):
     batch_size: int = 1000
     binary_data_download: bool = False
     is_hpc_cluster: bool = False
+    input_path: Optional[Path] = None
     _client: Optional[Client] = None
     _handle_indexes: Optional[HandleIndexes] = None
     _sequence_retriever: Optional[SequenceRetriever] = None
@@ -127,13 +129,6 @@ class StructuresDataset(BaseModel):
             if len(missing_ids) > 0:
                 self.download_ids(missing_ids)
         else:
-            # if self.overwrite:
-            #     print("Overwriting ")
-            #     # TODO
-            #     # find previous version of the same db_type and type
-            #     # remove previous
-            #     # download new one
-            # else:
             self.download_ids(None)
 
         self.save_dataset_metadata()
@@ -165,6 +160,12 @@ class StructuresDataset(BaseModel):
         return res
 
     def download_ids(self, ids):
+        if self.input_path is not None:
+            extracted_path = extract_archive(self.input_path, self)
+            if extracted_path is not None:
+                save_extracted_files(self, extracted_path, ids)
+            return
+
         print("Downloading ids")
         match self.db_type:
             case DatabaseType.PDB:

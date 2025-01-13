@@ -33,8 +33,6 @@ class ComputeBatches:
         var.set(False)
 
         i = 1
-        name = f"report_{self.name}_{self._workers_num_()}_{factor}"
-        # with performance_report(filename=f"{name}.html"):
 
         ac = as_completed([], with_results=True)
 
