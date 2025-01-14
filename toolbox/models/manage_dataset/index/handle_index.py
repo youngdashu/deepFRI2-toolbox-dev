@@ -8,7 +8,7 @@ from toolbox.models.manage_dataset.utils import groupby_dict_by_values
 
 def read_index(index_file_path: Path) -> Dict[str, str]:
     try:
-        with index_file_path.open('r') as f:
+        with index_file_path.open("r") as f:
             index = json.load(f)
             return index
     except FileNotFoundError:
@@ -16,7 +16,7 @@ def read_index(index_file_path: Path) -> Dict[str, str]:
 
 
 def create_index(index_file_path: Path, values: Union[Dict[str, str], List[str]]):
-    with index_file_path.open('w') as f:
+    with index_file_path.open("w") as f:
         if isinstance(values, list):
             values = {str(i): v for i, v in enumerate(values)}
         json.dump(values, f)
@@ -24,7 +24,7 @@ def create_index(index_file_path: Path, values: Union[Dict[str, str], List[str]]
     file_name = index_file_path.stem
 
     values = groupby_dict_by_values(values)
-    with (index_file_path.parent / f'{file_name}_reversed.idx').open('w') as f:
+    with (index_file_path.parent / f"{file_name}_reversed.idx").open("w") as f:
         json.dump(values, f)
 
 

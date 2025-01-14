@@ -2,44 +2,50 @@ import re
 from collections import defaultdict
 import csv
 
+
 def parse_compression_data(data):
     compression_info = defaultdict(lambda: defaultdict(list))
     current_method = ""
 
-    for line in data.split('\n'):
+    for line in data.split("\n"):
         line = line.strip()
-        if line.startswith(('individual', 'combined')):
+        if line.startswith(("individual", "combined")):
             current_method = line
         elif "Compress time" in line:
-            time_match = re.search(r'Compress time.*?: ([\d.]+)', line)
+            time_match = re.search(r"Compress time.*?: ([\d.]+)", line)
             if time_match:
                 time = float(time_match.group(1))
-                compression_info[current_method]['time'].append(time)
-        elif '.hdf5' in line:
+                compression_info[current_method]["time"].append(time)
+        elif ".hdf5" in line:
             parts = line.split()
             if len(parts) >= 2:
                 try:
                     size = float(parts[-1])
-                    compression_info[current_method]['size'].append(size)
+                    compression_info[current_method]["size"].append(size)
                 except ValueError:
                     print(f"Warning: Could not parse size from line: {line}")
 
     return compression_info
 
+
 def calculate_averages(compression_info):
     averages = {}
     for method, data in compression_info.items():
-        avg_time = sum(data['time']) / len(data['time']) if data['time'] else 0
-        avg_size = sum(data['size']) / len(data['size']) if data['size'] else 0
-        averages[method] = {'avg_time': avg_time, 'avg_size': avg_size}
+        avg_time = sum(data["time"]) / len(data["time"]) if data["time"] else 0
+        avg_size = sum(data["size"]) / len(data["size"]) if data["size"] else 0
+        averages[method] = {"avg_time": avg_time, "avg_size": avg_size}
     return averages
 
-def write_csv(averages, filename='compression_results.csv'):
-    with open(filename, 'w', newline='') as csvfile:
+
+def write_csv(averages, filename="compression_results.csv"):
+    with open(filename, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['Compression Method', 'Average Time (s)', 'Average Size (MB)'])
+        writer.writerow(["Compression Method", "Average Time (s)", "Average Size (MB)"])
         for method, data in averages.items():
-            writer.writerow([method, f"{data['avg_time']:.2f}", f"{data['avg_size']:.2f}"])
+            writer.writerow(
+                [method, f"{data['avg_time']:.2f}", f"{data['avg_size']:.2f}"]
+            )
+
 
 # Main execution
 data = """
@@ -287,4 +293,6 @@ for method, data in compression_info.items():
 averages = calculate_averages(compression_info)
 write_csv(averages)
 
-print("CSV file 'compression_results.csv' has been created with the average compression results.")
+print(
+    "CSV file 'compression_results.csv' has been created with the average compression results."
+)

@@ -15,14 +15,24 @@ from pydantic import BaseModel, field_validator
 from toolbox.models.manage_dataset.collection_type import CollectionType
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.database_type import DatabaseType
-from toolbox.models.manage_dataset.extract_archive import extract_archive, save_extracted_files
-from toolbox.models.manage_dataset.index.handle_index import create_index, add_new_files_to_index
+from toolbox.models.manage_dataset.extract_archive import (
+    extract_archive,
+    save_extracted_files,
+)
+from toolbox.models.manage_dataset.index.handle_index import (
+    create_index,
+    add_new_files_to_index,
+)
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import datasets_path, repo_path
 from toolbox.models.manage_dataset.sequences.sequence_retriever import SequenceRetriever
 from toolbox.models.manage_dataset.utils import chunk
-from toolbox.models.manage_dataset.utils import foldcomp_download, mkdir_for_batches, retrieve_pdb_chunk_to_h5, \
-    alphafold_chunk_to_h5
+from toolbox.models.manage_dataset.utils import (
+    foldcomp_download,
+    mkdir_for_batches,
+    retrieve_pdb_chunk_to_h5,
+    alphafold_chunk_to_h5,
+)
 from toolbox.models.utils.create_client import create_client, total_workers
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 
@@ -34,7 +44,7 @@ class StructuresDataset(BaseModel):
     db_type: DatabaseType
     collection_type: CollectionType
     type_str: str = ""
-    version: str = datetime.now().strftime('%Y%m%d_%H%M')
+    version: str = datetime.now().strftime("%Y%m%d_%H%M")
     ids_file: Optional[Path] = None
     seqres_file: Optional[Path] = None  # to delete
     overwrite: bool = False
@@ -46,11 +56,11 @@ class StructuresDataset(BaseModel):
     _handle_indexes: Optional[HandleIndexes] = None
     _sequence_retriever: Optional[SequenceRetriever] = None
 
-    @field_validator('version', mode='before')
+    @field_validator("version", mode="before")
     def set_version(cls, v):
-        return v or datetime.now().strftime('%Y%m%d_%H%M')
+        return v or datetime.now().strftime("%Y%m%d_%H%M")
 
-    @field_validator('batch_size', mode='before')
+    @field_validator("batch_size", mode="before")
     def set_batch_size(cls, size):
         return size or 1000
 
@@ -60,7 +70,12 @@ class StructuresDataset(BaseModel):
         self._sequence_retriever = SequenceRetriever(self)
 
     def dataset_repo_path(self):
-        return Path(repo_path) / self.db_type.name / f"{self.collection_type.name}_{self.type_str}" / self.version
+        return (
+            Path(repo_path)
+            / self.db_type.name
+            / f"{self.collection_type.name}_{self.type_str}"
+            / self.version
+        )
 
     def dataset_path(self):
         return Path(f"{datasets_path}/{self.dataset_dir_name()}")
@@ -92,7 +107,7 @@ class StructuresDataset(BaseModel):
 
     def requested_ids(self) -> List[str]:
         if self.collection_type is CollectionType.subset:
-            with open(self.ids_file, 'r') as f:
+            with open(self.ids_file, "r") as f:
                 return f.read().splitlines()
         else:
             return self.get_all_ids()
@@ -108,23 +123,34 @@ class StructuresDataset(BaseModel):
         self.dataset_repo_path().mkdir(exist_ok=True, parents=True)
         self.dataset_path().mkdir(exist_ok=True, parents=True)
 
-        if self.collection_type is CollectionType.subset or self.collection_type is CollectionType.all:
+        if (
+            self.collection_type is CollectionType.subset
+            or self.collection_type is CollectionType.all
+        ):
 
             if self.overwrite:
                 present_file_paths = {}
                 missing_ids = self.requested_ids()
             else:
-                self._handle_indexes.read_indexes('dataset')
+                self._handle_indexes.read_indexes("dataset")
                 requested_ids = self.requested_ids()
 
-                present_file_paths, missing_ids = self._handle_indexes.find_present_and_missing_ids('dataset',
-                                                                                                    requested_ids)
+                present_file_paths, missing_ids = (
+                    self._handle_indexes.find_present_and_missing_ids(
+                        "dataset", requested_ids
+                    )
+                )
 
             create_index(self.dataset_index_file_path(), present_file_paths)
 
-            if self.db_type == DatabaseType.other and self.collection_type == CollectionType.subset and len(
-                    missing_ids) > 0:
-                raise RuntimeError("Missing ids are not allowed when subsetting all DBs!")
+            if (
+                self.db_type == DatabaseType.other
+                and self.collection_type == CollectionType.subset
+                and len(missing_ids) > 0
+            ):
+                raise RuntimeError(
+                    "Missing ids are not allowed when subsetting all DBs!"
+                )
 
             if len(missing_ids) > 0:
                 self.download_ids(missing_ids)
@@ -133,7 +159,9 @@ class StructuresDataset(BaseModel):
 
         self.save_dataset_metadata()
 
-    def generate_sequence(self, ca_mask: bool = False, substitute_non_standard_aminoacids: bool=True):
+    def generate_sequence(
+        self, ca_mask: bool = False, substitute_non_standard_aminoacids: bool = True
+    ):
         self._sequence_retriever.retrieve(ca_mask, substitute_non_standard_aminoacids)
 
     def get_all_ids(self):
@@ -148,7 +176,7 @@ class StructuresDataset(BaseModel):
                 url = "http://files.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
 
                 response = requests.get(url)
-                response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)    
+                response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
                 res = filter_pdb_codes(response.text, all_pdbs)
                 print(f"After removing non protein codes {len(res)}")
             case DatabaseType.AFDB:
@@ -194,9 +222,11 @@ class StructuresDataset(BaseModel):
         structures_path = self.structures_path()
 
         def process_directory(dir_path):
-            return [str(f) for f in Path(dir_path).glob('*.*') if f.is_file()]
+            return [str(f) for f in Path(dir_path).glob("*.*") if f.is_file()]
 
-        numbered_dirs = [d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()]
+        numbered_dirs = [
+            d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()
+        ]
 
         if len(numbered_dirs) == 0:
             new_files = []
@@ -225,16 +255,29 @@ class StructuresDataset(BaseModel):
         new_files_index = {}
 
         def run(input_data, machine):
-            return self._client.submit(retrieve_pdb_chunk_to_h5, *input_data, self.binary_data_download, [machine], workers=[machine])
+            return self._client.submit(
+                retrieve_pdb_chunk_to_h5,
+                *input_data,
+                self.binary_data_download,
+                [machine],
+                workers=[machine],
+            )
 
         def collect(result):
             downloaded_pdbs, file_path = result
             print("Updating new_files_index", len(downloaded_pdbs))
             new_files_index.update({k: file_path for k in downloaded_pdbs})
 
-        compute_batches = ComputeBatches(self._client, run, collect, "pdb" + "_b" if self.binary_data_download else "")
+        compute_batches = ComputeBatches(
+            self._client,
+            run,
+            collect,
+            "pdb" + "_b" if self.binary_data_download else "",
+        )
 
-        inputs = ((pdb_repo_path / f"{i}", ids_chunk) for i, ids_chunk in enumerate(chunks))
+        inputs = (
+            (pdb_repo_path / f"{i}", ids_chunk) for i, ids_chunk in enumerate(chunks)
+        )
 
         factor = 10
         factor = 15 if total_workers() > 1500 else factor
@@ -253,11 +296,16 @@ class StructuresDataset(BaseModel):
 
         db_path = str(self.dataset_repo_path() / self.type_str)
 
-        ids = db.read_text(f"{self.dataset_repo_path()}/{self.type_str}.lookup").filter(
-            lambda line: ".pdb" in line if (".pdb" in line or ".cif" in line) else True
-        ).map(
-            lambda line: line.split()[1]
-        ).compute()
+        ids = (
+            db.read_text(f"{self.dataset_repo_path()}/{self.type_str}.lookup")
+            .filter(
+                lambda line: (
+                    ".pdb" in line if (".pdb" in line or ".cif" in line) else True
+                )
+            )
+            .map(lambda line: line.split()[1])
+            .compute()
+        )
 
         if self.ids_file:
             subset_ids = self.ids_file.read_text().splitlines()
@@ -275,7 +323,7 @@ class StructuresDataset(BaseModel):
                 alphafold_chunk_to_h5,
                 db_path,
                 str(structures_path / f"{number}"),
-                list(batch)
+                list(batch),
             )
             for number, batch in enumerate(batches)
         ]
@@ -336,7 +384,7 @@ def create_subset():
     StructuresDataset(
         db_type=DatabaseType.other,
         collection_type=CollectionType.subset,
-        ids_file=Path("./mix_ids1.txt")
+        ids_file=Path("./mix_ids1.txt"),
     ).create_dataset()
 
 
@@ -344,7 +392,7 @@ def create_e_coli():
     StructuresDataset(
         db_type=DatabaseType.AFDB,
         collection_type=CollectionType.part,
-        type_str="e_coli"
+        type_str="e_coli",
     ).create_dataset()
 
 
@@ -352,11 +400,11 @@ def create_swissprot():
     StructuresDataset(
         db_type=DatabaseType.AFDB,
         collection_type=CollectionType.part,
-        type_str="afdb_swissprot_v4"
+        type_str="afdb_swissprot_v4",
     ).create_dataset()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # create_swissprot()
     # create_e_coli()
 

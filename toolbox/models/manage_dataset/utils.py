@@ -17,8 +17,14 @@ from dask.distributed import as_completed, worker_client
 from foldcomp import foldcomp
 from foldcomp.setup import download
 
-from toolbox.models.manage_dataset.compress_experiment.exp import compress_and_save_h5_combined_lzf_shuffle, compress_and_save_h5_individual, \
-    compress_and_save_h5_individual_lzf, compress_and_save_h5_combined, compress_and_save_h5_combined_lzf, compress_and_save_h5_individual_lzf_shuffle
+from toolbox.models.manage_dataset.compress_experiment.exp import (
+    compress_and_save_h5_combined_lzf_shuffle,
+    compress_and_save_h5_individual,
+    compress_and_save_h5_individual_lzf,
+    compress_and_save_h5_combined,
+    compress_and_save_h5_combined_lzf,
+    compress_and_save_h5_individual_lzf_shuffle,
+)
 from toolbox.models.utils.cif2pdb import cif_to_pdb, binary_cif_to_pdb
 
 
@@ -135,9 +141,10 @@ def process_future(future: Tuple[Dict[str, str], Tuple[str, str]]):
     return chains.keys(), chains.values(), cif_file
 
 
-def aggregate_results(protein_pdbs_with_cif: List[Tuple[Dict[str, str], Tuple[str, str]]],
-                      download_start_time: float) -> Tuple[
-    List[str], List[str], List[Tuple[str, str]]]:
+def aggregate_results(
+    protein_pdbs_with_cif: List[Tuple[Dict[str, str], Tuple[str, str]]],
+    download_start_time: float,
+) -> Tuple[List[str], List[str], List[Tuple[str, str]]]:
     end_time = time.time()
 
     print(f"Download time: {end_time - download_start_time}")
@@ -175,9 +182,11 @@ def aggregate_results(protein_pdbs_with_cif: List[Tuple[Dict[str, str], Tuple[st
 #     return str(zip_path)
 
 
-def compress_and_save_h5(path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]):
+def compress_and_save_h5(
+    path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]
+):
     start_time = time.time()
-    pdbs_file = path_for_batch / 'pdbs.hdf5'
+    pdbs_file = path_for_batch / "pdbs.hdf5"
     all_res_pdbs = results[0]
     all_contents = results[1]
     if len(all_contents) == 0 or len(all_res_pdbs) == 0:
@@ -186,21 +195,20 @@ def compress_and_save_h5(path_for_batch: Path, results: Tuple[List[str], List[st
     if len(all_res_pdbs) != len(all_res_pdbs):
         print("Wrong length of names and pdb contents")
         return None
-    with h5py.File(pdbs_file, 'w') as hf:
+    with h5py.File(pdbs_file, "w") as hf:
         files_group = hf.create_group("files")
-        files_together = zlib.compress("|".join(all_contents).encode('utf-8'))
+        files_together = zlib.compress("|".join(all_contents).encode("utf-8"))
         pdbs_content = np.frombuffer(files_together, dtype=np.uint8)
-        files_group.create_dataset(
-            name=";".join(all_res_pdbs),
-            data=pdbs_content
-        )
+        files_group.create_dataset(name=";".join(all_res_pdbs), data=pdbs_content)
     end_time = time.time()
     total_time = end_time - start_time
     print(f"Compress time: {total_time}")
     return str(pdbs_file)
 
 
-def compress_and_save_experiment(path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]):
+def compress_and_save_experiment(
+    path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]
+):
     fs = [
         compress_and_save_h5_individual,
         compress_and_save_h5_individual_lzf,
@@ -208,17 +216,17 @@ def compress_and_save_experiment(path_for_batch: Path, results: Tuple[List[str],
         compress_and_save_h5_combined,
         compress_and_save_h5_combined_lzf,
         compress_and_save_h5_combined_lzf_shuffle,
-        compress_and_save_h5
+        compress_and_save_h5,
     ]
 
     descriptions = [
-        'individual gzip',
-        'individual lzf',
-        'individual lzf shuffle',
-        'combined gzip',
-        'combined lzf',
-        'combined lzf shuffle',
-        'combined zlib'
+        "individual gzip",
+        "individual lzf",
+        "individual lzf shuffle",
+        "combined gzip",
+        "combined lzf",
+        "combined lzf shuffle",
+        "combined zlib",
     ]
 
     inputs = list(results)
@@ -237,32 +245,47 @@ def compress_and_save_experiment(path_for_batch: Path, results: Tuple[List[str],
         print(path, get_file_size_mb(path))
 
 
-
 def retrieve_pdb_chunk_to_h5(
-        path_for_batch: Path,
-        pdb_ids: Iterable[str],
-        is_binary: bool,
-        workers: List[str] = None
+    path_for_batch: Path,
+    pdb_ids: Iterable[str],
+    is_binary: bool,
+    workers: List[str] = None,
 ) -> Tuple[List[str], str]:
     with worker_client() as client:
         start_time = time.time()
 
-        pdb_futures = client.map(retrieve_binary_cif if is_binary else retrieve_cif, pdb_ids, workers=workers)
-        converted_pdb_futures = client.map(binary_cif_to_pdbs if is_binary else cif_to_pdbs, pdb_futures,
-                                           workers=workers)
+        pdb_futures = client.map(
+            retrieve_binary_cif if is_binary else retrieve_cif, pdb_ids, workers=workers
+        )
+        converted_pdb_futures = client.map(
+            binary_cif_to_pdbs if is_binary else cif_to_pdbs,
+            pdb_futures,
+            workers=workers,
+        )
         download_start_time = time.time()
-        aggregated = client.submit(aggregate_results, converted_pdb_futures, download_start_time, workers=workers)
+        aggregated = client.submit(
+            aggregate_results,
+            converted_pdb_futures,
+            download_start_time,
+            workers=workers,
+        )
 
         # Create delayed tasks for H5 and ZIP creation
-        h5_task = client.submit(compress_and_save_h5, path_for_batch, aggregated, pure=False, workers=workers)
-        get_ids_task = client.submit(lambda results: results[0], aggregated, workers=workers)
+        h5_task = client.submit(
+            compress_and_save_h5,
+            path_for_batch,
+            aggregated,
+            pure=False,
+            workers=workers,
+        )
+        get_ids_task = client.submit(
+            lambda results: results[0], aggregated, workers=workers
+        )
         # zip_task = client.submit(create_cif_files_zip_archive, path_for_batch, aggregated, pure=False)
         # pdb_zip_task = client.submit(create_pdb_zip_archive, path_for_batch, aggregated, pure=False)
 
         # Compute the tasks
-        pdb_ids, h5_file_path = client.gather(
-            [get_ids_task, h5_task]
-        )
+        pdb_ids, h5_file_path = client.gather([get_ids_task, h5_task])
 
         end_time = time.time()
         total_time = end_time - start_time
@@ -290,16 +313,13 @@ def alphafold_chunk_to_h5(db_path: str, structures_path_for_batch: str, ids: Lis
             protein_codes.append(protein_id)
 
     h5_file = compress_and_save_h5(
-        Path(structures_path_for_batch),
-        (protein_codes, contents, [])
+        Path(structures_path_for_batch), (protein_codes, contents, [])
     )
 
     if h5_file is None:
         return {}
 
-    return {
-        protein_code: h5_file for protein_code in protein_codes
-    }
+    return {protein_code: h5_file for protein_code in protein_codes}
 
 
 def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
@@ -320,12 +340,12 @@ def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
         return None
 
     try:
-        with h5py.File(h5_file_path, 'r') as hf:
+        with h5py.File(h5_file_path, "r") as hf:
             pdb_files = hf["files"]
 
             for pdb_file_names in pdb_files:
                 pdb_contents_bytes = pdb_files[pdb_file_names][:].tobytes()
-                decompressed = zlib.decompress(pdb_contents_bytes).decode('utf-8')
+                decompressed = zlib.decompress(pdb_contents_bytes).decode("utf-8")
                 all_pdbs = decompressed.split("|")
 
                 all_file_names_split = pdb_file_names.split(";")
@@ -336,7 +356,9 @@ def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
         return None
 
 
-def read_pdbs_from_h5(h5_file_path: str, codes: Optional[List[str]]) -> Optional[Dict[str, str]]:
+def read_pdbs_from_h5(
+    h5_file_path: str, codes: Optional[List[str]]
+) -> Optional[Dict[str, str]]:
     h5_file_path_obj = Path(h5_file_path)
     if not h5_file_path_obj.exists():
         dask.distributed.print(f"Error: File {h5_file_path_obj} does not exist.")
@@ -345,18 +367,18 @@ def read_pdbs_from_h5(h5_file_path: str, codes: Optional[List[str]]) -> Optional
     codes = None if not codes else set(codes)
 
     try:
-        with h5py.File(h5_file_path_obj, 'r') as hf:
+        with h5py.File(h5_file_path_obj, "r") as hf:
             pdb_files = hf["files"]
             result = {}
 
             for pdb_file_names in pdb_files:
                 pdb_contents_bytes = pdb_files[pdb_file_names][:].tobytes()
-                decompressed = zlib.decompress(pdb_contents_bytes).decode('utf-8')
+                decompressed = zlib.decompress(pdb_contents_bytes).decode("utf-8")
                 all_pdbs = decompressed.split("|")
                 all_file_names_split = pdb_file_names.split(";")
 
                 if codes:
-                # Only include the codes that are in the 'codes' list
+                    # Only include the codes that are in the 'codes' list
                     for code, pdb in zip(all_file_names_split, all_pdbs):
                         if code in codes:
                             result[code] = pdb
@@ -372,7 +394,7 @@ def read_pdbs_from_h5(h5_file_path: str, codes: Optional[List[str]]) -> Optional
 
 
 def write_file(path, pdb_file_name, content):
-    with open(path / pdb_file_name, 'w') as f:
+    with open(path / pdb_file_name, "w") as f:
         f.write(content)
 
 
@@ -400,12 +422,12 @@ def groupby_dict_by_values(d):
     return v
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # pdbs_h5_to_files(
     #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/subset_/20240731_1535/structures/0/pdbs.hdf5"
     # )
 
-    code = '1j6t'
+    code = "1j6t"
 
     # retrieve_binary_cifs_to_pdbs(code)
     #

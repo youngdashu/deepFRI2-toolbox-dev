@@ -7,12 +7,12 @@ from toolbox.models.utils.cif2pdb import aa_dict
 
 
 def _parse_pdb_residue_(pdb_code, pdb_str):
-    lines = pdb_str.split('\n')
+    lines = pdb_str.split("\n")
 
     results = []
     for line in lines:
         # Check if the line starts with 'ATOM'
-        if line.startswith('ATOM'):
+        if line.startswith("ATOM"):
             # Extract residue number (columns 23-26) and amino acid (columns 18-20)
             residue_number = int(line[22:26].strip())
             amino_acid = line[17:20].strip()
@@ -29,7 +29,9 @@ def _parse_pdb_residue_(pdb_code, pdb_str):
 
 
 def verify_chains(structures_dataset: StructuresDataset, pdb_seqres_fasta_path):
-    proteins_index = read_index(structures_dataset.dataset_path() / 'dataset_reversed.idx')
+    proteins_index = read_index(
+        structures_dataset.dataset_path() / "dataset_reversed.idx"
+    )
 
     from Bio import SeqIO
 
@@ -43,7 +45,7 @@ def verify_chains(structures_dataset: StructuresDataset, pdb_seqres_fasta_path):
         prots = read_all_pdbs_from_h5(h5_file)
 
         for p, content in prots.items():
-            code = p.removesuffix('.pdb')
+            code = p.removesuffix(".pdb")
             acids_from_pdb: Dict[int, str] = _parse_pdb_residue_(code, content)
 
             try:
@@ -52,7 +54,9 @@ def verify_chains(structures_dataset: StructuresDataset, pdb_seqres_fasta_path):
                 print(f"The pdb_seqres index hasn't entry for the code {code}.")
                 continue
 
-            res: bool = _compare_from_pdb_vs_seqres_(code, acids_from_pdb, seqres_sequence, is_return_when_error=True)
+            res: bool = _compare_from_pdb_vs_seqres_(
+                code, acids_from_pdb, seqres_sequence, is_return_when_error=True
+            )
 
             if res:
                 good_count += 1
@@ -65,10 +69,16 @@ def verify_chains(structures_dataset: StructuresDataset, pdb_seqres_fasta_path):
     print("Bad results count:", bad_count, float(bad_count) / len(results))
 
 
+def _compare_from_pdb_vs_seqres_(
+    code: str,
+    from_pdb: Dict[int, str],
+    from_seqres_str: str,
+    is_return_when_error: bool = False,
+):
 
-def _compare_from_pdb_vs_seqres_(code: str, from_pdb: Dict[int, str], from_seqres_str: str, is_return_when_error: bool = False):
-
-    sequence_dict: Dict[int, str] = {i: char for i, char in enumerate(from_seqres_str, start=1)}
+    sequence_dict: Dict[int, str] = {
+        i: char for i, char in enumerate(from_seqres_str, start=1)
+    }
     is_all_good = True
 
     for key in from_pdb.keys():

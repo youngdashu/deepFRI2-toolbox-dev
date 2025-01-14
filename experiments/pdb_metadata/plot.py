@@ -7,7 +7,7 @@ categories = {
         "X-RAY DIFFRACTION": 187265,
         "ELECTRON MICROSCOPY": 21723,
         "SOLUTION NMR": 14229,
-        "Other": 561 + 238  # Sum of the remaining methods
+        "Other": 561 + 238,  # Sum of the remaining methods
     },
     "Refinement Resolution (Å)": {
         # "< 1.0": 1057,
@@ -28,30 +28,32 @@ categories = {
         "2005 - 2009": 33064,
         "2010 - 2014": 43311,
         "2015 - 2019": 53737,
-        "2020 - 2024": 64993
+        "2020 - 2024": 64993,
     },
     "Polymer Entity Type": {
         "Protein": 219181,
         "DNA": 11244,
         "RNA": 7970,
-        "Other": 277 + 8
-    }
+        "Other": 277 + 8,
+    },
 }
+
 
 def fix_labels(mylabels, tooclose=0.1, sepfactor=2):
     vecs = np.zeros((len(mylabels), len(mylabels), 2))
     dists = np.zeros((len(mylabels), len(mylabels)))
-    for i in range(0, len(mylabels)-1):
-        for j in range(i+1, len(mylabels)):
+    for i in range(0, len(mylabels) - 1):
+        for j in range(i + 1, len(mylabels)):
             a = np.array(mylabels[i].get_position())
             b = np.array(mylabels[j].get_position())
-            dists[i,j] = np.linalg.norm(a-b)
-            vecs[i,j,:] = a-b
-            if dists[i,j] < tooclose:
-                mylabels[i].set_x(a[0] + sepfactor*vecs[i,j,0])
-                mylabels[i].set_y(a[1] + sepfactor*vecs[i,j,1])
-                mylabels[j].set_x(b[0] - sepfactor*vecs[i,j,0])
-                mylabels[j].set_y(b[1] - sepfactor*vecs[i,j,1])
+            dists[i, j] = np.linalg.norm(a - b)
+            vecs[i, j, :] = a - b
+            if dists[i, j] < tooclose:
+                mylabels[i].set_x(a[0] + sepfactor * vecs[i, j, 0])
+                mylabels[i].set_y(a[1] + sepfactor * vecs[i, j, 1])
+                mylabels[j].set_x(b[0] - sepfactor * vecs[i, j, 0])
+                mylabels[j].set_y(b[1] - sepfactor * vecs[i, j, 1])
+
 
 # Create subplots
 fig, axs = plt.subplots(2, 2, figsize=(20, 20))
@@ -86,7 +88,6 @@ for i, (category, data) in enumerate(categories.items()):
 plt.tight_layout()
 
 # Save the figure as SVG
-plt.savefig('pdb_structures_metadata.pdf', dpi=1200, bbox_inches='tight')
+plt.savefig("pdb_structures_metadata.pdf", dpi=1200, bbox_inches="tight")
 
 plt.show()
-

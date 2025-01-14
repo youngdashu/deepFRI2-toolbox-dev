@@ -1,8 +1,11 @@
 from toolbox.models.utils.cif2pdb import aa_dict
 
-empty_chain_part_sign = 'X'
+empty_chain_part_sign = "X"
 
-def extract_sequence_from_pdb_string(pdb_string: str, code: str,  ca_mask=False, substitute_non_standard_aminoacids=True):
+
+def extract_sequence_from_pdb_string(
+    pdb_string: str, code: str, ca_mask=False, substitute_non_standard_aminoacids=True
+):
 
     sequence = []
     current_residue = None
@@ -10,14 +13,14 @@ def extract_sequence_from_pdb_string(pdb_string: str, code: str,  ca_mask=False,
     ca_residue_indexes = []
     all_residue_indexes = []
 
-    for line in pdb_string.split('\n'):
-        if line.startswith('ATOM'):
+    for line in pdb_string.split("\n"):
+        if line.startswith("ATOM"):
             try:
                 residue_name = line[17:20].strip()
                 residue_number = int(line[22:26])
                 atom_name = line[12:16].strip()
-                
-                if ca_mask and atom_name == 'CA':
+
+                if ca_mask and atom_name == "CA":
                     ca_residue_indexes.append(residue_number)
 
                 if (residue_number, residue_name) != current_residue:
@@ -25,8 +28,12 @@ def extract_sequence_from_pdb_string(pdb_string: str, code: str,  ca_mask=False,
                     if current_residue is not None:
                         residue_number_diff = residue_number - current_residue[0]
                         if residue_number_diff > 1:
-                            sequence.extend([empty_chain_part_sign] * (residue_number_diff - 1))
-                            all_residue_indexes.extend([None] * (residue_number_diff - 1))
+                            sequence.extend(
+                                [empty_chain_part_sign] * (residue_number_diff - 1)
+                            )
+                            all_residue_indexes.extend(
+                                [None] * (residue_number_diff - 1)
+                            )
 
                     current_residue = (residue_number, residue_name)
                     if residue_name in aa_dict:
@@ -36,7 +43,7 @@ def extract_sequence_from_pdb_string(pdb_string: str, code: str,  ca_mask=False,
                         sequence.append(empty_chain_part_sign)
                         all_residue_indexes.append(None)
             except Exception as e:
-                #TODO logger
+                # TODO logger
                 print(f"Error parsing line in {code}: {line}")
                 print(f"Error details: {e}")
                 continue
@@ -46,12 +53,10 @@ def extract_sequence_from_pdb_string(pdb_string: str, code: str,  ca_mask=False,
             if not residue_number in ca_residue_indexes:
                 sequence[i] = empty_chain_part_sign
 
-    return ''.join(sequence)
+    return "".join(sequence)
 
 
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     input = """
 ATOM      1  N   THR P  49    157.5729144.7042168.9863 1.00086.036           N 
 ATOM      2  CC  THR P  49    157.5779145.5472170.1763 1.00086.036           C 
@@ -485,4 +490,3 @@ ATOM    429 HG21 THR P 105    139.0489184.8752200.4603 1.00080.945           H
 ATOM    430 HG22 THR P 105    139.9419184.0692201.4833 1.00080.945           H 
 ATOM    431 HG23 THR P 105    140.6229184.9192200.3413 1.00080.945           H 
 """
-

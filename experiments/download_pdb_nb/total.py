@@ -8,6 +8,6 @@ if __name__ == "__main__":
         "aggregate_results",
         # "create_pdb_zip_archive",
         "compress_and_save_h5",
-        "retrieve_pdb_chunk_to_h5"
+        "retrieve_pdb_chunk_to_h5",
     ]
-    plot_from_htmls(html_files_dir=html_files_dir,task_names=task_names)
+    plot_from_htmls(html_files_dir=html_files_dir, task_names=task_names)

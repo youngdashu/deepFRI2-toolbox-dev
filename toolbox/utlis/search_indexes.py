@@ -24,16 +24,16 @@ def search_index(path: Path, ids_searched_for: List[str]):
 
 
 def search_indexes(
-        structures_dataset,
-        base_path: Path,
-        batched_ids: Iterable[List[str]],
-        index_file_name: str,
+    structures_dataset,
+    base_path: Path,
+    batched_ids: Iterable[List[str]],
+    index_file_name: str,
 ) -> Tuple[Dict[str, str], List[str]]:
     db_type = structures_dataset.db_type
     if db_type == DatabaseType.other:
-        glob_pattern = f'**/*/{index_file_name}.idx'
+        glob_pattern = f"**/*/{index_file_name}.idx"
     else:
-        glob_pattern = f'**/{db_type.name}{SEPARATOR}*/{index_file_name}.idx'
+        glob_pattern = f"**/{db_type.name}{SEPARATOR}*/{index_file_name}.idx"
     sequence_indexes = base_path.glob(glob_pattern)
 
     tasks = [
@@ -51,9 +51,4 @@ def search_indexes(
 
 
 def find_missing_ids(index: Dict[str, str], ids: Iterable[List[str]]) -> List[str]:
-    return [
-        id_
-        for batch in ids
-        for id_ in batch
-        if id_ not in index
-    ]
+    return [id_ for batch in ids for id_ in batch if id_ not in index]

@@ -12,7 +12,5 @@ class Distogram(BaseModel):
     type: DistogramType = DistogramType.CA
     location: Path
 
-
-
     def generate(self):
         pass

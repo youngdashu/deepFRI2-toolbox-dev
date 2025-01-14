@@ -33,7 +33,7 @@ class Embedding:
         if not embeddings_path_obj.exists():
             embeddings_path_obj.mkdir(exist_ok=True, parents=True)
 
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         embeddings_dir = embeddings_path_obj / timestamp
         embeddings_dir.mkdir(exist_ok=True, parents=True)
 
@@ -74,13 +74,15 @@ class Embedding:
             return
 
         all_sequence_files = db.from_sequence(set(all_sequence_files), partition_size=1)
-        merged_fasta = all_sequence_files.map(lambda file: Path(file).read_text()).compute()
+        merged_fasta = all_sequence_files.map(
+            lambda file: Path(file).read_text()
+        ).compute()
 
         # Combine all sequences into a single string
-        single_fasta_entity = ''.join(merged_fasta)
+        single_fasta_entity = "".join(merged_fasta)
 
         # Split the single entity into individual sequences
-        sequences = re.findall(r'(>.+?\n(?:[^>]+\n)+)', single_fasta_entity, re.DOTALL)
+        sequences = re.findall(r"(>.+?\n(?:[^>]+\n)+)", single_fasta_entity, re.DOTALL)
 
         total_size = sum(len(seq) for seq in sequences)
         target_size_per_file = math.ceil(total_size / num_files)
@@ -88,15 +90,21 @@ class Embedding:
         # Write the sequences to separate files
         current_file_index = 0
         current_file_size = 0
-        current_file = open(self.embeddings_path / f"output_{current_file_index + 1}.fasta", "w")
+        current_file = open(
+            self.embeddings_path / f"output_{current_file_index + 1}.fasta", "w"
+        )
 
         for sequence in sequences:
             sequence_size = len(sequence)
-            if current_file_size + sequence_size > target_size_per_file and current_file_index < num_files - 1:
+            if (
+                current_file_size + sequence_size > target_size_per_file
+                and current_file_index < num_files - 1
+            ):
                 current_file.close()
                 current_file_index += 1
                 current_file = open(
-                    self.embeddings_path / f"output_{current_file_index + 1}.fasta", "w")
+                    self.embeddings_path / f"output_{current_file_index + 1}.fasta", "w"
+                )
                 current_file_size = 0
 
             current_file.write(sequence)
@@ -105,8 +113,12 @@ class Embedding:
         current_file.close()
 
         end_time = time.time()
-        print(f"Execution time for sequences_to_multiple_fasta: {end_time - start_time} seconds.")
-        print(f"Created {current_file_index + 1} FASTA files of approximately {target_size_per_file} bytes each.")
+        print(
+            f"Execution time for sequences_to_multiple_fasta: {end_time - start_time} seconds."
+        )
+        print(
+            f"Created {current_file_index + 1} FASTA files of approximately {target_size_per_file} bytes each."
+        )
 
     def create_embeddings(self):
         start_time = time.time()
@@ -120,31 +132,39 @@ class Embedding:
 
         # Create outputs directory if it doesn't exist
 
-
         total_embedding_time = 0
 
         for i, fasta_file in enumerate(fasta_files, 1):
             print(f"Processing file {i}/{len(fasta_files)}: {fasta_file}")
             output_file = f"output_{i}.embedding"
 
-            file_execution_time = self.create_embedding_from_file(fasta_file, output_file)
+            file_execution_time = self.create_embedding_from_file(
+                fasta_file, output_file
+            )
             total_embedding_time += file_execution_time
 
         end_time = time.time()
         total_execution_time = end_time - start_time
 
         print(f"Total embedding time: {total_embedding_time:.2f} seconds")
-        print(f"Total execution time (including overhead): {total_execution_time:.2f} seconds")
+        print(
+            f"Total execution time (including overhead): {total_execution_time:.2f} seconds"
+        )
 
     def create_embedding_from_file(self, fasta_file_path: str, output_file_name: str):
         file_start_time = time.time()
 
         cmd = [
-            "tmvec", "embed",
-            "--input-fasta", str(fasta_file_path),
-            "--output-file", str(self.outputs_dir / output_file_name),
-            "--model-type", "ankh",
-            "--cache-dir", str(Path(EMBEDDINGS_PATH) / "cache")
+            "tmvec",
+            "embed",
+            "--input-fasta",
+            str(fasta_file_path),
+            "--output-file",
+            str(self.outputs_dir / output_file_name),
+            "--model-type",
+            "ankh",
+            "--cache-dir",
+            str(Path(EMBEDDINGS_PATH) / "cache"),
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -165,10 +185,14 @@ class Embedding:
     def build_db(self):
         start_time = time.time()
         cmd = [
-            "tmvec", "build-db",
-            "--input-fasta", f"{self.embeddings_path}/{self.Fasta_file}",
-            "--output", f"{self.embeddings_path}/dbs/{self.Db_file}",
-            "--cache-dir", f"{EMBEDDINGS_PATH}/cache"
+            "tmvec",
+            "build-db",
+            "--input-fasta",
+            f"{self.embeddings_path}/{self.Fasta_file}",
+            "--output",
+            f"{self.embeddings_path}/dbs/{self.Db_file}",
+            "--cache-dir",
+            f"{EMBEDDINGS_PATH}/cache",
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)

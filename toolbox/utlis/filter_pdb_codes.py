@@ -2,11 +2,11 @@ from typing import List, Set, Iterable
 
 
 def _read_pdb_types_(types: str) -> Set[str]:
-    valid_types = {'prot', 'prot-nuc'}
+    valid_types = {"prot", "prot-nuc"}
 
     allowed_pdbs_set = {
         parts[0]
-        for line in types.strip().split('\n')
+        for line in types.strip().split("\n")
         if len(parts := line.strip().split()) >= 2 and parts[1] in valid_types
     }
 

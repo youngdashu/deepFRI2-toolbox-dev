@@ -1,4 +1,3 @@
-
 from tempfile import gettempdir, NamedTemporaryFile
 import biotite.structure.io.pdb as pdb
 import biotite.database.rcsb as rcsb
@@ -6,15 +5,16 @@ import numpy as np
 from scipy.spatial.distance import pdist, squareform
 
 
-def __extract_coordinates__(file: str) -> tuple[
-    tuple[float, float, float], tuple[float | None, float | None, float | None]]:
+def __extract_coordinates__(
+    file: str,
+) -> tuple[tuple[float, float, float], tuple[float | None, float | None, float | None]]:
     ca_coords = []
     coords_with_breaks = []
     previous_residue_sequence_number = None
     max_residue_number = 0  # Track the highest residue number encountered in the file
 
     for line in file.splitlines():
-        if line.startswith('ATOM'):
+        if line.startswith("ATOM"):
             atom_type = line[12:16].strip()
             # Adjust indices for your specific PDB format if needed
             current_residue_sequence_number = int(line[22:26].strip())
@@ -22,12 +22,18 @@ def __extract_coordinates__(file: str) -> tuple[
             if current_residue_sequence_number > max_residue_number:
                 max_residue_number = current_residue_sequence_number
 
-            if atom_type == 'CA':
+            if atom_type == "CA":
                 # If we have a previous residue and the current residue is not the immediate next,
                 # fill the gap with None
-                if (previous_residue_sequence_number is not None and
-                        current_residue_sequence_number > previous_residue_sequence_number + 1):
-                    for _ in range(previous_residue_sequence_number + 1, current_residue_sequence_number):
+                if (
+                    previous_residue_sequence_number is not None
+                    and current_residue_sequence_number
+                    > previous_residue_sequence_number + 1
+                ):
+                    for _ in range(
+                        previous_residue_sequence_number + 1,
+                        current_residue_sequence_number,
+                    ):
                         coords_with_breaks.append((None, None, None))
 
                 x = float(line[30:38])
@@ -40,8 +46,10 @@ def __extract_coordinates__(file: str) -> tuple[
 
     # After processing all lines, use the last encountered residue number as final_residue_number
     # If the last CA residue number is not equal to the max_residue_number, fill with None
-    if (previous_residue_sequence_number is not None and
-            max_residue_number > previous_residue_sequence_number):
+    if (
+        previous_residue_sequence_number is not None
+        and max_residue_number > previous_residue_sequence_number
+    ):
         for _ in range(previous_residue_sequence_number + 1, max_residue_number + 1):
             coords_with_breaks.append((None, None, None))
 
@@ -69,7 +77,9 @@ def improved_distances_calculation(coords, coords_with_breaks):
     distances_with_nans = np.full((n_full, n_full), np.nan, dtype=np.float16)
 
     # Create mask of valid coordinates
-    valid_indices = [i for i, coord in enumerate(coords_with_breaks) if coord[0] is not None]
+    valid_indices = [
+        i for i, coord in enumerate(coords_with_breaks) if coord[0] is not None
+    ]
 
     # Fill in distances for valid coordinates
     for i, vi in enumerate(valid_indices):
@@ -99,6 +109,7 @@ def __process_pdbs__(data: str):
     distances = improved_distances_calculation(coords, coords_with_breaks)
     np.savetxt("111dists.csv", distances, delimiter=",")
     print(distances)
+
 
 input = """
 ATOM      1  N   THR P  49    157.5729144.7042168.9863 1.00086.036           N 

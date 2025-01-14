@@ -2,9 +2,11 @@ import os
 import gzip
 import requests
 
+
 def initialize():
     download_seqres()
     pass
+
 
 def download_seqres():
     url = "https://files.rcsb.org/pub/pdb/derived_data/pdb_seqres.txt.gz"

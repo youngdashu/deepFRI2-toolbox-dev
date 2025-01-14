@@ -29,14 +29,16 @@ class ComputeBatches:
 
         print(f"Max parallel workers {max_workers}")
 
-        var = Variable('stopping-criterion')
+        var = Variable("stopping-criterion")
         var.set(False)
 
         i = 1
 
         ac = as_completed([], with_results=True)
 
-        collect_thread = threading.Thread(target=collect, args=(ac, self.collect_f, semaphore))
+        collect_thread = threading.Thread(
+            target=collect, args=(ac, self.collect_f, semaphore)
+        )
         collect_thread.start()
 
         while True:
@@ -63,7 +65,7 @@ def collect(ac: as_completed, collect_f, semaphore: Semaphore):
     dask.distributed.print("Collecting results")
     count = 0
     total_time = 0
-    stop_var = Variable('stopping-criterion')
+    stop_var = Variable("stopping-criterion")
     while True:
 
         while ac.is_empty() and not stop_var.get():
