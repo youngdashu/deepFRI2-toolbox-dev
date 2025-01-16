@@ -7,6 +7,7 @@ import tarfile
 from pathlib import Path
 
 from dask.distributed import worker_client
+from toolbox.models.manage_dataset.index.handle_index import create_index
 from toolbox.models.utils.create_client import total_workers
 
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
@@ -101,7 +102,7 @@ def save_extracted_files(
     print("Adding new files to index")
 
     try:
-        structures_dataset.add_new_files_to_index(new_files_index)
+        create_index(structures_dataset.dataset_index_file_path(), new_files_index)
     except Exception as e:
         print("Failed to update index")
         print(e)

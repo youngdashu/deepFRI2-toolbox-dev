@@ -8,6 +8,7 @@ from typing import Dict, Tuple, ClassVar, re
 
 import dask.bag as db
 
+from toolbox.models.embedding import esm_embedding
 from toolbox.models.manage_dataset.paths import datasets_path, EMBEDDINGS_PATH
 from toolbox.models.manage_dataset.index.handle_index import read_index
 
@@ -23,8 +24,6 @@ class Embedding:
     outputs_dir: Path
 
     Fasta_file: ClassVar[str] = "output.fasta"
-    Db_file: ClassVar[str] = "output.db"
-    Embedding_output_file: ClassVar[str] = "output.embedding"
 
     def __init__(self, datasets_file_path: Path | None):
         self.datasets_file_path = datasets_file_path
@@ -46,156 +45,178 @@ class Embedding:
         if datasets_file_path is not None:
             shutil.copy(self.datasets_file_path, self.embeddings_path)
 
-    def sequences_to_multiple_fasta(self, num_files: int = 1):
-        """
-        Process datasets of protein sequences, transform them into a single entity,
-        and then save them into multiple FASTA files of approximately equal size.
+    def run(self):
+        # Read fasta file
+        sequences = {}
+        current_id = None
+        current_seq = []
+        
+        with open(self.datasets_file_path / "sequences.fasta") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('>'):
+                    if current_id:
+                        sequences[current_id] = ''.join(current_seq)
+                        current_seq = []
+                    current_id = line[1:]
+                else:
+                    current_seq.append(line)
+            
+            if current_id:
+                sequences[current_id] = ''.join(current_seq)
 
-        :param num_files: Number of FASTA files to split the sequences into. Default is 1.
-        """
-        if datasets_path is None:
-            raise ValueError("Please provide a dataset path")
-        start_time = time.time()
-        datasets = self.datasets_file_path.read_text().splitlines()
+        esm_embedding.embed(sequences, self.outputs_dir)
 
-        all_sequence_files = []
+    # def sequences_to_multiple_fasta(self, num_files: int = 1):
+    #     """
+    #     Process datasets of protein sequences, transform them into a single entity,
+    #     and then save them into multiple FASTA files of approximately equal size.
 
-        for dataset_name in datasets:
-            index_file = Path(datasets_path) / dataset_name / "sequences.idx"
-            if not index_file.exists():
-                print(f"{index_file} missing")
-                continue
-            index = read_index(index_file)
-            files = set(index.values())
-            all_sequence_files.extend(files)
+    #     :param num_files: Number of FASTA files to split the sequences into. Default is 1.
+    #     """
+    #     if datasets_path is None:
+    #         raise ValueError("Please provide a dataset path")
+    #     start_time = time.time()
+    #     datasets = self.datasets_file_path.read_text().splitlines()
 
-        if len(all_sequence_files) == 0:
-            print("No sequence files found.")
-            return
+    #     all_sequence_files = []
 
-        all_sequence_files = db.from_sequence(set(all_sequence_files), partition_size=1)
-        merged_fasta = all_sequence_files.map(
-            lambda file: Path(file).read_text()
-        ).compute()
+    #     for dataset_name in datasets:
+    #         index_file = Path(datasets_path) / dataset_name / "sequences.idx"
+    #         if not index_file.exists():
+    #             print(f"{index_file} missing")
+    #             continue
+    #         index = read_index(index_file)
+    #         files = set(index.values())
+    #         all_sequence_files.extend(files)
 
-        # Combine all sequences into a single string
-        single_fasta_entity = "".join(merged_fasta)
+    #     if len(all_sequence_files) == 0:
+    #         print("No sequence files found.")
+    #         return
 
-        # Split the single entity into individual sequences
-        sequences = re.findall(r"(>.+?\n(?:[^>]+\n)+)", single_fasta_entity, re.DOTALL)
+    #     all_sequence_files = db.from_sequence(set(all_sequence_files), partition_size=1)
+    #     merged_fasta = all_sequence_files.map(
+    #         lambda file: Path(file).read_text()
+    #     ).compute()
 
-        total_size = sum(len(seq) for seq in sequences)
-        target_size_per_file = math.ceil(total_size / num_files)
+    #     # Combine all sequences into a single string
+    #     single_fasta_entity = "".join(merged_fasta)
 
-        # Write the sequences to separate files
-        current_file_index = 0
-        current_file_size = 0
-        current_file = open(
-            self.embeddings_path / f"output_{current_file_index + 1}.fasta", "w"
-        )
+    #     # Split the single entity into individual sequences
+    #     sequences = re.findall(r"(>.+?\n(?:[^>]+\n)+)", single_fasta_entity, re.DOTALL)
 
-        for sequence in sequences:
-            sequence_size = len(sequence)
-            if (
-                current_file_size + sequence_size > target_size_per_file
-                and current_file_index < num_files - 1
-            ):
-                current_file.close()
-                current_file_index += 1
-                current_file = open(
-                    self.embeddings_path / f"output_{current_file_index + 1}.fasta", "w"
-                )
-                current_file_size = 0
+    #     total_size = sum(len(seq) for seq in sequences)
+    #     target_size_per_file = math.ceil(total_size / num_files)
 
-            current_file.write(sequence)
-            current_file_size += sequence_size
+    #     # Write the sequences to separate files
+    #     current_file_index = 0
+    #     current_file_size = 0
+    #     current_file = open(
+    #         self.embeddings_path / f"output_{current_file_index + 1}.fasta", "w"
+    #     )
 
-        current_file.close()
+    #     for sequence in sequences:
+    #         sequence_size = len(sequence)
+    #         if (
+    #             current_file_size + sequence_size > target_size_per_file
+    #             and current_file_index < num_files - 1
+    #         ):
+    #             current_file.close()
+    #             current_file_index += 1
+    #             current_file = open(
+    #                 self.embeddings_path / f"output_{current_file_index + 1}.fasta", "w"
+    #             )
+    #             current_file_size = 0
 
-        end_time = time.time()
-        print(
-            f"Execution time for sequences_to_multiple_fasta: {end_time - start_time} seconds."
-        )
-        print(
-            f"Created {current_file_index + 1} FASTA files of approximately {target_size_per_file} bytes each."
-        )
+    #         current_file.write(sequence)
+    #         current_file_size += sequence_size
 
-    def create_embeddings(self):
-        start_time = time.time()
+    #     current_file.close()
 
-        # Find all FASTA files in the embeddings directory
-        fasta_files = glob.glob(str(self.embeddings_path / f"output_*.fasta"))
+    #     end_time = time.time()
+    #     print(
+    #         f"Execution time for sequences_to_multiple_fasta: {end_time - start_time} seconds."
+    #     )
+    #     print(
+    #         f"Created {current_file_index + 1} FASTA files of approximately {target_size_per_file} bytes each."
+    #     )
 
-        if not fasta_files:
-            print("No FASTA files found.")
-            return
+    # def create_embeddings(self):
+    #     start_time = time.time()
 
-        # Create outputs directory if it doesn't exist
+    #     # Find all FASTA files in the embeddings directory
+    #     fasta_files = glob.glob(str(self.embeddings_path / f"output_*.fasta"))
 
-        total_embedding_time = 0
+    #     if not fasta_files:
+    #         print("No FASTA files found.")
+    #         return
 
-        for i, fasta_file in enumerate(fasta_files, 1):
-            print(f"Processing file {i}/{len(fasta_files)}: {fasta_file}")
-            output_file = f"output_{i}.embedding"
+    #     # Create outputs directory if it doesn't exist
 
-            file_execution_time = self.create_embedding_from_file(
-                fasta_file, output_file
-            )
-            total_embedding_time += file_execution_time
+    #     total_embedding_time = 0
 
-        end_time = time.time()
-        total_execution_time = end_time - start_time
+    #     for i, fasta_file in enumerate(fasta_files, 1):
+    #         print(f"Processing file {i}/{len(fasta_files)}: {fasta_file}")
+    #         output_file = f"output_{i}.embedding"
 
-        print(f"Total embedding time: {total_embedding_time:.2f} seconds")
-        print(
-            f"Total execution time (including overhead): {total_execution_time:.2f} seconds"
-        )
+    #         file_execution_time = self.create_embedding_from_file(
+    #             fasta_file, output_file
+    #         )
+    #         total_embedding_time += file_execution_time
 
-    def create_embedding_from_file(self, fasta_file_path: str, output_file_name: str):
-        file_start_time = time.time()
+    #     end_time = time.time()
+    #     total_execution_time = end_time - start_time
 
-        cmd = [
-            "tmvec",
-            "embed",
-            "--input-fasta",
-            str(fasta_file_path),
-            "--output-file",
-            str(self.outputs_dir / output_file_name),
-            "--model-type",
-            "ankh",
-            "--cache-dir",
-            str(Path(EMBEDDINGS_PATH) / "cache"),
-        ]
+    #     print(f"Total embedding time: {total_embedding_time:.2f} seconds")
+    #     print(
+    #         f"Total execution time (including overhead): {total_execution_time:.2f} seconds"
+    #     )
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+    # def create_embedding_from_file(self, fasta_file_path: str, output_file_name: str):
+    #     file_start_time = time.time()
 
-        if result.returncode != 0:
-            print(f"Error processing {fasta_file_path}:")
-            print(result.stderr)
-        else:
-            print(f"Successfully processed {fasta_file_path}")
+    #     cmd = [
+    #         "tmvec",
+    #         "embed",
+    #         "--input-fasta",
+    #         str(fasta_file_path),
+    #         "--output-file",
+    #         str(self.outputs_dir / output_file_name),
+    #         "--model-type",
+    #         "ankh",
+    #         "--cache-dir",
+    #         str(Path(EMBEDDINGS_PATH) / "cache"),
+    #     ]
 
-        file_end_time = time.time()
-        file_execution_time = file_end_time - file_start_time
+    #     result = subprocess.run(cmd, capture_output=True, text=True)
 
-        print(f"Execution time for file: {file_execution_time:.2f} seconds")
+    #     if result.returncode != 0:
+    #         print(f"Error processing {fasta_file_path}:")
+    #         print(result.stderr)
+    #     else:
+    #         print(f"Successfully processed {fasta_file_path}")
 
-        return file_execution_time
+    #     file_end_time = time.time()
+    #     file_execution_time = file_end_time - file_start_time
 
-    def build_db(self):
-        start_time = time.time()
-        cmd = [
-            "tmvec",
-            "build-db",
-            "--input-fasta",
-            f"{self.embeddings_path}/{self.Fasta_file}",
-            "--output",
-            f"{self.embeddings_path}/dbs/{self.Db_file}",
-            "--cache-dir",
-            f"{EMBEDDINGS_PATH}/cache",
-        ]
+    #     print(f"Execution time for file: {file_execution_time:.2f} seconds")
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+    #     return file_execution_time
 
-        end_time = time.time()
-        print(f"Execution time for create_db: {end_time - start_time} seconds.")
+    # def build_db(self):
+    #     start_time = time.time()
+    #     cmd = [
+    #         "tmvec",
+    #         "build-db",
+    #         "--input-fasta",
+    #         f"{self.embeddings_path}/{self.Fasta_file}",
+    #         "--output",
+    #         f"{self.embeddings_path}/dbs/{self.Db_file}",
+    #         "--cache-dir",
+    #         f"{EMBEDDINGS_PATH}/cache",
+    #     ]
+
+    #     result = subprocess.run(cmd, capture_output=True, text=True)
+
+    #     end_time = time.time()
+    #     print(f"Execution time for create_db: {end_time - start_time} seconds.")
