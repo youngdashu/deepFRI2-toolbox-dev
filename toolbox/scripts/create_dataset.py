@@ -72,9 +72,14 @@ def add_dataset_parser_arguments(parser):
     )
     parser.add_argument(
         "--input-path",
-        required=True,
         type=pathlib.Path,
+        default=None,
         help="Path to input directory or archive (zip/tar.gz) with protein files (pdb/cif)",
+    )
+    parser.add_argument(
+        "--archive",
+          type=pathlib.Path,
+            help='Path to tar.gz archive containing structure files'
     )
 
 

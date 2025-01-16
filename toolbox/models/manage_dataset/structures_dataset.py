@@ -3,7 +3,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Tuple
 
 import dask.bag as db
 import dotenv
@@ -11,6 +11,10 @@ import requests
 from Bio.PDB import PDBList
 from dask.distributed import Client, as_completed
 from pydantic import BaseModel, field_validator
+import requests
+import tarfile
+import shutil
+from math import ceil
 
 from toolbox.models.manage_dataset.collection_type import CollectionType
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
@@ -33,6 +37,7 @@ from toolbox.models.manage_dataset.utils import (
     retrieve_pdb_chunk_to_h5,
     alphafold_chunk_to_h5,
 )
+from toolbox.models.utils.from_archive import extract_batch_from_archive
 from toolbox.models.utils.create_client import create_client, total_workers
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 
@@ -46,7 +51,8 @@ class StructuresDataset(BaseModel):
     type_str: str = ""
     version: str = datetime.now().strftime("%Y%m%d_%H%M")
     ids_file: Optional[Path] = None
-    seqres_file: Optional[Path] = None  # to delete
+    seqres_file: Optional[Path] = None
+    archive_path: Optional[Path] = None
     overwrite: bool = False
     batch_size: int = 1000
     binary_data_download: bool = False
@@ -342,15 +348,10 @@ class StructuresDataset(BaseModel):
         create_index(self.dataset_index_file_path(), result_index)
 
     def handle_afdb(self):
-
-        name = f"report_AFDB_{self.version}_{total_workers()}_{1}"
-        # with performance_report(filename=f"{name}.html"):
-
         match self.collection_type:
             case CollectionType.all:
                 pass
             case CollectionType.part:
-
                 foldcomp_download(self.type_str, str(self.dataset_repo_path()))
                 self.foldcomp_decompress()
             case CollectionType.clust:
@@ -371,6 +372,75 @@ class StructuresDataset(BaseModel):
                 self.foldcomp_decompress()
             case CollectionType.subset:
                 pass
+
+    
+
+    def handle_archive(self):
+        """Handle creating dataset from tar.gz archive"""
+        if not self.archive_path or not self.archive_path.exists():
+            raise ValueError("Archive path must be provided and exist")
+        
+        # Create temporary extraction directory
+        temp_dir = self.dataset_repo_path() / "temp"
+        temp_dir.mkdir(exist_ok=True, parents=True)
+        
+        try:
+            # Extract archive
+            with tarfile.open(self.archive_path, 'r:gz') as tar:
+                tar.extractall(path=temp_dir)
+            
+            # Get all files from temp directory
+            files = list(temp_dir.glob('*.cif'))
+            total_files = len(files)
+            
+            if total_files == 0:
+                raise ValueError(f"No .cif files found in archive {self.archive_path}")
+                
+            # Calculate number of batches needed
+            num_batches = ceil(total_files / self.batch_size)
+            
+            # Create structures directory
+            structures_path = self.structures_path()
+            structures_path.mkdir(exist_ok=True, parents=True)
+            
+            # Create batch directories
+            for i in range(num_batches):
+                (structures_path / str(i)).mkdir(exist_ok=True)
+
+            # Process batches in parallel using dask
+            new_files_index = {}
+            
+            def run(input_data, machine):
+                batch_files, batch_dir = input_data
+                return self._client.submit(extract_batch_from_archive, batch_files, batch_dir, workers=[machine])
+
+            def collect(result):
+                pdbs, h5_path = result
+                if pdbs and h5_path:
+                    new_files_index.update({pdb: h5_path for pdb in pdbs})
+
+            compute_batches = ComputeBatches(self._client, run, collect, "archive_processing")
+
+            # Create input data for each batch
+            inputs = (
+                (files[i:i + self.batch_size], structures_path / str(i // self.batch_size))
+                for i in range(0, total_files, self.batch_size)
+            )
+
+            # Process batches
+            compute_batches.compute(inputs)
+            
+            print(f"Created {num_batches} batches with up to {self.batch_size} files each")
+            
+            # Update index
+            if new_files_index:
+                print("Adding new files to index, len:", len(new_files_index))
+                create_index(self.dataset_index_file_path(), new_files_index)
+            
+        finally:
+            # Cleanup
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
 
     def chunk(self, it):
         return list(chunk(it, self.batch_size))

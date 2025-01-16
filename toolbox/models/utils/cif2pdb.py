@@ -389,7 +389,15 @@ def _create_pdb_atoms_from_cif(
             elements[idx_icode] = ""
         if elements[idx_charge] == "?":
             elements[idx_charge] = ""
-        elements[idx_atom] = elements[idx_atom].replace("'", "").replace('"', "")
+        elements[idx_atom] = elements[idx_atom] \
+            .replace('\'', "").replace('\"', "")
+        
+
+        residue_name = f"{elements[idx_res]:>3}"
+        if residue_name in unwanted_residues:
+            continue
+        residue_name = substitutions.get(residue_name, residue_name)
+        residue_name = aa_dict.get(residue_name)
 
         # Create and save line
 

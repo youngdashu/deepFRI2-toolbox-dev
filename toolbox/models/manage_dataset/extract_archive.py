@@ -51,6 +51,8 @@ def extract_archive(
 
 
 def is_archive(path):
+    if os.path.isdir(path):
+        return False
     # Check if the file is a zip or tar/tar.gz archive
     return zipfile.is_zipfile(path) or tarfile.is_tarfile(path)
 

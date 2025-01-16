@@ -8,10 +8,12 @@ from toolbox.models.manage_dataset.utils import groupby_dict_by_values
 
 def read_index(index_file_path: Path) -> Dict[str, str]:
     try:
-        with index_file_path.open("r") as f:
+        with index_file_path.open('r') as f:
             index = json.load(f)
             return index
-    except FileNotFoundError:
+    except Exception as e:
+        print("Exception in read_index")
+        print(e)
         return {}
 
 

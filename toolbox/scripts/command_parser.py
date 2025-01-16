@@ -44,6 +44,7 @@ class CommandParser:
             version=self.args.version,
             ids_file=self.args.ids,
             seqres_file=self.args.seqres,
+            archive_path=self.args.archive,
             overwrite=self.args.overwrite,
             batch_size=(
                 None if self.args.batch_size is None else int(self.args.batch_size)
