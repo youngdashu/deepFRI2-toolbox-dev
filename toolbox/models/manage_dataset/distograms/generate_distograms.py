@@ -241,3 +241,13 @@ def read_distograms_from_file(
     except IOError:
         print(f"Error while reading the file {distograms_file}")
     return distograms
+
+
+if __name__ == "__main__":
+    distograms_file = "/Users/youngdashu/Downloads/distograms_-178652890355521777.hdf5"
+    limit_keys = 1
+    dists = read_distograms_from_file(
+        distograms_file, limit_keys
+    )
+
+    np.savetxt('dist_1.csv', list(dists.items())[0][1], delimiter=",")
