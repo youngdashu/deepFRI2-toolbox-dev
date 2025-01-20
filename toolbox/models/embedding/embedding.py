@@ -41,17 +41,24 @@ class Embedding:
         self.outputs_dir = self.embeddings_path / "outputs"
         self.outputs_dir.mkdir(exist_ok=True, parents=True)
 
-        # Copy the datasets_file_path to the embeddings_dir
-        if datasets_file_path is not None:
-            shutil.copy(self.datasets_file_path, self.embeddings_path)
-
     def run(self):
         # Read fasta file
         sequences = {}
         current_id = None
         current_seq = []
-        
-        with open(self.datasets_file_path / "sequences.fasta") as f:
+
+        # Determine which fasta file to read
+        fasta_file = self.datasets_file_path
+        if self.datasets_file_path.suffix != ".fasta":
+            # Look for a .fasta file with same stem in same directory
+            for file in self.datasets_file_path.parent.glob(f"{self.datasets_file_path.stem}*.fasta"):
+                fasta_file = file
+                break
+            if not fasta_file or not fasta_file.exists():
+                raise ValueError(f"No .fasta file found for {self.datasets_file_path.stem}")
+
+        # Read and parse the fasta file
+        with open(fasta_file) as f:
             for line in f:
                 line = line.strip()
                 if line.startswith('>'):
@@ -61,9 +68,9 @@ class Embedding:
                     current_id = line[1:]
                 else:
                     current_seq.append(line)
-            
-            if current_id:
-                sequences[current_id] = ''.join(current_seq)
+
+        if current_id:
+            sequences[current_id] = ''.join(current_seq)
 
         esm_embedding.embed(sequences, self.outputs_dir)
 
