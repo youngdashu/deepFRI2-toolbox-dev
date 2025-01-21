@@ -1,4 +1,4 @@
-name: dev_env
+name: tbe
 channels:
   - conda-forge
   - defaults
