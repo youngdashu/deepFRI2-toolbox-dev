@@ -171,6 +171,8 @@ substitutions = {
     "TYQ": "TYR",
     "TYS": "TYR",
     "TYY": "TYR",
+    # additional added by us:
+    # "SEC": "CYS",
 }
 proteinResidues = [
     "ALA",
@@ -335,7 +337,7 @@ def _create_pdb_atoms_from_cif(
         key: field name
         value: index where to look for specific field
     identifier : str
-        nameCHAIN - used for logging
+        name_chain - used for logging
 
     Returns
     -------
@@ -392,21 +394,18 @@ def _create_pdb_atoms_from_cif(
         elements[idx_atom] = elements[idx_atom] \
             .replace('\'', "").replace('\"', "")
         
-
+        # Identify residue name
         residue_name = f"{elements[idx_res]:>3}"
-        if residue_name in unwanted_residues:
-            continue
         residue_name = substitutions.get(residue_name, residue_name)
-        residue_name = aa_dict.get(residue_name)
+        if residue_name in unwanted_residues:
+            print(f"WARNING: {identifier}, unwanted residue {elements[idx_res]} for atom {elements[idx_atom]}")
+            continue
+        residue_name = aa_dict.get(residue_name, None)
+        if residue_name is None:
+            print(f"WARNING: {identifier}, unknown residue {elements[idx_res]} for atom {elements[idx_atom]}")
+            continue
 
         # Create and save line
-
-        if len(str(elements[idx_res])) < 3:
-            return None
-
-        if aa_dict.get(f"{elements[idx_res]:>3}", None) is None:
-            return None
-
         line = (
             f"{elements[idx_record]:<6}"
             f"{str(i + 1)[:5]:>5}"
@@ -429,9 +428,7 @@ def _create_pdb_atoms_from_cif(
             f"{elements[idx_charge]:>1}"
             f"\n"
         )
-
         pdb_atoms.append(line)
-
     return pdb_atoms
 
 
@@ -439,6 +436,7 @@ def cif_to_pdb(cif: str, pdb_code: str) -> Dict[str, str]:
     all_atoms, fields = _fetch_atoms_from_cif(pdb_code, "A", cif)
 
     if all_atoms is None or fields is None:
+        print(f"WARNING: {pdb_code}, no atoms found for ", pdb_code)
         return None
 
     # split atoms by auth_asym_id field
@@ -452,12 +450,12 @@ def cif_to_pdb(cif: str, pdb_code: str) -> Dict[str, str]:
     # write each chain to pdb, with chainId[-1] as chainId
     # return dict[pdb_code_ORIGINAL_chain, pdb_file_content]
     for chain_id, chain_atoms in atoms_per_chain.items():
-        pdb_atoms = _create_pdb_atoms_from_cif(chain_atoms, fields, chain_id)
+        identifier = f"{pdb_code}_{chain_id}"
+        pdb_atoms = _create_pdb_atoms_from_cif(chain_atoms, fields, identifier)
         if pdb_atoms is None:
             continue
         pdb_str = "".join(pdb_atoms)
         result[f"{pdb_code}_{chain_id}.pdb"] = pdb_str
-
     return result
 
 
@@ -525,7 +523,7 @@ def parse_atom_data(atom_data, pdb_code: str, occupancy=None, temp_factor=None):
         none_values = [k for k, v in required_values.items() if v is None]
         if none_values:
             print(
-                f"Warning ${pdb_code}: Found None values for fields: {', '.join(none_values)} ${line} | ${parts}"
+                f"WARNING: ${pdb_code}, found None values for fields: {', '.join(none_values)} ${line} | ${parts}"
             )
             continue
 

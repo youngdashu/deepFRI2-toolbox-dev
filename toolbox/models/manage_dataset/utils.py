@@ -85,7 +85,7 @@ def cif_to_pdbs(input_data) -> Tuple[Dict[str, str], Tuple[str, Optional[str]]]:
     except Exception as e:
         traceback.print_exc()
         print(e)
-        print("Error in converting cif " + pdb)
+        print(f"ERROR: {pdb}, problem with cif conversion.")
         return {}, (pdb, None)
 
     if converted is None:
