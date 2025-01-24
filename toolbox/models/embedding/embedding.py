@@ -38,7 +38,7 @@ class Embedding:
 
         self.embeddings_path = embeddings_dir
 
-        self.outputs_dir = self.embeddings_path / "outputs"
+        self.outputs_dir = self.embeddings_path
         self.outputs_dir.mkdir(exist_ok=True, parents=True)
 
     def run(self):

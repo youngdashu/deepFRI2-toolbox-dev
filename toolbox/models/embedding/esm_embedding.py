@@ -1,4 +1,5 @@
 from typing import Dict
+from pathlib import Path
 import torch
 import tqdm
 
@@ -10,54 +11,46 @@ from transformers import AutoTokenizer, AutoModelForMaskedLM
 from multiprocessing import Process  # Added import for parallel processing
 
 
-# Parameters
-esm_batch_size = 10
-device     = 'cuda'  # cpu
+# # Parameters
+device = 'cuda'  # cpu
+dtype = torch.float32  # torch.bfloat16 (not recommended for ESM2)
 model_name = 'esm2_t33_650M_UR50D'
+batch_size = 1000
 
 # Model
 esm_tokenizer = AutoTokenizer.from_pretrained(f"facebook/{model_name}")
-esm_model = AutoModelForMaskedLM.from_pretrained(f"facebook/{model_name}").to(device).to(dtype=torch.bfloat16)
+esm_model = AutoModelForMaskedLM.from_pretrained(f"facebook/{model_name}").to(device).to(dtype=dtype)
 
 
-def save_batch(output_path: str, batch_index: int, embeddings_pure: Dict[str, torch.Tensor]):
+def save_batch(output_path: Path, batch_index: int, embeddings_pure: Dict[str, torch.Tensor]):
     """Function to save a batch of embeddings to an H5 file."""
-    batch_file = f"{output_path}_batch_{batch_index}.h5"
+    batch_file = output_path / f"batch_{batch_index}.h5"
     with h5py.File(batch_file, 'w') as f:
         for seq_id, embedding in embeddings_pure.items():
             f.create_dataset(seq_id, data=embedding)
 
 
-def embed(sequences: Dict[str, str], output_path: str, embedding_batch_size: int = 1000):
+def embed(sequences: Dict[str, str], output_path: Path, embedding_batch_size: int=batch_size):
 
     esm_model.eval()
     with torch.inference_mode():
         embeddings_pure_batch = {}
-        batch_index = 0
-        for i in tqdm.tqdm(range(0, len(sequences), esm_batch_size)):
-            # Get batch
-            batch_ids, batch_seqs = zip(*islice(sequences.items(), i, i + esm_batch_size))
+        batch_index = 1
+        for prot_id, prot_seq in tqdm.tqdm(sequences.items()):
 
             # Tokenize sequence batch
-            inputs = esm_tokenizer(batch_seqs, return_tensors="pt", padding=True)
+            inputs = esm_tokenizer(prot_seq, return_tensors="pt")
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
             # Get embeddings
             outputs = esm_model(**inputs, output_hidden_states=True)
             embeddings = outputs.hidden_states[-1]
+            # Remove START / END positions
+            # Convert to numpy arrays
+            embeddings_pure = embeddings[0,1:-1].to('cpu').detach().to(torch.float32).numpy()
+            assert len(prot_seq) == embeddings_pure.shape[0], f'Invalid character in {prot_id}'
 
-            # Store in dict
-            embeddings_pure = {}
-            for j, seq_id in enumerate(batch_ids):
-                mask = inputs['attention_mask'][j]
-                non_zero = mask.nonzero(as_tuple=True)[0]
-                # Remove padding
-                # Remove START / END positions
-                # Convert to numpy arrays
-                embeddings_pure[seq_id] = embeddings[j, non_zero, :][1:-1].to('cpu').detach().to(torch.float32).numpy()
-                assert len(sequences[seq_id]) == embeddings_pure[seq_id].shape[0], f'Invalid character in {seq_id}'
-
-            embeddings_pure_batch.update(embeddings_pure)
+            embeddings_pure_batch.update({prot_id: embeddings_pure})
 
             if len(embeddings_pure_batch) >= embedding_batch_size:
                 # Start a new process to save the current batch
@@ -70,5 +63,3 @@ def embed(sequences: Dict[str, str], output_path: str, embedding_batch_size: int
         if embeddings_pure_batch:
             p = Process(target=save_batch, args=(output_path, batch_index, embeddings_pure_batch.copy()))
             p.start()
-
-
