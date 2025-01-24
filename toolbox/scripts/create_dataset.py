@@ -133,6 +133,11 @@ def create_parser():
     )
     add_common_arguments(read_distograms_parser)
 
+    read_pdbs_parser = subparsers.add_parser(
+        "read_pdbs", help="Read pdbs for "
+    )
+    add_common_arguments(read_pdbs_parser)
+
     verify_chains_parser = subparsers.add_parser(
         "verify_chains", help="Verify chains for "
     )

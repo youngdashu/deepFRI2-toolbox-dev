@@ -1,5 +1,6 @@
 from argparse import Namespace
 from datetime import datetime
+import json
 
 from toolbox.models.chains.verify_chains import verify_chains
 from toolbox.models.embedding.embedding import Embedding
@@ -8,6 +9,7 @@ from toolbox.models.manage_dataset.distograms.generate_distograms import (
     read_distograms_from_file,
 )
 from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
+from toolbox.models.manage_dataset.utils import read_all_pdbs_from_h5
 from toolbox.models.utils.create_client import create_client
 from toolbox.scripts.archive import create_archive
 
@@ -86,6 +88,10 @@ class CommandParser:
 
     def read_distograms(self):
         print(read_distograms_from_file(self.args.file_path))
+
+    def read_pdbs(self):
+        pdbs_dict = read_all_pdbs_from_h5(self.args.file_path)
+        print(json.dumps(pdbs_dict))
 
     def verify_chains(self):
         self._create_dataset_from_path_()
