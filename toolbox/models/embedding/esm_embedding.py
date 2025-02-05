@@ -4,22 +4,18 @@ import torch
 import tqdm
 
 import h5py
-import os
 
 from itertools import islice
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 from multiprocessing import Process  # Added import for parallel processing
 
+from toolbox.models.manage_dataset.index.handle_index import create_index
 
 # # Parameters
 device = 'cuda'  # cpu
 dtype = torch.float32  # torch.bfloat16 (not recommended for ESM2)
 model_name = 'esm2_t33_650M_UR50D'
 batch_size = 1000
-
-# Model
-esm_tokenizer = AutoTokenizer.from_pretrained(f"facebook/{model_name}")
-esm_model = AutoModelForMaskedLM.from_pretrained(f"facebook/{model_name}").to(device).to(dtype=dtype)
 
 
 def save_batch(output_path: Path, batch_index: int, embeddings_pure: Dict[str, torch.Tensor]):
@@ -30,12 +26,23 @@ def save_batch(output_path: Path, batch_index: int, embeddings_pure: Dict[str, t
             f.create_dataset(seq_id, data=embedding)
 
 
-def embed(sequences: Dict[str, str], output_path: Path, embedding_batch_size: int=batch_size):
+def embed(
+    sequences: Dict[str, str],
+    output_path: Path,
+    embeddings_index_path: Path,
+    embedding_batch_size: int=batch_size,
+):
+
+    save_batch_processes = []
+
+    # Tokenizer and model
+    esm_tokenizer = AutoTokenizer.from_pretrained(f"facebook/{model_name}")
+    esm_model = AutoModelForMaskedLM.from_pretrained(f"facebook/{model_name}").to(device).to(dtype=dtype)
 
     esm_model.eval()
     with torch.inference_mode():
         embeddings_pure_batch = {}
-        batch_index = 1
+        batch_index = 0
         for prot_id, prot_seq in tqdm.tqdm(sequences.items()):
 
             # Tokenize sequence batch
@@ -56,6 +63,7 @@ def embed(sequences: Dict[str, str], output_path: Path, embedding_batch_size: in
                 # Start a new process to save the current batch
                 p = Process(target=save_batch, args=(output_path, batch_index, embeddings_pure_batch.copy()))
                 p.start()
+                save_batch_processes.append((p, output_path / f"batch_{batch_index}.h5", list(embeddings_pure_batch.keys())))
                 embeddings_pure_batch.clear()
                 batch_index += 1
 
@@ -63,3 +71,12 @@ def embed(sequences: Dict[str, str], output_path: Path, embedding_batch_size: in
         if embeddings_pure_batch:
             p = Process(target=save_batch, args=(output_path, batch_index, embeddings_pure_batch.copy()))
             p.start()
+            save_batch_processes.append((p, output_path / f"batch_{batch_index}.h5", list(embeddings_pure_batch.keys())))
+
+    final_index = {}
+    for p, file_path, ids in save_batch_processes:
+        p.join()
+        for prot_id in ids:
+            final_index[prot_id] = str(file_path)
+
+        create_index(embeddings_index_path, final_index)

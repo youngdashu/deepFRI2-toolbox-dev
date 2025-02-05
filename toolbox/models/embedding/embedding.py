@@ -1,4 +1,3 @@
-import glob
 import json
 import math
 from datetime import datetime
@@ -20,19 +19,21 @@ import shutil
 
 class Embedding:
     datasets_file_path: Path
+    embeddings_index_path: Path
     embeddings_path: Path
     outputs_dir: Path
 
     Fasta_file: ClassVar[str] = "output.fasta"
 
-    def __init__(self, datasets_file_path: Path | None):
+    def __init__(self, output_dir_name: str | None, datasets_file_path: Path | None, embeddings_index_path: Path | None):
         self.datasets_file_path = datasets_file_path
+        self.embeddings_index_path = embeddings_index_path
 
         embeddings_path_obj = Path(EMBEDDINGS_PATH)
         if not embeddings_path_obj.exists():
             embeddings_path_obj.mkdir(exist_ok=True, parents=True)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M") if output_dir_name is None else output_dir_name
         embeddings_dir = embeddings_path_obj / timestamp
         embeddings_dir.mkdir(exist_ok=True, parents=True)
 
@@ -49,13 +50,20 @@ class Embedding:
 
         # Determine which fasta file to read
         fasta_file = self.datasets_file_path
-        if self.datasets_file_path.suffix != ".fasta":
+        if self.datasets_file_path.is_dir():
             # Look for a .fasta file with same stem in same directory
-            for file in self.datasets_file_path.parent.glob(f"{self.datasets_file_path.stem}*.fasta"):
+            for file in self.datasets_file_path.glob(f"*.fasta"):
                 fasta_file = file
                 break
             if not fasta_file or not fasta_file.exists():
                 raise ValueError(f"No .fasta file found for {self.datasets_file_path.stem}")
+            if self.embeddings_index_path is None:
+                self.embeddings_index_path = self.datasets_file_path
+        elif self.datasets_file_path.suffix == ".fasta":
+            if self.embeddings_index_path is None:
+                self.embeddings_index_path = self.datasets_file_path.parent
+
+
 
         # Read and parse the fasta file
         with open(fasta_file) as f:
@@ -72,7 +80,10 @@ class Embedding:
         if current_id:
             sequences[current_id] = ''.join(current_seq)
 
-        esm_embedding.embed(sequences, self.outputs_dir)
+        esm_embedding.embed(sequences, self.outputs_dir, self.embeddings_index_path)
+
+
+
 
     # def sequences_to_multiple_fasta(self, num_files: int = 1):
     #     """
