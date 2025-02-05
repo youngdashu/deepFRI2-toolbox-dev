@@ -15,7 +15,7 @@ from scipy.spatial.distance import pdist, squareform
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
-from toolbox.models.manage_dataset.paths import datasets_path
+from toolbox.models.manage_dataset.paths import DISTOGRAMS_PATH
 from toolbox.models.manage_dataset.utils import read_pdbs_from_h5
 
 
@@ -72,7 +72,7 @@ def __extract_coordinates__(
 
 def improved_distances_calculation(coords, coords_with_breaks):
     # Calculate base distances from coords without breaks
-    distances_1d = pdist(coords).astype(np.float16)
+    distances_1d = pdist(coords)
     distances_base = squareform(distances_1d)  # 2d array
 
     n = distances_base.shape[0]
@@ -88,7 +88,7 @@ def improved_distances_calculation(coords, coords_with_breaks):
 
     # Create array with NaNs for missing coordinates
     n_full = len(coords_with_breaks)
-    distances_with_nans = np.full((n_full, n_full), np.nan, dtype=np.float16)
+    distances_with_nans = np.full((n_full, n_full), np.nan)
 
     # Create mask of valid coordinates
     valid_indices = [
@@ -119,7 +119,6 @@ def __process_pdbs__(h5_file_path: str, codes: List[str]):
     pdbs = read_pdbs_from_h5(h5_file_path, codes)
 
     res = []
-
     for code, content in pdbs.items():
         try:
             coords, coords_with_breaks = __extract_coordinates__(content)
@@ -127,6 +126,7 @@ def __process_pdbs__(h5_file_path: str, codes: List[str]):
                 dask.distributed.print("No CA found in " + code)
                 continue
             distances = improved_distances_calculation(coords, coords_with_breaks)
+            distances = distances.astype(np.float16)
             res.append((code, distances))
         except Exception as e:
             # TODO logger
@@ -172,23 +172,24 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     client: Client = structures_dataset._client
 
-    path = structures_dataset.dataset_path() / "distograms"
+    path = Path(DISTOGRAMS_PATH) / structures_dataset.dataset_dir_name()
+    Path(DISTOGRAMS_PATH).mkdir(parents=True, exist_ok=True)
     path.mkdir(exist_ok=True, parents=True)
 
     partial_result_data_q = Queue(name="partial_result_data_q")
 
     def run(input_data, machine):
+        i, input_data = input_data
         data_f = client.submit(__process_pdbs__, *input_data, workers=machine)
-        return client.submit(collect_parallel, data_f, workers=machine)
+        return client.submit(collect_parallel, data_f, i, workers=machine)
 
     def collect(result):
         partial_result_data_q.put(result)
 
-    def collect_parallel(result):
+    def collect_parallel(result, i):
         if len(result) == 0:
             return {}
-        hsh = hash(result[0][0])
-        distograms_file = path / f"distograms_{hsh}.hdf5"
+        distograms_file = path / f"batch_{i}.h5"
         hf = h5py.File(distograms_file, "w")
         partial = __save_result_batch_to_h5__(hf, result)
         hf.close()
@@ -200,8 +201,9 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
         collect,
         f"distograms_{structures_dataset.db_type}",
     )
-
-    inputs = (item for item in search_index_result.grouped_missing_proteins.items())
+    inputs = (
+        (i, item) for i, item in enumerate(search_index_result.grouped_missing_proteins.items())
+    )
 
     start = time.time()
     compute_batches.compute(inputs, 5)
@@ -244,7 +246,7 @@ def read_distograms_from_file(
 
 
 if __name__ == "__main__":
-    distograms_file = "/Users/youngdashu/Downloads/distograms_-178652890355521777.hdf5"
+    distograms_file = "/Users/youngdashu/Downloads/distograms_-178652890355521777.h5"
     limit_keys = 1
     dists = read_distograms_from_file(
         distograms_file, limit_keys
