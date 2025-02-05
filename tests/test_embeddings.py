@@ -50,11 +50,11 @@ def test_esm():
     dict_ = {"SEQ_1": SEQ_1, "SEQ_2": SEQ_2}
 
     # Compute embeddings
-    embed(dict_, Path(), OUTPATH, 1)
+    embed(dict_, OUTPATH, OUTPATH / "embddings_test.idx", 1)
 
     # Load results
     res = []
-    for i in [1, 2]:
+    for i in [0, 1]:
         with h5py.File(OUTPATH / f'batch_{i}.h5', 'r') as f:
             first_key = list(f.keys())[0]
             res.append(f[first_key][:])
