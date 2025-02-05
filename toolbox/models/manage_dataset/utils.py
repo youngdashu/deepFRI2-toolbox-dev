@@ -186,7 +186,7 @@ def compress_and_save_h5(
     path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]
 ):
     start_time = time.time()
-    pdbs_file = path_for_batch / "pdbs.hdf5"
+    pdbs_file = path_for_batch / "pdbs.h5"
     all_res_pdbs = results[0]
     all_contents = results[1]
     if len(all_contents) == 0 or len(all_res_pdbs) == 0:
@@ -424,7 +424,7 @@ def groupby_dict_by_values(d):
 
 if __name__ == "__main__":
     # pdbs_h5_to_files(
-    #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/subset_/20240731_1535/structures/0/pdbs.hdf5"
+    #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/subset_/20240731_1535/structures/0/pdbs.h5"
     # )
 
     code = "1j6t"
@@ -434,7 +434,7 @@ if __name__ == "__main__":
     # retrieve_cifs_to_pdbs(code)
 
     # d = read_all_pdbs_from_h5(
-    #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240813_0238/structures/1/pdbs.hdf5")
+    #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240813_0238/structures/1/pdbs.h5")
     #
     # for k in d.keys():
     #     if k.startswith('5dat'):
