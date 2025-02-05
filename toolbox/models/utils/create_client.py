@@ -28,6 +28,8 @@ def get_cluster_machines(client):
 def create_client(is_slurm_client: bool):
     # Get the total number of CPUs available on the machine
 
+    print("Creating computation client")
+
     if is_slurm_client:
         client = Client(
             scheduler_file=os.environ.get("DEEPFRI_PATH") + "/scheduler.json"
@@ -40,9 +42,9 @@ def create_client(is_slurm_client: bool):
         # Create a LocalCluster with the calculated number of workers
         cluster = LocalCluster(
             dashboard_address="0.0.0.0:8989",
-            n_workers=10 - 2,
+            n_workers= 8, # int(0.9 * float(total_cores)),
             threads_per_worker=1,
-            memory_limit="80 GiB",
+            memory_limit="100 GiB",
             silence_logs=logging.ERROR,
         )
 
