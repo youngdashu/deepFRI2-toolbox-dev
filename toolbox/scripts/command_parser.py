@@ -1,6 +1,8 @@
 from argparse import Namespace
 from datetime import datetime
 import json
+import concurrent.futures
+from pathlib import Path
 
 from toolbox.models.chains.verify_chains import verify_chains
 from toolbox.models.embedding.embedding import Embedding
@@ -8,8 +10,8 @@ from toolbox.models.manage_dataset.distograms.generate_distograms import (
     generate_distograms,
     read_distograms_from_file,
 )
-from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
-from toolbox.models.manage_dataset.utils import read_all_pdbs_from_h5
+from toolbox.models.manage_dataset.structures_dataset import FatalDatasetError, StructuresDataset
+from toolbox.models.manage_dataset.utils import (read_pdbs_from_h5)
 from toolbox.models.utils.create_client import create_client
 from toolbox.scripts.archive import create_archive
 
@@ -66,11 +68,7 @@ class CommandParser:
         # embedding.create_embeddings()
 
     def embedding_single_file(self):
-        embedding = Embedding(datasets_file_path=None)
-        time_now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # embedding.create_embedding_from_file(
-        #     str(self.args.file_path), f"output_{time_now}.embedding"
-        # )
+        pass
 
     def load(self):
         dataset = self._create_dataset_from_path_()
@@ -90,8 +88,7 @@ class CommandParser:
         print(read_distograms_from_file(self.args.file_path))
 
     def read_pdbs(self):
-        pdbs_dict = read_all_pdbs_from_h5(self.args.file_path)
-        print(json.dumps(pdbs_dict))
+        read_pdbs(self.args.file_path, self.args.ids, self.args.to_directory, self.args.print)
 
     def verify_chains(self):
         self._create_dataset_from_path_()
@@ -105,18 +102,32 @@ class CommandParser:
         try:
             print("Creating dataset")
             self.dataset()
+        except FatalDatasetError as e:
+            print("Fatal error! Exiting...")
+            print(e)
+            return
         except Exception as e:
-            print(f"Error: {e}")
+            print_exc(e)
         try:
             print("Generating sequences")
             self.structures_dataset.generate_sequence()
         except Exception as e:
-            print(f"Error: {e}")
+            print_exc(e)
         try:
             print("Generating distograms")
             generate_distograms(self.structures_dataset)
         except Exception as e:
-            print(f"Error: {e}")
+            print_exc(e)
+        try:
+            print("Generate embeddings")
+            embedding = Embedding(
+                output_dir_name=self.structures_dataset.dataset_dir_name(),
+                datasets_file_path=self.structures_dataset.dataset_path(),
+                embeddings_index_path=self.structures_dataset.embeddings_index_path(),
+            )
+            embedding.run()
+        except Exception as e:
+            print_exc(e)
 
     def run(self):
         command_method = getattr(self, self.args.command)
@@ -124,3 +135,35 @@ class CommandParser:
             command_method()
         else:
             raise ValueError(f"Unknown command - {self.args.command}")
+
+def print_exc(e):
+    print(f"Error ({type(e)}): {str(e)}")
+
+def read_pdbs(file_path, ids, to_directory, is_print):
+    if ids.exists():
+        ids = ids.read_text().splitlines()
+
+    pdbs_dict = read_pdbs_from_h5(file_path, ids)
+
+    if is_print:
+        print(json.dumps(pdbs_dict))
+    
+    if to_directory:
+        extract_dir: Path = to_directory
+        if not extract_dir.exists() and not extract_dir.is_dir():
+            print("ERROR: Provided output path doesn't exist")
+            return
+    else:
+        extract_dir = file_path.parent / f"extracted_{file_path.stem}"
+        extract_dir.mkdir(exist_ok=True, parents=True)
+
+    def save_pdb(pdb_code, pdb_file):
+        file_name = f"{pdb_code}" if pdb_code.endswith(".pdb") else f"{pdb_code}.pdb"
+        print(f"Saving {file_name}")
+        with open(extract_dir / file_name, "w") as f:
+            f.write(pdb_file)
+
+    print("Extracting PDB files")
+    for pdb_code, pdb_file in pdbs_dict.items():
+        save_pdb(pdb_code, pdb_file)
+    print("Extraction complete")
