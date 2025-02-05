@@ -20,7 +20,6 @@ class SequenceRetriever:
 
         structures_dataset = self.structures_dataset
 
-        print("Generating sequences")
         protein_index = read_index(structures_dataset.dataset_index_file_path())
         print(len(protein_index))
 
