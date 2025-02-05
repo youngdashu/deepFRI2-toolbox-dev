@@ -6,6 +6,8 @@ import zipfile
 import tarfile
 from pathlib import Path
 
+from tqdm import tqdm
+
 from dask.distributed import worker_client
 from toolbox.models.manage_dataset.index.handle_index import create_index
 from toolbox.models.utils.create_client import total_workers
@@ -67,12 +69,34 @@ def save_extracted_files(
     Path(structures_dataset.structures_path()).mkdir(exist_ok=True, parents=True)
     pdb_repo_path = structures_dataset.structures_path()
 
+    files = list(extracted_path.glob("*.pdb")) + list(extracted_path.glob("*.cif"))
+    print("extracted files from directory:", len(files))
+
+    files_name_to_dir = {
+        file.name.replace(".pdb", "").replace(".cif", ""): str(file) for file in files
+    }
+    present_files_set = set(files_name_to_dir.keys())
+
+    ids_set = set(ids)
+
     if ids is None:
-        files = list(extracted_path.glob("*.pdb")) + list(extracted_path.glob("*.cif"))
-        print("extracted files", files)
+        files = list(files_name_to_dir.values())
         chunks = list(structures_dataset.chunk(files))
     else:
-        chunks = list(structures_dataset.chunk(ids))
+        print(f"Searching for requested files {len(ids)} in extracted files {len(files)}")
+
+        wanted_files = present_files_set & ids_set
+        wanted_files = [files_name_to_dir[file] for file in wanted_files] 
+        missing_files = list(ids_set - present_files_set)
+
+        print(f"\tFound {len(wanted_files)}, missing {len(missing_files)} out of {len(ids)} requested files")
+        with open(structures_dataset.dataset_path() / "missing_ids_files.txt", "w") as f:
+            for file in missing_files:
+                f.write(file + "\n")
+            print(f"\t\tMissing files saved to {structures_dataset.dataset_path() / 'missing_ids_files.txt'}")
+        ids = wanted_files
+
+    chunks = list(structures_dataset.chunk(ids))
 
     mkdir_for_batches(pdb_repo_path, len(chunks))
 
