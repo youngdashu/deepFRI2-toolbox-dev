@@ -26,6 +26,7 @@ from toolbox.models.manage_dataset.extract_archive import (
 from toolbox.models.manage_dataset.index.handle_index import (
     create_index,
     add_new_files_to_index,
+    read_index,
 )
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import datasets_path, repo_path
@@ -43,6 +44,11 @@ from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 
 dotenv.load_dotenv()
 SEPARATOR = os.getenv("SEPARATOR")
+
+class FatalDatasetError(Exception):
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
 
 
 class StructuresDataset(BaseModel):
@@ -102,7 +108,10 @@ class StructuresDataset(BaseModel):
         return self.dataset_path() / "distograms.idx"
 
     def distograms_file_path(self):
-        return self.dataset_path() / "distograms.hdf5"
+        return self.dataset_path() / "distograms.h5"
+
+    def embeddings_index_path(self):
+        return self.dataset_path() / "embeddings.idx"
 
     def batches_count(self) -> int:
         return sum(1 for item in self.structures_path().iterdir() if item.is_dir())
@@ -124,7 +133,10 @@ class StructuresDataset(BaseModel):
         print(str(datetime.now()))
 
         if self.collection_type == CollectionType.subset:
-            assert self.ids_file is not None and self.ids_file.exists()
+            if self.ids_file is None:
+                raise ValueError("Subset collection type requires ids_file")
+            if not self.ids_file.exists():
+                raise FileNotFoundError(f"ids_file {self.ids_file} does not exist")
 
         self.dataset_repo_path().mkdir(exist_ok=True, parents=True)
         self.dataset_path().mkdir(exist_ok=True, parents=True)
@@ -162,6 +174,11 @@ class StructuresDataset(BaseModel):
                 self.download_ids(missing_ids)
         else:
             self.download_ids(None)
+        
+        index = read_index(self.dataset_index_file_path())
+
+        if len(index.keys()) == 0:
+            raise FatalDatasetError("No files found in dataset")
 
         self.save_dataset_metadata()
 
