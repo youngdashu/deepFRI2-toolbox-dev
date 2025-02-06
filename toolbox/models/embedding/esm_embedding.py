@@ -28,7 +28,6 @@ def save_batch(output_path: Path, batch_index: int, embeddings_pure: Dict[str, t
 def embed(  
     sequences: Dict[str, str],  
     output_path: Path,  
-    index_path: Path,  
     embedding_batch_size: int=batch_size,  
 ):  
     save_batch_processes = []  
@@ -84,6 +83,6 @@ def embed(
     for p, file_path, ids in save_batch_processes:  
         p.join()  
         for prot_id in ids:  
-            final_index[prot_id] = str(file_path)  
+            final_index[prot_id] = str(file_path)
 
-    create_index(index_path, final_index)
+    return final_index
