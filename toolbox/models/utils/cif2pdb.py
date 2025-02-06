@@ -482,7 +482,7 @@ def cif_to_pdb(cif: str, pdb_code: str) -> Dict[str, str]:
         if pdb_atoms is None:
             continue
         pdb_str = "".join(pdb_atoms)
-        result[f"{pdb_code}_{chain_id}.pdb"] = pdb_str
+        result[f"{pdb_code}_{chain_id}"] = pdb_str
     return result
 
 
@@ -631,6 +631,6 @@ def binary_cif_to_pdb(cif_bytes: BytesIO, pdb_code: str) -> Dict[str, str]:
     for chain_id, pdb_atoms in atoms_per_chain.items():
         if pdb_atoms is None or len(pdb_atoms) == 0:
             continue
-        result[f"{pdb_code}_{chain_id}.pdb"] = pdb_atoms
+        result[f"{pdb_code}_{chain_id}"] = pdb_atoms
 
     return result
