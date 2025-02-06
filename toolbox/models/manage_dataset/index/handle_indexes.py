@@ -137,12 +137,19 @@ class HandleIndexes:
         return missing_items, reversed_missings
 
     def full_handle(
-        self, index_type: str, protein_index: Dict[str, str]
+        self, index_type: str, protein_index: Dict[str, str], overwrite: bool = False
     ) -> SearchIndexResult:
 
         self.read_indexes(index_type)
 
         requested_ids = protein_index.keys()
+
+        if overwrite:
+            return SearchIndexResult(
+                present={},
+                missing_protein_files=protein_index,
+                grouped_missing_proteins=groupby_dict_by_values(protein_index),
+            )
 
         present, missing_ids = self.find_present_and_missing_ids(
             index_type, requested_ids
