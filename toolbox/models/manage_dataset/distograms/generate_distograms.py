@@ -159,16 +159,16 @@ def __save_result_batch_to_h5__(
 def generate_distograms(structures_dataset: "StructuresDataset"):
     print("Generating distograms")
     protein_index = read_index(structures_dataset.dataset_index_file_path())
-    print(f"Index len {len(protein_index)}")
+    print(f"\tIndex len {len(protein_index)}")
 
     handle_indexes: HandleIndexes = structures_dataset._handle_indexes
 
-    search_index_result = handle_indexes.full_handle("distograms", protein_index)
+    search_index_result = handle_indexes.full_handle("distograms", protein_index, structures_dataset.overwrite)
 
     distogram_index = search_index_result.present
 
-    print("Missing distograms")
-    print(len(search_index_result.missing_protein_files))
+    print("\tMissing distograms")
+    print(f"\t\t{len(search_index_result.missing_protein_files)}")
 
     client: Client = structures_dataset._client
 
@@ -217,6 +217,11 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     for dict_id_to_h5_file in distogram_pdbs_saved:
         distogram_index.update(dict_id_to_h5_file)
+
+    ids = list(distogram_index.keys())
+    for protein_id in ids:
+        distogram_index[protein_id.removesuffix(".pdb")] = distogram_index.pop(protein_id)
+
     create_index(structures_dataset.distograms_index_path(), distogram_index)
 
 
