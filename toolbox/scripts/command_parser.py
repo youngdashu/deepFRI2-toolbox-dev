@@ -62,10 +62,8 @@ class CommandParser:
         return dataset
 
     def embedding(self):
-        embedding = Embedding(datasets_file_path=self.args.file_path)
-        embedding.run()
-        # embedding.sequences_to_multiple_fasta()
-        # embedding.create_embeddings()
+        print("Not implemented")
+        return
 
     def embedding_single_file(self):
         pass
@@ -120,11 +118,7 @@ class CommandParser:
             print_exc(e)
         try:
             print("Generate embeddings")
-            embedding = Embedding(
-                output_dir_name=self.structures_dataset.dataset_dir_name(),
-                datasets_file_path=self.structures_dataset.dataset_path(),
-                embeddings_index_path=self.structures_dataset.embeddings_index_path(),
-            )
+            embedding = Embedding(self.structures_dataset)
             embedding.run()
         except Exception as e:
             print_exc(e)
