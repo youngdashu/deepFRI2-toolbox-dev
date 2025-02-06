@@ -183,7 +183,7 @@ def file_to_pdb(input_data):
     if file_extension == ".cif":
         return cif_to_pdb(file_data, file_name)
     elif file_extension == ".pdb":
-        return {f"{file_name}.pdb": str(file_data)}
+        return {f"{file_name}": str(file_data)}
     else:
         raise ValueError(f"Unsupported file extension: {file_extension}")
 
