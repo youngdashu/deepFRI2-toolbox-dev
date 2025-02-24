@@ -5,11 +5,18 @@ from typing import Dict, Union, List
 
 from toolbox.models.manage_dataset.utils import groupby_dict_by_values
 
+from toolbox.models.manage_dataset.paths import get_pdir
+
 
 def read_index(index_file_path: Path) -> Dict[str, str]:
     try:
         with index_file_path.open('r') as f:
             index = json.load(f)
+            DATA_PATH = get_pdir()
+            if "reversed" in index_file_path.stem:
+                index = {DATA_PATH + "/" + k: v for k, v in index.items()}
+            else:
+                index = {k: DATA_PATH + "/" + v for k, v in index.items()}
             return index
     except Exception as e:
         print("Exception in read_index")
@@ -21,6 +28,9 @@ def create_index(index_file_path: Path, values: Union[Dict[str, str], List[str]]
     with index_file_path.open("w") as f:
         if isinstance(values, list):
             values = {str(i): v for i, v in enumerate(values)}
+        # Map over values to ensure they are strings
+        DATA_PATH = get_pdir()
+        values = {k: v.removeprefix(DATA_PATH + "/") for k, v in values.items()}
         json.dump(values, f)
 
     file_name = index_file_path.stem
