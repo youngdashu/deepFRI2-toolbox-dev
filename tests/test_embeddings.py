@@ -50,7 +50,7 @@ def test_esm():
     dict_ = {"SEQ_1": SEQ_1, "SEQ_2": SEQ_2}
 
     # Compute embeddings
-    embed(dict_, OUTPATH, OUTPATH / "embddings_test.idx", 1)
+    embed(dict_, OUTPATH, 1)
 
     # Load results
     res = []
