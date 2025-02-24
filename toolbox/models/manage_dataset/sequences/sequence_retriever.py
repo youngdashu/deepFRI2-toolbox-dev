@@ -1,7 +1,6 @@
 from pathlib import Path
-from typing import Dict, List, Iterable
 
-from distributed import progress, Client
+from distributed import Client
 
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
@@ -39,6 +38,8 @@ class SequenceRetriever:
 
         def run(input_data, workers):
             return client.submit(get_sequences_from_batch, *input_data, workers=workers)
+        
+        Path(SEQUENCES_PATH).mkdir(parents=True, exist_ok=True)
 
         sequences_file_base_name = f"{structures_dataset.dataset_dir_name()}{('_ca' if ca_mask else '')}.fasta"
         sequences_file_path = Path(SEQUENCES_PATH) / sequences_file_base_name
