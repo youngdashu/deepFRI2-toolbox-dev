@@ -34,28 +34,55 @@ class HandleIndexes:
         return self.file_paths_storage.get(index_type, {})
 
     def read_indexes(self, index_type: str):
-
         db_type = self.structures_dataset.db_type
-
         datasets_path_obj = Path(datasets_path)
         print(f"Globbing {datasets_path}")
+        
         if db_type == DatabaseType.other:
-            path = datasets_path_obj / "*" / f"{index_type}.idx"
+            # For "other" db_type, the current implementation yields a single path pattern.
+            # Wrap it in a list if needed.
+            path = [str(p) for p in datasets_path_obj.glob(f"*{os.sep}{index_type}.idx")]
         else:
-            path = (
-                datasets_path_obj / f"{db_type.name}{SEPARATOR}*" / f"{index_type}.idx"
-            )
-
-        try:
-            file_paths_jsons_list = db.read_text(str(path)).map(json.loads).compute()
-        except Exception as e:
-            file_paths_jsons_list = []
-
-        file_paths = {
-            k.removesuffix(".pdb"): v
-            for d in file_paths_jsons_list
-            for k, v in d.items()
-        }
+            base_path = datasets_path_obj / f"{db_type.name}{SEPARATOR}*"
+            # Get all matching directories
+            dataset_dirs = list(base_path.parent.glob(base_path.name))
+            
+            # Read creation dates from dataset.json files and sort directories (newest first)
+            dir_dates = []
+            for dir_path in dataset_dirs:
+                dataset_json = dir_path / "dataset.json"
+                idx_path = dir_path / f"{index_type}.idx"
+                if dataset_json.exists() and idx_path.exists():
+                    try:
+                        with open(dataset_json) as f:
+                            data = json.load(f)
+                            created_at = data.get("created_at", "")
+                            dir_dates.append((dir_path, int(created_at)))
+                    except Exception as e:
+                        print(f"Error reading {dataset_json}: {e}")
+                
+            # Sort by creation date, newest first
+            dir_dates.sort(key=lambda x: x[1], reverse=True)
+            
+            # Create list of paths from sorted directories
+            paths = [str(dir_path / f"{index_type}.idx") for dir_path, _ in dir_dates]
+            path = paths
+        
+        file_paths_jsons_list = []
+        for p in path:
+            try:
+                with open(p) as f:
+                    file_paths_jsons_list.append(json.load(f))
+            except Exception as e:
+                print(f"Error reading {p}: {e}")
+        
+        # Merge dictionaries ensuring that if a key is found in a newer entry,
+        # it won't be overwritten by an older one.
+        file_paths = {}
+        for d in file_paths_jsons_list:
+            for k, v in d.items():
+                if k not in file_paths:
+                    file_paths[k] = v
 
         self.file_paths_storage[index_type] = file_paths
         print(f"Found {len(file_paths)} files")
