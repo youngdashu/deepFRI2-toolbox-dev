@@ -1,12 +1,12 @@
 import os
-
 import dotenv
 
-dotenv.load_dotenv()
+def get_pdir():
+    dotenv.load_dotenv()
+    return os.getenv("DATA_PATH")
 
-pdir = os.getenv("DATA_PATH")
-repo_path = pdir + "/repo"
-datasets_path = pdir + "/datasets"
-EMBEDDINGS_PATH = pdir + "/embeddings"
-DISTOGRAMS_PATH = pdir + "/distograms"
-SEQUENCES_PATH = pdir + "/sequences"
+repo_path = get_pdir() + "/structures"
+datasets_path = get_pdir() + "/datasets"
+EMBEDDINGS_PATH = get_pdir() + "/embeddings"
+DISTOGRAMS_PATH = get_pdir() + "/distograms"
+SEQUENCES_PATH = get_pdir() + "/sequences"
