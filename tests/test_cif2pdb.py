@@ -13,7 +13,7 @@ from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
 from toolbox.models.manage_dataset.utils import read_pdbs_from_h5
 from toolbox.models.utils.cif2pdb import cif_to_pdb
-from tests.utils import compare_pdb_files
+from tests.utils import compare_pdb_files, create_temp_txt_file
 from pathlib import Path
 
 # ===================================================
@@ -69,19 +69,13 @@ def clean_generated_files(tmp_path_factory):
     # Verify directory is empty
     assert not list(OUTPATH.iterdir())
     yield
-    # Cleanup after tests (optional)
+    # # Cleanup after tests (optional)
     for f in OUTPATH.glob('*'):
         f.unlink()
 
 
 @pytest.fixture
 def setup_dataset():
-    def create_temp_txt_file(lines):
-        """Creates a temporary text file from a list of strings and returns its Path object."""
-        temp_file = tempfile.NamedTemporaryFile(delete=False, mode="w", encoding="utf-8")
-        temp_file.write("\n".join(lines))
-        temp_file.close()  # Close so it can be used elsewhere
-        return Path(temp_file.name)
 
     dataset = StructuresDataset(
         db_type=DatabaseType.PDB,
@@ -89,16 +83,13 @@ def setup_dataset():
         ids_file=create_temp_txt_file(['2fjh', ]),
         overwrite=True
     )
-
     dataset.create_dataset()
-
     yield dataset
+    shutil.rmtree(dataset.dataset_repo_path())
+    shutil.rmtree(dataset.dataset_path())
 
-    # shutil.rmtree(dataset.dataset_repo_path())
-    # shutil.rmtree(dataset.dataset_path())
 
 # BASIC TESTS
-
 
 # TODO: should throw a warning (add logging firts)
 @pytest.mark.skip(reason="Should print a warning")
@@ -122,10 +113,10 @@ def test_cif_to_pdb_basic():
     result = cif_to_pdb(cif_str, "1xyz")
 
     # Should return dict with chain A
-    assert "1xyz_A.pdb" in result  
+    assert "1xyz_A" in result  
 
     # PDB content should contain formatted ATOM records
-    pdb_lines = result["1xyz_A.pdb"].split("\n")
+    pdb_lines = result["1xyz_A"].split("\n")
     nonempty_lines = sum(line.startswith("ATOM") for line in pdb_lines)
     assert 2 == nonempty_lines
     
@@ -146,16 +137,16 @@ def test_cif_to_pdb_multiple_chains():
     result = cif_to_pdb(cif_str, "1xyz")
 
     # Result should have both chains
-    assert "1xyz_A.pdb" in result
-    assert "1xyz_B.pdb" in result
+    assert "1xyz_A" in result
+    assert "1xyz_B" in result
 
     # Chain A should have 1 atom
-    pdb_lines = result["1xyz_A.pdb"].split("\n")
+    pdb_lines = result["1xyz_A"].split("\n")
     nonempty_lines = sum(line.startswith("ATOM") for line in pdb_lines)
     assert 1 == nonempty_lines
 
     # Chain B should have 2 atoms
-    pdb_lines = result["1xyz_B.pdb"].split("\n")
+    pdb_lines = result["1xyz_B"].split("\n")
     nonempty_lines = sum(line.startswith("ATOM") for line in pdb_lines)
     assert 2 == nonempty_lines
 
@@ -169,7 +160,7 @@ def test_cif_to_pdb_invalid_residues():
     result = cif_to_pdb(cif_str, "1xyz")
     
     # Should return empty dict since residue ABC is invalid
-    assert result['1xyz_A.pdb'] == ''
+    assert result['1xyz_A'] == ''
 
 
 # REAL DATA TESTS
@@ -184,7 +175,7 @@ def test_convert_pdb_2fjhL(setup_dataset):
     pdbs = read_pdbs_from_h5(hdf5_files[0], None)
     
     # Conversion
-    result = pdbs["2fjh_L.pdb"]  # Choose chain L
+    result = pdbs["2fjh_L"]  # Choose chain L
     
     with open(OUTPATH / '2fjh_L.pdb', 'w') as f:
         f.write(result)
@@ -201,7 +192,7 @@ def test_convert_pdb_5uyl32():
     
     # Conversion
     result = cif_to_pdb(cif_str, "5uyl")
-    result = result["5uyl_32.pdb"]  # Choose chain 32
+    result = result["5uyl_32"]  # Choose chain 32
     
     with open(OUTPATH / '5uyl_32.pdb', 'w') as f:
         f.write(result)
@@ -219,7 +210,7 @@ def test_convert_pdb_1aa6A():
     
     # Conversion
     result = cif_to_pdb(cif_str, "1aa6")
-    result = result["1aa6_A.pdb"]  # Choose chain A
+    result = result["1aa6_A"]  # Choose chain A
     
     with open(OUTPATH / '1aa6_A.pdb', 'w') as f:
         f.write(result)
