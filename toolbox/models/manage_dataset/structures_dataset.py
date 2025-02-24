@@ -3,14 +3,15 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any
+from typing_extensions import Self
 
 import dask.bag as db
 import dotenv
 import requests
 from Bio.PDB import PDBList
 from dask.distributed import Client, as_completed
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, model_validator
 import requests
 import tarfile
 import shutil
@@ -41,7 +42,6 @@ from toolbox.models.manage_dataset.utils import (
 from toolbox.models.utils.from_archive import extract_batch_from_archive
 from toolbox.models.utils.create_client import create_client, total_workers
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
-
 dotenv.load_dotenv()
 SEPARATOR = os.getenv("SEPARATOR")
 
@@ -55,26 +55,29 @@ class StructuresDataset(BaseModel):
     db_type: DatabaseType
     collection_type: CollectionType
     type_str: str = ""
-    version: str = datetime.now().strftime("%Y%m%d_%H%M")
+    version: Optional[str] = None
     ids_file: Optional[Path] = None
     seqres_file: Optional[Path] = None
     archive_path: Optional[Path] = None
     overwrite: bool = False
-    batch_size: int = 1000
+    batch_size: Optional[int] = None
     binary_data_download: bool = False
     is_hpc_cluster: bool = False
     input_path: Optional[Path] = None
     _client: Optional[Client] = None
     _handle_indexes: Optional[HandleIndexes] = None
     _sequence_retriever: Optional[SequenceRetriever] = None
+    created_at: Optional[str] = None
 
-    @field_validator("version", mode="before")
-    def set_version(cls, v):
-        return v or datetime.now().strftime("%Y%m%d_%H%M")
-
-    @field_validator("batch_size", mode="before")
-    def set_batch_size(cls, size):
-        return size or 1000
+    @model_validator(mode="after")
+    def validate_model(self) -> Self:
+        if self.version is None:
+            self.version = datetime.now().strftime("%Y%m%d_%H%M")
+        if self.batch_size is None:
+            self.batch_size = 1000
+        if self.created_at is None:
+            self.created_at = str(int(datetime.now().timestamp() * 1000000))
+        return self
 
     def __init__(self, **data: Any):
         super().__init__(**data)
