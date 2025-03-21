@@ -65,8 +65,6 @@ class CommandParser:
         print("Not implemented")
         return
 
-    def embedding_single_file(self):
-        pass
 
     def load(self):
         dataset = self._create_dataset_from_path_()

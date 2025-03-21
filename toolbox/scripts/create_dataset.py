@@ -100,11 +100,6 @@ def create_parser():
     )
     add_common_arguments(embedding_parser)
 
-    embedding_parser = subparsers.add_parser(
-        "embedding_single_file", help="Create embeddings from datasets"
-    )
-    add_common_arguments(embedding_parser)
-
     load_dataset_parser = subparsers.add_parser("load", help="Load a dataset from json")
     add_common_arguments(load_dataset_parser)
 
