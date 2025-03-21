@@ -42,7 +42,7 @@ def create_archive(structures_dataset: "StructuresDataset"):
 
     # Combine the archives into one archive
     current_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    final_archive_name = f"archive_pdv_{current_time}.zip"
+    final_archive_name = f"archive_pdb_{current_time}.zip"
     final_archive_path = Path.cwd() / final_archive_name
 
     with zipfile.ZipFile(final_archive_path, "w") as final_zip:

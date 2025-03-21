@@ -70,30 +70,28 @@ def collect(ac: as_completed, collect_f, semaphore: Semaphore, computation_name:
     logging.info("(V) Collecting Dask results collection started")
     total_time = 0
     stop_var = Variable("stopping-criterion")
-    with tqdm(total=inputs_len, desc=f"Collecting {computation_name} results") as pbar:
+    with tqdm(total=inputs_len) as pbar:
         while True:
 
             while ac.is_empty() and not stop_var.get():
                 if ac.is_empty() and stop_var.get():
-                    logging.debug(f"Collect results time: {total_time}")
-                    return
+                    break
                 time.sleep(1)
 
             if ac.is_empty() and stop_var.get():
-                logging.debug(f"Collect results time: {total_time}")
-                return
+                break
 
-        future_c, result = next(ac)
-        start_time = time.time()
-        collect_f(result)
-        end_time = time.time()
-        total_time += end_time - start_time
-        del future_c
-        logging.debug(f"Collected {count}")
-        pbar.update(1)
-        semaphore.release()
+            future_c, result = next(ac)
+            start_time = time.time()
+            collect_f(result)
+            end_time = time.time()
+            total_time += end_time - start_time
+            del future_c
+            pbar.update(1)
+            semaphore.release()
 
-        if ac.is_empty() and stop_var.get():
-            logging.debug(f"Collect results time: {total_time}")
-            logging.info("(V) Dask results collection finished")
-            return
+            if ac.is_empty() and stop_var.get():
+                break
+
+    logging.debug(f"Collect results time: {total_time}")
+    logging.info("(V) Dask results collection finished")
