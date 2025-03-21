@@ -1,10 +1,11 @@
-from typing import Dict, List, Iterable
+from pathlib import Path
 
-from distributed import progress, Client
+from distributed import Client
 
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
+from toolbox.models.manage_dataset.paths import SEQUENCES_PATH
 from toolbox.models.utils.get_sequences import get_sequences_from_batch
 
 
@@ -20,12 +21,11 @@ class SequenceRetriever:
 
         structures_dataset = self.structures_dataset
 
-        print("Generating sequences")
         protein_index = read_index(structures_dataset.dataset_index_file_path())
         print(len(protein_index))
 
         search_index_result = self.handle_indexes.full_handle(
-            "sequences", protein_index
+            "sequences", protein_index, structures_dataset.overwrite
         )
 
         h5_file_to_codes = search_index_result.grouped_missing_proteins
@@ -38,10 +38,11 @@ class SequenceRetriever:
 
         def run(input_data, workers):
             return client.submit(get_sequences_from_batch, *input_data, workers=workers)
+        
+        Path(SEQUENCES_PATH).mkdir(parents=True, exist_ok=True)
 
-        sequences_file_path = structures_dataset.dataset_path() / (
-            "sequences_ca.fasta" if ca_mask else "sequences.fasta"
-        )
+        sequences_file_base_name = f"{structures_dataset.dataset_dir_name()}{('_ca' if ca_mask else '')}.fasta"
+        sequences_file_path = Path(SEQUENCES_PATH) / sequences_file_base_name
 
         with open(sequences_file_path, "w") as f:
 

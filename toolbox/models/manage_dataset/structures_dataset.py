@@ -4,14 +4,15 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any
+from typing_extensions import Self
 
 import dask.bag as db
 import dotenv
 import requests
 from Bio.PDB import PDBList
 from dask.distributed import Client, as_completed
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, model_validator
 import requests
 import tarfile
 import shutil
@@ -27,6 +28,7 @@ from toolbox.models.manage_dataset.extract_archive import (
 from toolbox.models.manage_dataset.index.handle_index import (
     create_index,
     add_new_files_to_index,
+    read_index,
 )
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import datasets_path, repo_path
@@ -41,35 +43,42 @@ from toolbox.models.manage_dataset.utils import (
 from toolbox.models.utils.from_archive import extract_batch_from_archive
 from toolbox.models.utils.create_client import create_client, total_workers
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
-
 dotenv.load_dotenv()
 SEPARATOR = os.getenv("SEPARATOR")
+
+class FatalDatasetError(Exception):
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
 
 
 class StructuresDataset(BaseModel):
     db_type: DatabaseType
     collection_type: CollectionType
     type_str: str = ""
-    version: str = datetime.now().strftime("%Y%m%d_%H%M")
+    version: Optional[str] = None
     ids_file: Optional[Path] = None
     seqres_file: Optional[Path] = None
     archive_path: Optional[Path] = None
     overwrite: bool = False
-    batch_size: int = 1000
+    batch_size: Optional[int] = None
     binary_data_download: bool = False
     is_hpc_cluster: bool = False
     input_path: Optional[Path] = None
     _client: Optional[Client] = None
     _handle_indexes: Optional[HandleIndexes] = None
     _sequence_retriever: Optional[SequenceRetriever] = None
+    created_at: Optional[str] = None
 
-    @field_validator("version", mode="before")
-    def set_version(cls, v):
-        return v or datetime.now().strftime("%Y%m%d_%H%M")
-
-    @field_validator("batch_size", mode="before")
-    def set_batch_size(cls, size):
-        return size or 1000
+    @model_validator(mode="after")
+    def validate_model(self) -> Self:
+        if self.version is None:
+            self.version = datetime.now().strftime("%Y%m%d_%H%M")
+        if self.batch_size is None:
+            self.batch_size = 1000
+        if self.created_at is None:
+            self.created_at = str(int(datetime.now().timestamp() * 1000000))
+        return self
 
     def __init__(self, **data: Any):
         super().__init__(**data)
@@ -103,7 +112,10 @@ class StructuresDataset(BaseModel):
         return self.dataset_path() / "distograms.idx"
 
     def distograms_file_path(self):
-        return self.dataset_path() / "distograms.hdf5"
+        return self.dataset_path() / "distograms.h5"
+
+    def embeddings_index_path(self):
+        return self.dataset_path() / "embeddings.idx"
 
     def batches_count(self) -> int:
         return sum(1 for item in self.structures_path().iterdir() if item.is_dir())
@@ -125,7 +137,10 @@ class StructuresDataset(BaseModel):
         logging.info(f"Computation started at {datetime.now()}")
 
         if self.collection_type == CollectionType.subset:
-            assert self.ids_file is not None and self.ids_file.exists()
+            if self.ids_file is None:
+                raise ValueError("Subset collection type requires ids_file")
+            if not self.ids_file.exists():
+                raise FileNotFoundError(f"ids_file {self.ids_file} does not exist")
 
         self.dataset_repo_path().mkdir(exist_ok=True, parents=True)
         self.dataset_path().mkdir(exist_ok=True, parents=True)
@@ -163,6 +178,11 @@ class StructuresDataset(BaseModel):
                 self.download_ids(missing_ids)
         else:
             self.download_ids(None)
+        
+        index = read_index(self.dataset_index_file_path())
+
+        if len(index.keys()) == 0:
+            raise FatalDatasetError("No files found in dataset")
 
         self.save_dataset_metadata()
 

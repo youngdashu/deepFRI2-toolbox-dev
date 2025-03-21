@@ -162,6 +162,19 @@ def create_parser():
     read_pdbs_parser = subparsers.add_parser(
         "read_pdbs", help="Read pdbs for "
     )
+    read_pdbs_parser.add_argument(
+        "--print", action="store_true", help="Print PDB files to the terminal"
+    )
+    read_pdbs_parser.add_argument(
+        "--to_directory", type=pathlib.Path, help="Extract PDB files to the provided directory"
+    )
+    read_pdbs_parser.add_argument(
+        "-i",
+        "--ids",
+        required=False,
+        type=pathlib.Path,
+        help="File with ids to extract",
+    )
     add_common_arguments(read_pdbs_parser)
 
     verify_chains_parser = subparsers.add_parser(

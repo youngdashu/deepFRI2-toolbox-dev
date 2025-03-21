@@ -11,7 +11,7 @@ def compress_and_save_h5_individual(
     path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]
 ):
     start_time = time.time()
-    pdbs_file = path_for_batch / "pdbs_individual_gzip.hdf5"
+    pdbs_file = path_for_batch / "pdbs_individual_gzip.h5"
     all_res_pdbs = results[0]
     all_contents = results[1]
     if len(all_contents) == 0 or len(all_res_pdbs) == 0:
@@ -37,7 +37,7 @@ def compress_and_save_h5_individual_lzf(
     path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]
 ):
     start_time = time.time()
-    pdbs_file = path_for_batch / "pdbs_individual_lzf.hdf5"
+    pdbs_file = path_for_batch / "pdbs_individual_lzf.h5"
     all_res_pdbs = results[0]
     all_contents = results[1]
     if len(all_contents) == 0 or len(all_res_pdbs) == 0:
@@ -63,7 +63,7 @@ def compress_and_save_h5_individual_lzf_shuffle(
     path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]
 ):
     start_time = time.time()
-    pdbs_file = path_for_batch / "pdbs_individual_lzf_shuffle.hdf5"
+    pdbs_file = path_for_batch / "pdbs_individual_lzf_shuffle.h5"
     all_res_pdbs = results[0]
     all_contents = results[1]
     if len(all_contents) == 0 or len(all_res_pdbs) == 0:
@@ -91,7 +91,7 @@ def compress_and_save_h5_combined(
     path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]
 ):
     start_time = time.time()
-    pdbs_file = path_for_batch / "pdbs_combined_gzip.hdf5"
+    pdbs_file = path_for_batch / "pdbs_combined_gzip.h5"
     all_res_pdbs = results[0]
     all_contents = results[1]
     if len(all_contents) == 0 or len(all_res_pdbs) == 0:
@@ -118,7 +118,7 @@ def compress_and_save_h5_combined_lzf(
     path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]
 ):
     start_time = time.time()
-    pdbs_file = path_for_batch / "pdbs_combined_lzf.hdf5"
+    pdbs_file = path_for_batch / "pdbs_combined_lzf.h5"
     all_res_pdbs = results[0]
     all_contents = results[1]
     if len(all_contents) == 0 or len(all_res_pdbs) == 0:
@@ -145,7 +145,7 @@ def compress_and_save_h5_combined_lzf_shuffle(
     path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]
 ):
     start_time = time.time()
-    pdbs_file = path_for_batch / "pdbs_combined_lzf_shuffle.hdf5"
+    pdbs_file = path_for_batch / "pdbs_combined_lzf_shuffle.h5"
     all_res_pdbs = results[0]
     all_contents = results[1]
     if len(all_contents) == 0 or len(all_res_pdbs) == 0:
