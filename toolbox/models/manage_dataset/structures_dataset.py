@@ -299,6 +299,7 @@ class StructuresDataset(BaseModel):
             run,
             collect,
             "pdb" + "_b" if self.binary_data_download else "",
+            len(chunks)
         )
 
         inputs = (
