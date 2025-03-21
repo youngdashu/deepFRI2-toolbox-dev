@@ -54,6 +54,7 @@ class CommandParser:
             binary_data_download=self.args.binary,
             is_hpc_cluster=self.args.slurm,
             input_path=self.args.input_path,
+            verbose=self.args.verbose if hasattr(self.args, 'verbose') else False,
         )
         self.structures_dataset = dataset
         dataset.create_dataset()

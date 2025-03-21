@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import time
@@ -24,26 +25,26 @@ def extract_archive(
 ) -> Optional[Path]:
 
     if not input_path.exists():
-        print(f"Error: The provided path {input_path} does not exist.")
+        logging.error(f"Error: The provided path {input_path} does not exist.")
         return None
 
     if is_archive(input_path):
-        print(f"Processing archive to extract protein files: {input_path}")
+        logging.info(f"Processing archive to extract protein files: {input_path}")
         extracted_path = structures_dataset.dataset_repo_path() / "extracted_files"
         os.makedirs(extracted_path, exist_ok=True)
 
         if zipfile.is_zipfile(input_path):
-            print("Extracting zip file")
+            logging.debug("Extracting zip file")
             with zipfile.ZipFile(input_path, "r") as zip_ref:
                 zip_ref.extractall(extracted_path)
         elif tarfile.is_tarfile(input_path):
-            print("Extracting tar/tar.gz file")
+            logging.debug("Extracting tar/tar.gz file")
             with tarfile.open(
                 input_path, "r:*"
             ) as tar_ref:  # 'r:*' auto-detects compression
                 tar_ref.extractall(extracted_path)
         else:
-            print("Provided path is neither a directory nor a supported archive.")
+            logging.error("Provided path is neither a directory nor a supported archive.")
             return None
 
         return extracted_path
@@ -69,7 +70,7 @@ def save_extracted_files(
 
     if ids is None:
         files = list(extracted_path.glob("*.pdb")) + list(extracted_path.glob("*.cif"))
-        print("extracted files", files)
+        logging.debug("extracted files", files)
         chunks = list(structures_dataset.chunk(files))
     else:
         chunks = list(structures_dataset.chunk(ids))
@@ -85,7 +86,7 @@ def save_extracted_files(
 
     def collect(result):
         downloaded_pdbs, file_path = result
-        print("Updating new_files_index", len(downloaded_pdbs))
+        logging.info(f"Downloaded {len(downloaded_pdbs)} new files")
         new_files_index.update({k: file_path for k in downloaded_pdbs})
 
     compute_batches = ComputeBatches(
@@ -99,13 +100,12 @@ def save_extracted_files(
     factor = 20 if total_workers() > 2000 else factor
     compute_batches.compute(inputs, factor=factor)
 
-    print("Adding new files to index")
+    logging.info("Adding new files to index")
 
     try:
         create_index(structures_dataset.dataset_index_file_path(), new_files_index)
     except Exception as e:
-        print("Failed to update index")
-        print(e)
+        logging.error(f"Failed to update index: {e}")
 
 
 def retrieve_protein_file_to_h5(
@@ -141,7 +141,7 @@ def retrieve_protein_file_to_h5(
 
         end_time = time.time()
         total_time = end_time - start_time
-        print(f"Total processing time {path_for_batch.stem}: {total_time}")
+        logging.info(f"Total processing time {path_for_batch.stem}: {total_time}")
 
         return pdb_ids, h5_file_path
 
@@ -169,7 +169,7 @@ def aggregate_results(
 ) -> Tuple[List[str], List[str]]:
     end_time = time.time()
 
-    print(f"Download time: {end_time - download_start_time}")
+    logging.info(f"Download time: {end_time - download_start_time}")
 
     all_res_pdbs = []
     all_contents = []

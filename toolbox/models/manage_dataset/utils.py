@@ -3,6 +3,7 @@ import os
 import time
 import traceback
 import zlib
+import logging
 from io import BytesIO, StringIO
 from itertools import islice
 from pathlib import Path
@@ -29,7 +30,7 @@ from toolbox.models.utils.cif2pdb import cif_to_pdb, binary_cif_to_pdb
 
 
 def foldcomp_download(db: str, output_dir: str):
-    print(f"Foldcomp downloading db: {db} to {output_dir}")
+    logging.info(f"Foldcomp downloading db: {db} to {output_dir}")
     download_chunks = 16
     for i in ["", ".index", ".dbtype", ".lookup", ".source"]:
         asyncio.run(
@@ -56,7 +57,7 @@ def retrieve_cif(pdb: str) -> Tuple[Optional[str], str]:
 
     while retry_num <= 3 and cif_file is None:
         if retry_num > 0:
-            print(f"Retrying downloading {pdb} {retry_num}")
+            logging.debug(f"Retrying downloading {pdb} {retry_num}")
 
         try:
             cif_file_io: StringIO = biotite.database.rcsb.fetch(pdb, "cif")
@@ -68,7 +69,7 @@ def retrieve_cif(pdb: str) -> Tuple[Optional[str], str]:
             retry_num += 1
 
     if retry_num > 3:
-        print(f"Failed retrying {pdb}")
+        logging.warning(f"Failed retrying {pdb}")
         return None, pdb
 
     return cif_file, pdb
@@ -84,8 +85,8 @@ def cif_to_pdbs(input_data) -> Tuple[Dict[str, str], Tuple[str, Optional[str]]]:
         converted = cif_to_pdb(cif_file, pdb)
     except Exception as e:
         traceback.print_exc()
-        print(e)
-        print(f"ERROR: {pdb}, problem with cif conversion.")
+        logging.error(e)
+        logging.error(f"ERROR: {pdb}, problem with cif conversion.")
         return {}, (pdb, None)
 
     if converted is None:
@@ -103,8 +104,8 @@ def binary_cif_to_pdbs(input_data) -> Tuple[Dict[str, str], Tuple[str, BytesIO |
         converted = binary_cif_to_pdb(binary_file_bytes_io, pdb)
     except Exception as e:
         traceback.print_exc()
-        print(e)
-        print("Error in converting cif " + pdb)
+        logging.error(e)
+        logging.error(f"Error in converting cif {pdb}")
 
     return converted, (pdb, binary_file_bytes_io)
 
@@ -116,7 +117,7 @@ def retrieve_binary_cif(pdb: str) -> tuple[BytesIO | None, str]:
     while retry_num <= 3 and binary_file_bytes_io is None:
 
         if retry_num > 0:
-            print(f"Retrying downloading {pdb} {retry_num}")
+            logging.debug(f"Retrying downloading {pdb} {retry_num}")
 
         try:
             binary_file_bytes_io: BytesIO = biotite.database.rcsb.fetch(pdb, "bcif")
@@ -127,7 +128,7 @@ def retrieve_binary_cif(pdb: str) -> tuple[BytesIO | None, str]:
             retry_num += 1
 
     if retry_num > 3:
-        print(f"Failed retrying {pdb}")
+        logging.warning(f"Failed retrying {pdb}")
         return None, pdb
 
     return binary_file_bytes_io, pdb
@@ -147,7 +148,7 @@ def aggregate_results(
 ) -> Tuple[List[str], List[str], List[Tuple[str, str]]]:
     end_time = time.time()
 
-    print(f"Download time: {end_time - download_start_time}")
+    logging.debug(f"Download time: {end_time - download_start_time}")
 
     all_res_pdbs = []
     all_contents = []
@@ -190,10 +191,10 @@ def compress_and_save_h5(
     all_res_pdbs = results[0]
     all_contents = results[1]
     if len(all_contents) == 0 or len(all_res_pdbs) == 0:
-        print("No files to save")
+        logging.info("No files to save")
         return None
     if len(all_res_pdbs) != len(all_res_pdbs):
-        print("Wrong length of names and pdb contents")
+        logging.warning("Wrong length of names and pdb contents")
         return None
     with h5py.File(pdbs_file, "w") as hf:
         files_group = hf.create_group("files")
@@ -202,7 +203,7 @@ def compress_and_save_h5(
         files_group.create_dataset(name=";".join(all_res_pdbs), data=pdbs_content)
     end_time = time.time()
     total_time = end_time - start_time
-    print(f"Compress time: {total_time}")
+    logging.debug(f"Compress time: {total_time}")
     return str(pdbs_file)
 
 
@@ -240,9 +241,9 @@ def compress_and_save_experiment(
             return None
 
     for f, desc in zip(fs, descriptions):
-        print(desc)
+        logging.debug(desc)
         path = f(path_for_batch, inputs)
-        print(path, get_file_size_mb(path))
+        logging.debug(f"{path} {get_file_size_mb(path)} MB")
 
 
 def retrieve_pdb_chunk_to_h5(
@@ -289,7 +290,7 @@ def retrieve_pdb_chunk_to_h5(
 
         end_time = time.time()
         total_time = end_time - start_time
-        print(f"Total processing time {path_for_batch.stem}: {total_time}")
+        logging.info(f"Total processing time {path_for_batch.stem}: {total_time}")
 
         return pdb_ids, h5_file_path
 
@@ -336,7 +337,7 @@ def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
     h5_file_path = Path(h5_file_path)
 
     if not h5_file_path.exists():
-        print(f"Error: File {h5_file_path} does not exist.")
+        logging.error(f"Error: File {h5_file_path} does not exist.")
         return None
 
     try:
@@ -352,7 +353,7 @@ def read_all_pdbs_from_h5(h5_file_path: str) -> Optional[Dict[str, str]]:
 
             return dict(zip(all_file_names_split, all_pdbs))
     except Exception as e:
-        print(f"An error occurred while reading the HDF5 file: {e}")
+        logging.error(f"An error occurred while reading the HDF5 file: {e}")
         return None
 
 
@@ -361,7 +362,7 @@ def read_pdbs_from_h5(
 ) -> Optional[Dict[str, str]]:
     h5_file_path_obj = Path(h5_file_path)
     if not h5_file_path_obj.exists():
-        dask.distributed.print(f"Error: File {h5_file_path_obj} does not exist.")
+        logging.error(f"Error: File {h5_file_path_obj} does not exist.")
         return None
 
     codes = None if not codes else set(codes)
@@ -389,7 +390,7 @@ def read_pdbs_from_h5(
             return result
 
     except Exception as e:
-        print(f"An error occurred while reading the HDF5 file: {e}")
+        logging.error(f"An error occurred while reading the HDF5 file: {e}")
         return None
 
 
@@ -407,7 +408,7 @@ def pdbs_h5_to_files(h5_file_path: str):
     if pdbs_dict is None:
         return []
 
-    print(len(pdbs_dict.keys()))
+    logging.info(f"Processing {len(pdbs_dict.keys())} PDB entries")
 
     for i, (name, content) in enumerate(pdbs_dict.items()):
         write_file(path, f"{i}_{name}", content)
@@ -433,8 +434,8 @@ if __name__ == "__main__":
     #
     # retrieve_cifs_to_pdbs(code)
 
-    # d = read_all_pdbs_from_h5(
-    #     "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240813_0238/structures/1/pdbs.hdf5")
+    d = read_all_pdbs_from_h5(
+        "/Users/youngdashu/sano/deepFRI2-toolbox-dev/data/repo/PDB/all_/20240813_0238/structures/1/pdbs.hdf5")
     #
     # for k in d.keys():
     #     if k.startswith('5dat'):

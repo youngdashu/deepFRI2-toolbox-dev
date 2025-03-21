@@ -1,3 +1,4 @@
+import logging
 import os
 import os
 import time
@@ -121,7 +122,7 @@ class StructuresDataset(BaseModel):
     def create_dataset(self):
 
         self.add_client()
-        print(str(datetime.now()))
+        logging.info(f"Computation started at {datetime.now()}")
 
         if self.collection_type == CollectionType.subset:
             assert self.ids_file is not None and self.ids_file.exists()
@@ -178,13 +179,13 @@ class StructuresDataset(BaseModel):
                 all_pdbs = map(lambda x: x.lower(), all_pdbs)
                 end_time = time.time()
                 elapsed_time = end_time - start_time
-                print(f"PDBList().get_all_entries time: {elapsed_time} seconds")
+                logging.debug(f"PDBList().get_all_entries time: {elapsed_time} seconds")
                 url = "http://files.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
 
                 response = requests.get(url)
                 response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
                 res = filter_pdb_codes(response.text, all_pdbs)
-                print(f"After removing non protein codes {len(res)}")
+                logging.debug(f"After removing non protein codes {len(res)}")
             case DatabaseType.AFDB:
                 res = []
             case DatabaseType.ESMatlas:
@@ -200,7 +201,6 @@ class StructuresDataset(BaseModel):
                 save_extracted_files(self, extracted_path, ids)
             return
 
-        print("Downloading ids")
         match self.db_type:
             case DatabaseType.PDB:
                 self.handle_pdb(ids)
@@ -245,8 +245,7 @@ class StructuresDataset(BaseModel):
         self.add_new_files_to_index(new_files_index)
 
     def add_new_files_to_index(self, new_files_index):
-        print("Getting len ")
-        print(len(new_files_index))
+        logging.info(f"Downloaded {len(new_files_index)} new file(s)")
         add_new_files_to_index(self.dataset_index_file_path(), new_files_index)
 
     def _download_pdb_(self, ids: List[str]):
@@ -256,7 +255,7 @@ class StructuresDataset(BaseModel):
 
         mkdir_for_batches(pdb_repo_path, len(chunks))
 
-        print(f"Downloading PDBs into {len(chunks)} chunks")
+        logging.info(f"Downloading {len(ids)} PDBs into {len(chunks)} chunks")
 
         new_files_index = {}
 
@@ -271,7 +270,7 @@ class StructuresDataset(BaseModel):
 
         def collect(result):
             downloaded_pdbs, file_path = result
-            print("Updating new_files_index", len(downloaded_pdbs))
+            logging.debug(f"Updating new_files_index with {len(downloaded_pdbs)} files")
             new_files_index.update({k: file_path for k in downloaded_pdbs})
 
         compute_batches = ComputeBatches(
@@ -290,13 +289,12 @@ class StructuresDataset(BaseModel):
         factor = 20 if total_workers() > 2000 else factor
         compute_batches.compute(inputs, factor=factor)
 
-        print("Adding new files to index")
+        logging.info("Adding new files to index")
 
         try:
             self.add_new_files_to_index(new_files_index)
         except Exception as e:
-            print("Failed to update index")
-            print(e)
+            logging.error(f"Failed to update index: {e}")
 
     def foldcomp_decompress(self):
 
@@ -342,7 +340,7 @@ class StructuresDataset(BaseModel):
         for batch in as_completed(futures, with_results=True).batches():
             for _, single_batch_index in batch:
                 result_index.update(single_batch_index)
-                print(f"{i}/{total}")
+                logging.debug(f"Processing batch {i}/{total}")
                 i += 1
 
         create_index(self.dataset_index_file_path(), result_index)
@@ -430,11 +428,11 @@ class StructuresDataset(BaseModel):
             # Process batches
             compute_batches.compute(inputs)
             
-            print(f"Created {num_batches} batches with up to {self.batch_size} files each")
+            logging.info(f"Created {num_batches} batches with up to {self.batch_size} files each")
             
             # Update index
             if new_files_index:
-                print("Adding new files to index, len:", len(new_files_index))
+                logging.info(f"Adding new files to index, len: {len(new_files_index)}")
                 create_index(self.dataset_index_file_path(), new_files_index)
             
         finally:

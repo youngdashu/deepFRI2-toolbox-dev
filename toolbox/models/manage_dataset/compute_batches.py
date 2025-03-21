@@ -1,5 +1,6 @@
 import threading
 import time
+import logging
 from itertools import cycle
 from typing import Any, Callable, Generator, Tuple
 
@@ -27,7 +28,7 @@ class ComputeBatches:
         sem_name = "sem" + self.name
         semaphore = Semaphore(max_leases=max_workers, name=sem_name)
 
-        print(f"Max parallel workers {max_workers}")
+        logging.info(f"(V) Max parallel workers {max_workers}")
 
         var = Variable("stopping-criterion")
         var.set(False)
@@ -48,7 +49,7 @@ class ComputeBatches:
             if next_value is None:
                 break
 
-            print(i)
+            logging.debug(f"Processing batch {i}")
             i += 1
             future = self.run_f(next_value, next(machines_c))
             ac.add(future)
@@ -62,7 +63,8 @@ class ComputeBatches:
 
 
 def collect(ac: as_completed, collect_f, semaphore: Semaphore):
-    dask.distributed.print("Collecting results")
+    logging.info("Collecting results")
+    logging.info("(V) Collecting Dask results collection started")
     count = 0
     total_time = 0
     stop_var = Variable("stopping-criterion")
@@ -70,12 +72,12 @@ def collect(ac: as_completed, collect_f, semaphore: Semaphore):
 
         while ac.is_empty() and not stop_var.get():
             if ac.is_empty() and stop_var.get():
-                print("Collect results time:", total_time)
+                logging.debug(f"Collect results time: {total_time}")
                 return
             time.sleep(1)
 
         if ac.is_empty() and stop_var.get():
-            print("Collect results time:", total_time)
+            logging.debug(f"Collect results time: {total_time}")
             return
 
         future_c, result = next(ac)
@@ -84,10 +86,11 @@ def collect(ac: as_completed, collect_f, semaphore: Semaphore):
         end_time = time.time()
         total_time += end_time - start_time
         del future_c
-        dask.distributed.print("Collected {}".format(count))
+        logging.debug(f"Collected {count}")
         count += 1
         semaphore.release()
 
         if ac.is_empty() and stop_var.get():
-            print("Collect results time:", total_time)
+            logging.debug(f"Collect results time: {total_time}")
+            logging.info("(V) Dask results collection finished")
             return
