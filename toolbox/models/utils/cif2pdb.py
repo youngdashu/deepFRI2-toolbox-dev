@@ -210,7 +210,7 @@ aa_dict = {
 
 
 def _fetch_atoms_from_cif(
-    protein_code: str, row_type: Literal["A", "H", "AH"], cif_str: str
+        protein_code: str, row_type: Literal["A", "H", "AH"], cif_str: str
 ) -> (Tuple)[List[str], Dict[str, int]]:
     """
     Fetch atoms from mmCIF file for specific chain.
@@ -290,9 +290,9 @@ def _fetch_atoms_from_cif(
 
         if line_start_atom_hetm:
             if (
-                (row_type == "AH" and line_start_atom_hetm)
-                or (row_type == "A" and line_start_atom)
-                or (row_type == "H" and line_start_hetm)
+                    (row_type == "AH" and line_start_atom_hetm)
+                    or (row_type == "A" and line_start_atom)
+                    or (row_type == "H" and line_start_hetm)
             ):
                 line_splitted = line.split()
                 if line_splitted[idx_modelnum] == val_modelnum_first:
@@ -307,7 +307,7 @@ def _fetch_atoms_from_cif(
 
 
 def _create_pdb_atoms_from_cif(
-    cif_atoms, cif_fields, identifier) -> Optional[List[str]]:
+        cif_atoms, cif_fields, identifier) -> Optional[List[str]]:
     """
     Transform mmCIF atoms into pdb atoms.
 
@@ -361,7 +361,7 @@ def _create_pdb_atoms_from_cif(
         elements = atom.split()
         assert len(elements) == len(
             cif_fields
-        ), f"ERROR: {identifier}, wrong number of fields for atom at position {i+1}"
+        ), f"ERROR: {identifier}, wrong number of fields for atom at position {i + 1}"
 
         if elements[idx_icode] == "?":
             elements[idx_icode] = ""
@@ -369,21 +369,24 @@ def _create_pdb_atoms_from_cif(
             elements[idx_charge] = ""
         elements[idx_atom] = elements[idx_atom] \
             .replace('\'', "").replace('\"', "")
-        
+
         # Identify residue name
         residue_name = f"{elements[idx_res]:>3}"
         residue_name = substitutions.get(residue_name, residue_name)
         if residue_name in unwanted_residues:
-            print(f"WARNING: {identifier}, unwanted residue {elements[idx_res]} for atom {elements[idx_atom]} at position {i+1}")
+            print(
+                f"WARNING: {identifier}, unwanted residue {elements[idx_res]} for atom {elements[idx_atom]} at position {i + 1}")
             continue
         residue_name_one_letter = aa_dict.get(residue_name, None)
         if residue_name_one_letter is None:
-            print(f"WARNING: {identifier}, unknown residue {elements[idx_res]} for atom {elements[idx_atom]} at position {i+1}")
+            print(
+                f"WARNING: {identifier}, unknown residue {elements[idx_res]} for atom {elements[idx_atom]} at position {i + 1}")
             continue
 
         # Occupancy (different from 1.00)
         if float(elements[idx_occ]) != 1.0:
-            print(f"WARNING: {identifier}, occupancy equal {elements[idx_occ]} for atom {elements[idx_atom]} at position {i+1}")
+            print(
+                f"WARNING: {identifier}, occupancy equal {elements[idx_occ]} for atom {elements[idx_atom]} at position {i + 1}")
 
         resseq = f"{elements[idx_resseq][-4:]:>4}"
         atom_name = f"{elements[idx_atom]:^4}"
@@ -426,8 +429,8 @@ def _create_pdb_atoms_from_cif(
     pdb_atoms = keep_max_occupancy(all_atoms_per_residue)
     return pdb_atoms
 
-def keep_max_occupancy(all_atoms_per_residue: Dict[str, Dict[str, List[Tuple[float, str]]]]):
 
+def keep_max_occupancy(all_atoms_per_residue: Dict[str, Dict[str, List[Tuple[float, str]]]]):
     def process_residue(residue_item):
         residue_name, atoms = residue_item
         residue_lines = []
@@ -441,27 +444,27 @@ def keep_max_occupancy(all_atoms_per_residue: Dict[str, Dict[str, List[Tuple[flo
 
     num_threads = mp.cpu_count()
     residue_items = list(all_atoms_per_residue.items())
-    
+
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         # Use submit() to get Future objects we can collect in order
         future_to_residue = {
-            executor.submit(process_residue, item): idx 
+            executor.submit(process_residue, item): idx
             for idx, item in enumerate(residue_items)
         }
-        
+
         # Collect results in original order
         results = [None] * len(residue_items)
         for future in future_to_residue:
             idx = future_to_residue[future]
             residue_name, lines = future.result()
             results[idx] = lines
-            
+
     return [line for lines in results for line in lines]
 
 
 def cif_to_pdb(cif: str, pdb_code: str) -> Dict[str, str]:
     all_atoms, fields = _fetch_atoms_from_cif(pdb_code, "A", cif)
-    
+
     if all_atoms is None or fields is None:
         print(f"ERROR: {pdb_code}, no atoms found for ", pdb_code)
         return None
@@ -622,7 +625,7 @@ def binary_cif_to_pdb(cif_bytes: BytesIO, pdb_code: str) -> Dict[str, str]:
 
     all_pdbs = str(stack)
 
-    #TODO: use _create_pdb_atoms_from_cif() instead of parse_atom_data()
+    # TODO: use _create_pdb_atoms_from_cif() instead of parse_atom_data()
     chain_pdbs = parse_atom_data(all_pdbs, pdb_code, occupancies, b_factor)
 
     atoms_per_chain = split_by_chain(chain_pdbs)
