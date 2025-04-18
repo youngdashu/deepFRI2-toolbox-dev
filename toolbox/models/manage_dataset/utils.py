@@ -150,7 +150,7 @@ def aggregate_results(
 ) -> Tuple[List[str], List[str], List[Tuple[str, str]]]:
     end_time = time.time()
 
-    logger.debug(f"Download time: {end_time - download_start_time}")
+    logger.debug(f"Download time: {format_time(end_time - download_start_time)}")
 
     all_res_pdbs = []
     all_contents = []
@@ -205,7 +205,7 @@ def compress_and_save_h5(
         files_group.create_dataset(name=";".join(all_res_pdbs), data=pdbs_content)
     end_time = time.time()
     total_time = end_time - start_time
-    logger.debug(f"Compress time: {total_time}")
+    logger.debug(f"Compress time: {format_time(total_time)}")
     return str(pdbs_file)
 
 
@@ -292,7 +292,7 @@ def retrieve_pdb_chunk_to_h5(
 
         end_time = time.time()
         total_time = end_time - start_time
-        logger.info(f"Total processing time {path_for_batch.stem}: {total_time}")
+        logger.info(f"Total processing time {path_for_batch.stem}: {format_time(total_time)}")
 
         return pdb_ids, h5_file_path
 
@@ -421,3 +421,21 @@ def groupby_dict_by_values(d):
         v.setdefault(value, []).append(key)
 
     return v
+
+def format_time(seconds):
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds_whole = int(seconds % 60)
+    milliseconds = int((seconds % 1) * 1000)
+    
+    parts = []
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0:
+        parts.append(f"{minutes}m")
+    if seconds_whole > 0 or (hours == 0 and minutes == 0 and milliseconds == 0):
+        parts.append(f"{seconds_whole}s")
+    if milliseconds > 0:
+        parts.append(f"{milliseconds}ms")
+    
+    return " ".join(parts)

@@ -12,9 +12,11 @@ from toolbox.models.manage_dataset.distograms.generate_distograms import (
     read_distograms_from_file,
 )
 from toolbox.models.manage_dataset.structures_dataset import FatalDatasetError, StructuresDataset
-from toolbox.models.manage_dataset.utils import (read_pdbs_from_h5)
+from toolbox.models.manage_dataset.utils import (read_pdbs_from_h5, format_time)
 from toolbox.models.utils.create_client import create_client
 from toolbox.scripts.archive import create_archive
+
+import time
 
 from toolbox.utlis.logging import logger
 
@@ -44,6 +46,7 @@ class CommandParser:
         return self.structures_dataset
 
     def dataset(self):
+        start = time.time()
         dataset = StructuresDataset(
             db_type=self.args.db,
             collection_type=self.args.collection,
@@ -63,6 +66,8 @@ class CommandParser:
         )
         self.structures_dataset = dataset
         dataset.create_dataset()
+        end = time.time()
+        logger.info(f"Total time: {format_time(end - start)}")
         return dataset
 
     def embedding(self):

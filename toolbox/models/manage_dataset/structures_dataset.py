@@ -33,12 +33,13 @@ from toolbox.models.manage_dataset.index.handle_index import (
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import datasets_path, repo_path
 from toolbox.models.manage_dataset.sequences.sequence_retriever import SequenceRetriever
-from toolbox.models.manage_dataset.utils import chunk
 from toolbox.models.manage_dataset.utils import (
     foldcomp_download,
     mkdir_for_batches,
     retrieve_pdb_chunk_to_h5,
     alphafold_chunk_to_h5,
+    format_time,
+    chunk
 )
 from toolbox.models.utils.from_archive import extract_batch_from_archive
 from toolbox.models.utils.create_client import create_client, total_workers
@@ -46,7 +47,6 @@ from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 from toolbox.utlis.logging import log_title
 
 from toolbox.utlis.logging import logger
-
 
 dotenv.load_dotenv()
 SEPARATOR = os.getenv("SEPARATOR")
@@ -141,7 +141,6 @@ class StructuresDataset(BaseModel):
         log_title("Creating dataset")
 
         self.add_client()
-        logger.info(f"Computation started at {datetime.now()}")
 
         if self.collection_type == CollectionType.subset:
             if self.ids_file is None:
@@ -206,7 +205,7 @@ class StructuresDataset(BaseModel):
                 all_pdbs = map(lambda x: x.lower(), all_pdbs)
                 end_time = time.time()
                 elapsed_time = end_time - start_time
-                logger.debug(f"PDBList().get_all_entries time: {elapsed_time} seconds")
+                logger.debug(f"PDBList().get_all_entries time: {format_time(elapsed_time)}")
                 url = "http://files.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
 
                 response = requests.get(url)
@@ -249,30 +248,29 @@ class StructuresDataset(BaseModel):
             case CollectionType.subset:
                 self._download_pdb_(ids)
 
-    def find_add_new_files_to_index(self):
-        self.dataset_path().mkdir(exist_ok=True, parents=True)
+    # def find_add_new_files_to_index(self):
+    #     self.dataset_path().mkdir(exist_ok=True, parents=True)
 
-        structures_path = self.structures_path()
+    #     structures_path = self.structures_path()
 
-        def process_directory(dir_path):
-            return [str(f) for f in Path(dir_path).glob("*.*") if f.is_file()]
+    #     def process_directory(dir_path):
+    #         return [str(f) for f in Path(dir_path).glob("*.*") if f.is_file()]
 
-        numbered_dirs = [
-            d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()
-        ]
+    #     numbered_dirs = [
+    #         d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()
+    #     ]
 
-        if len(numbered_dirs) == 0:
-            new_files = []
-        else:
-            dir_bag = db.from_sequence(numbered_dirs, npartitions=len(numbered_dirs))
-            new_files = dir_bag.map(process_directory).flatten().compute()
+    #     if len(numbered_dirs) == 0:
+    #         new_files = []
+    #     else:
+    #         dir_bag = db.from_sequence(numbered_dirs, npartitions=len(numbered_dirs))
+    #         new_files = dir_bag.map(process_directory).flatten().compute()
 
-        new_files_index = {str(i): v for i, v in enumerate(new_files)}
+    #     new_files_index = {str(i): v for i, v in enumerate(new_files)}
 
-        self.add_new_files_to_index(new_files_index)
+    #     self.add_new_files_to_index(new_files_index)
 
     def add_new_files_to_index(self, new_files_index):
-        logger.info(f"Downloaded {len(new_files_index)} new file(s)")
         add_new_files_to_index(self.dataset_index_file_path(), new_files_index)
 
     def _download_pdb_(self, ids: List[str]):
@@ -320,6 +318,7 @@ class StructuresDataset(BaseModel):
         logger.info("Adding new files to index")
 
         try:
+            logger.info(f"Extracted {len(new_files_index)} new protein chain(s)")
             self.add_new_files_to_index(new_files_index)
         except Exception as e:
             logger.error(f"Failed to update index: {e}")

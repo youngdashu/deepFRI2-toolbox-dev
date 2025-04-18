@@ -15,9 +15,9 @@ from toolbox.models.utils.create_client import total_workers
 
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.utils import (
-    cif_to_pdbs,
     compress_and_save_h5,
     mkdir_for_batches,
+    format_time
 )
 from toolbox.models.utils.cif2pdb import cif_to_pdb
 
@@ -167,7 +167,7 @@ def retrieve_protein_file_to_h5(
 
         end_time = time.time()
         total_time = end_time - start_time
-        logger.info(f"Total processing time {path_for_batch.stem}: {total_time}")
+        logger.info(f"Total processing time {path_for_batch.stem}: {format_time(total_time)}")
 
         return pdb_ids, h5_file_path
 
@@ -195,7 +195,7 @@ def aggregate_results(
 ) -> Tuple[List[str], List[str]]:
     end_time = time.time()
 
-    logger.info(f"Download time: {end_time - download_start_time}")
+    logger.info(f"Download time: {format_time(end_time - download_start_time)}")
 
     all_res_pdbs = []
     all_contents = []

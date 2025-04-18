@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import time
 from distributed import Client
 
 
@@ -7,6 +7,7 @@ from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import SEQUENCES_PATH
+from toolbox.models.manage_dataset.utils import format_time
 from toolbox.models.utils.get_sequences import get_sequences_from_batch
 from toolbox.utlis.logging import log_title
 
@@ -24,11 +25,12 @@ class SequenceRetriever:
         
         log_title("Retrieving sequences")
 
+        start = time.time()
+
         structures_dataset = self.structures_dataset
 
         protein_index = read_index(structures_dataset.dataset_index_file_path())
-        logger.info(f"Protein files in dataset index: {len(protein_index)}")
-
+        
         search_index_result = self.handle_indexes.full_handle(
             "sequences", protein_index, structures_dataset.overwrite
         )
@@ -67,3 +69,6 @@ class SequenceRetriever:
         for id_ in missing_sequences:
             sequences_index[id_] = str(sequences_file_path)
         create_index(structures_dataset.sequences_index_path(), sequences_index)
+
+        end = time.time()
+        logger.info(f"Total time: {format_time(end - start)}")

@@ -9,7 +9,7 @@ from toolbox.models.embedding import esm_embedding
 from toolbox.models.manage_dataset.paths import EMBEDDINGS_PATH
 from toolbox.models.manage_dataset.index.handle_index import create_index, read_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes, SearchIndexResult
-
+from toolbox.models.manage_dataset.utils import format_time
 
 import time
 
@@ -50,7 +50,7 @@ class Embedding:
 
 
     def run(self):
-        
+        start = time.time()
         log_title("Getting embeddings")
 
         search_index_result = search_embedding_indexes(self.structures_dataset)
@@ -68,6 +68,9 @@ class Embedding:
         present_embeddings.update(index_of_new_embeddings)
 
         create_index(self.embeddings_index_path, present_embeddings)
+
+        end = time.time()
+        logger.info(f"Total time: {format_time(end - start)}")
 
 
     def missing_ids_to_fasta(self, missing_ids: List[str]) -> Dict[str, str]:
@@ -117,22 +120,17 @@ class Embedding:
             sequences[current_id] = ''.join(current_seq)
 
         end_time = time.time()
-        logger.info(f"Execution time for missing_ids_to_fasta: {end_time - start_time} seconds.")
+        logger.info(f"Extracting sequences for embeddings took: {format_time(end_time - start_time)}")
         return sequences
 
 
 def search_embedding_indexes(
     structures_dataset: "StructuresDataset",
 ) -> SearchIndexResult:
-    logger.info("Searching embedding indexes")
     protein_index = read_index(structures_dataset.dataset_index_file_path())
-    logger.info(f"Index len {len(protein_index)}")
 
     handle_indexes: HandleIndexes = structures_dataset._handle_indexes
 
     search_index_result = handle_indexes.full_handle("embeddings", protein_index, structures_dataset.overwrite)
-
-    logger.info("Missing embeddings")
-    logger.info(f"Count: {len(search_index_result.missing_protein_files)}")
 
     return search_index_result

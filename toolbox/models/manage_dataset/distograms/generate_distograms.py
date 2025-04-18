@@ -1,12 +1,9 @@
-import csv
-import os
 import pathlib
 import time
 
 from pathlib import Path
-from typing import List, Tuple, Any, Union, Iterable, Dict, Optional
+from typing import List, Tuple, Union, Iterable, Dict, Optional
 
-import dask.distributed
 import h5py
 import numpy as np
 from dask.distributed import Client
@@ -17,7 +14,7 @@ from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import DISTOGRAMS_PATH
-from toolbox.models.manage_dataset.utils import read_pdbs_from_h5
+from toolbox.models.manage_dataset.utils import read_pdbs_from_h5, format_time
 from toolbox.utlis.logging import log_title
 
 from toolbox.utlis.logging import logger
@@ -161,16 +158,16 @@ def __save_result_batch_to_h5__(
 
 def generate_distograms(structures_dataset: "StructuresDataset"):
     log_title("Generating distograms")
+
+    start = time.time()
+
     protein_index = read_index(structures_dataset.dataset_index_file_path())
-    logger.info(f"Index len {len(protein_index)}")
 
     handle_indexes: HandleIndexes = structures_dataset._handle_indexes
 
     search_index_result = handle_indexes.full_handle("distograms", protein_index, structures_dataset.overwrite)
 
     distogram_index = search_index_result.present
-
-    logger.info(f"Missing distograms: {len(search_index_result.missing_protein_files)}")
 
     client: Client = structures_dataset._client
 
@@ -207,11 +204,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
         (i, item) for i, item in enumerate(search_index_result.grouped_missing_proteins.items())
     )
 
-    start = time.time()
     compute_batches.compute(inputs, 5)
-
-    end = time.time()
-    logger.info(f"Time taken (save to h5): {end - start} seconds")
 
     distogram_pdbs_saved_futures = partial_result_data_q.get(batch=True)
 
@@ -225,6 +218,9 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
         distogram_index[protein_id.removesuffix(".pdb")] = distogram_index.pop(protein_id)
 
     create_index(structures_dataset.distograms_index_path(), distogram_index)
+
+    end = time.time()
+    logger.info(f"Total time: {format_time(end - start)}")
 
 
 def read_distograms_from_file(
