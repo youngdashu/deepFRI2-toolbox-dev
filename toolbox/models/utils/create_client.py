@@ -39,7 +39,7 @@ def create_client(is_slurm_client: bool):
             scheduler_file=os.environ.get("DEEPFRI_PATH") + "/scheduler.json"
         )
         n = total_workers()
-        logger.debug("Waiting for {} clients".format(n))
+        logger.info("Waiting for {} Dask workers".format(n))
         client.wait_for_workers(n, 300.0)
     else:
         total_cores = os.cpu_count()

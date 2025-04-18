@@ -130,8 +130,14 @@ class CommandParser:
         command_method = getattr(self, self.args.command)
         if command_method:
             command_method()
+            self.cleanup()
         else:
             raise ValueError(f"Unknown command - {self.args.command}")
+        
+    def cleanup(self):
+        if self.structures_dataset._client:
+            self.structures_dataset._client.close()
+            self.structures_dataset._client = None
 
 def print_exc(e):
     logger.error(f"Error ({type(e)}): {str(e)}")

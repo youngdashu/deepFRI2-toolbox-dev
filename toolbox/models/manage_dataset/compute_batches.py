@@ -66,6 +66,12 @@ class ComputeBatches:
 
         collect_thread.join()
 
+        while semaphore.get_value() > 0:
+            semaphore.release()
+            time.sleep(0.1)
+        
+        semaphore.close()
+
         end = time.time()
 
         logger.info(f"Time taken {self.name}: {format_time(end - start)}")
@@ -92,12 +98,17 @@ def collect(ac: as_completed, collect_f, semaphore: Semaphore, computation_name:
 
             future_c, result = next(ac)
             start_time = time.time()
-            collect_f(result)
-            end_time = time.time()
-            total_time += end_time - start_time
-            del future_c
-            pbar.update(1)
-            semaphore.release()
+            try:
+                collect_f(result)
+            except Exception as e:
+                logger.error(f"Error in collect_f: {e}")
+            finally:
+                end_time = time.time()
+                total_time += end_time - start_time
+                # Ensure release happens even if collect_f fails
+                del future_c
+                pbar.update(1)
+                semaphore.release()
 
             if ac.is_empty() and stop_var.get():
                 break

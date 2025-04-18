@@ -126,6 +126,8 @@ def create_dataset(dataset_name, ids_file_path, overwrite=False):
     embedding = Embedding(dataset)  # TODO: generate_embeddings(dataset, embedding_type="ESM-2")
     embedding.run()
 
+    dataset._client.close()
+
 
 def compare_index_files(dataset_name):
     dataset_path = OUTPATH / "datasets" / f"PDB-subset--{dataset_name}"
