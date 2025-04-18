@@ -1,0 +1,14 @@
+.idea
+
+tests/data/dataset_generated
+tests/data/distograms_pdbs
+tests/data/data.info
+
+__pycache__/
+*/__pycache__/
+*/*/__pycache__/
+*/*/*/__pycache__/
+
+
+dask-scratch-space
+

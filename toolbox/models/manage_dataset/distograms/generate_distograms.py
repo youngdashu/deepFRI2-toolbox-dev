@@ -2,6 +2,7 @@ import csv
 import os
 import pathlib
 import time
+
 from pathlib import Path
 from typing import List, Tuple, Any, Union, Iterable, Dict, Optional
 
@@ -17,6 +18,9 @@ from toolbox.models.manage_dataset.index.handle_index import read_index, create_
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import DISTOGRAMS_PATH
 from toolbox.models.manage_dataset.utils import read_pdbs_from_h5
+from toolbox.utlis.logging import log_title
+
+from toolbox.utlis.logging import logger
 
 
 def __extract_coordinates__(
@@ -123,14 +127,13 @@ def __process_pdbs__(h5_file_path: str, codes: List[str]):
         try:
             coords, coords_with_breaks = __extract_coordinates__(content)
             if len(coords) == 0:
-                dask.distributed.print("No CA found in " + code)
+                logger.warning(f"No CA found in {code}")
                 continue
             distances = improved_distances_calculation(coords, coords_with_breaks)
             distances = distances.astype(np.float16)
             res.append((code, distances))
         except Exception as e:
-            # TODO logger
-            print(f"Exception extracting coordinates in {code}: {e}")
+            logger.error(f"Exception extracting coordinates in {code}: {e}")
 
     return res
 
@@ -142,7 +145,7 @@ def __save_result_batch_to_h5__(
     for pdb_path, distogram in results:
 
         if distogram.shape == (1, 1):
-            print(f"Only one CA in {pdb_path}.")
+            logger.info(f"Only one CA in {pdb_path}.")
         else:
             protein_grp = hf.create_group(pdb_path)
 
@@ -157,9 +160,9 @@ def __save_result_batch_to_h5__(
 
 
 def generate_distograms(structures_dataset: "StructuresDataset"):
-    print("Generating distograms")
+    log_title("Generating distograms")
     protein_index = read_index(structures_dataset.dataset_index_file_path())
-    print(f"\tIndex len {len(protein_index)}")
+    logger.info(f"Index len {len(protein_index)}")
 
     handle_indexes: HandleIndexes = structures_dataset._handle_indexes
 
@@ -167,13 +170,12 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     distogram_index = search_index_result.present
 
-    print("\tMissing distograms")
-    print(f"\t\t{len(search_index_result.missing_protein_files)}")
+    logger.info(f"Missing distograms: {len(search_index_result.missing_protein_files)}")
 
     client: Client = structures_dataset._client
 
-    path = Path(DISTOGRAMS_PATH) / structures_dataset.dataset_dir_name()
-    Path(DISTOGRAMS_PATH).mkdir(parents=True, exist_ok=True)
+    path = Path(DISTOGRAMS_PATH()) / structures_dataset.dataset_dir_name()
+    Path(DISTOGRAMS_PATH()).mkdir(parents=True, exist_ok=True)
     path.mkdir(exist_ok=True, parents=True)
 
     partial_result_data_q = Queue(name="partial_result_data_q")
@@ -209,7 +211,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
     compute_batches.compute(inputs, 5)
 
     end = time.time()
-    print(f"Time taken (save to h5): {end - start} seconds")
+    logger.info(f"Time taken (save to h5): {end - start} seconds")
 
     distogram_pdbs_saved_futures = partial_result_data_q.get(batch=True)
 
@@ -246,7 +248,7 @@ def read_distograms_from_file(
                 distogram = hf[pdb_path]["distogram"][:]
                 distograms[pdb_path] = distogram
     except IOError:
-        print(f"Error while reading the file {distograms_file}")
+        logger.error(f"Error while reading the file {distograms_file}")
     return distograms
 
 

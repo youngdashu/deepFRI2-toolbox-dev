@@ -1,6 +1,6 @@
 import threading
 import time
-import logging
+
 from itertools import cycle
 from typing import Any, Callable, Generator, Optional, Tuple
 
@@ -11,6 +11,8 @@ from distributed import Variable
 from tqdm import tqdm
 
 from toolbox.models.utils.create_client import total_workers, get_cluster_machines
+
+from toolbox.utlis.logging import logger
 
 
 class ComputeBatches:
@@ -31,7 +33,7 @@ class ComputeBatches:
         sem_name = "sem" + self.name
         semaphore = Semaphore(max_leases=max_workers, name=sem_name)
 
-        logging.info(f"(V) Max parallel workers {max_workers}")
+        logger.info(f"(V) Max parallel workers {max_workers}")
 
         var = Variable("stopping-criterion")
         var.set(False)
@@ -52,7 +54,7 @@ class ComputeBatches:
             if next_value is None:
                 break
 
-            logging.debug(f"Processing batch {i}")
+            logger.debug(f"Processing batch {i}")
             i += 1
             future = self.run_f(next_value, next(machines_c))
             ac.add(future)
@@ -66,8 +68,8 @@ class ComputeBatches:
 
 
 def collect(ac: as_completed, collect_f, semaphore: Semaphore, computation_name: str, inputs_len: Optional[int] = None):
-    logging.info("Collecting results")
-    logging.info("(V) Collecting Dask results collection started")
+    logger.info("Collecting results")
+    logger.info("(V) Collecting Dask results collection started")
     total_time = 0
     stop_var = Variable("stopping-criterion")
     with tqdm(total=inputs_len) as pbar:
@@ -93,5 +95,5 @@ def collect(ac: as_completed, collect_f, semaphore: Semaphore, computation_name:
             if ac.is_empty() and stop_var.get():
                 break
 
-    logging.debug(f"Collect results time: {total_time}")
-    logging.info("(V) Dask results collection finished")
+    logger.debug(f"Collect results time: {total_time}")
+    logger.info("(V) Dask results collection finished")

@@ -1,10 +1,14 @@
-import logging
+
 import os
 
 from dask.distributed import LocalCluster, Client
 
 import warnings
 import distributed
+
+import logging
+
+from toolbox.utlis.logging import logger
 
 
 def total_workers():
@@ -28,14 +32,14 @@ def get_cluster_machines(client):
 def create_client(is_slurm_client: bool):
     # Get the total number of CPUs available on the machine
 
-    print("Creating computation client")
+    logger.info("Creating computation client")
 
     if is_slurm_client:
         client = Client(
             scheduler_file=os.environ.get("DEEPFRI_PATH") + "/scheduler.json"
         )
         n = total_workers()
-        logging.debug("Waiting for {} clients".format(n))
+        logger.debug("Waiting for {} clients".format(n))
         client.wait_for_workers(n, 300.0)
     else:
         total_cores = os.cpu_count()
@@ -49,9 +53,9 @@ def create_client(is_slurm_client: bool):
         )
 
         client = Client(cluster)
-    logging.debug(f"Dashboard link: {client.dashboard_link}")
-    logging.debug(f"Workers count: {len(client.scheduler_info()['workers'])}")
-    logging.debug(f"Machines: {get_cluster_machines(client)}")
+    logger.debug(f"Dashboard link: {client.dashboard_link}")
+    logger.debug(f"Workers count: {len(client.scheduler_info()['workers'])}")
+    logger.debug(f"Machines: {get_cluster_machines(client)}")
 
     warnings.simplefilter("ignore", distributed.comm.core.CommClosedError)
     warnings.filterwarnings(

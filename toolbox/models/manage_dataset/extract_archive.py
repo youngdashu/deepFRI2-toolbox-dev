@@ -1,4 +1,4 @@
-import logging
+
 import os
 import shutil
 import time
@@ -21,32 +21,34 @@ from toolbox.models.manage_dataset.utils import (
 )
 from toolbox.models.utils.cif2pdb import cif_to_pdb
 
+from toolbox.utlis.logging import logger
+
 
 def extract_archive(
     input_path, structures_dataset: "StructureDataset"
 ) -> Optional[Path]:
 
     if not input_path.exists():
-        logging.error(f"Error: The provided path {input_path} does not exist.")
+        logger.error(f"Error: The provided path {input_path} does not exist.")
         return None
 
     if is_archive(input_path):
-        logging.info(f"Processing archive to extract protein files: {input_path}")
+        logger.info(f"Processing archive to extract protein files: {input_path}")
         extracted_path = structures_dataset.dataset_repo_path() / "extracted_files"
         os.makedirs(extracted_path, exist_ok=True)
 
         if zipfile.is_zipfile(input_path):
-            logging.debug("Extracting zip file")
+            logger.debug("Extracting zip file")
             with zipfile.ZipFile(input_path, "r") as zip_ref:
                 zip_ref.extractall(extracted_path)
         elif tarfile.is_tarfile(input_path):
-            logging.debug("Extracting tar/tar.gz file")
+            logger.debug("Extracting tar/tar.gz file")
             with tarfile.open(
                 input_path, "r:*"
             ) as tar_ref:  # 'r:*' auto-detects compression
                 tar_ref.extractall(extracted_path)
         else:
-            logging.error("Provided path is neither a directory nor a supported archive.")
+            logger.error("Provided path is neither a directory nor a supported archive.")
             return None
 
         return extracted_path
@@ -71,7 +73,7 @@ def save_extracted_files(
     pdb_repo_path = structures_dataset.structures_path()
 
     files = list(extracted_path.glob("*.pdb")) + list(extracted_path.glob("*.cif"))
-    logging.debug("extracted files", files)
+    logger.debug("extracted files", files)
 
     files_name_to_dir = {
         file.name.replace(".pdb", "").replace(".cif", ""): str(file) for file in files
@@ -84,17 +86,17 @@ def save_extracted_files(
         files = list(files_name_to_dir.values())
         chunks = list(structures_dataset.chunk(files))
     else:
-        logging.info(f"Searching for requested files {len(ids)} in extracted files {len(files)}")
+        logger.info(f"Searching for requested files {len(ids)} in extracted files {len(files)}")
 
         wanted_files = present_files_set & ids_set
         wanted_files = [files_name_to_dir[file] for file in wanted_files]
         missing_files = list(ids_set - present_files_set)
 
-        logging.info(f"\tFound {len(wanted_files)}, missing {len(missing_files)} out of {len(ids)} requested files")
+        logger.info(f"\tFound {len(wanted_files)}, missing {len(missing_files)} out of {len(ids)} requested files")
         with open(structures_dataset.dataset_path() / "missing_ids_files.txt", "w") as f:
             for file in missing_files:
                 f.write(file + "\n")
-            logging.info(f"\t\tMissing files saved to {structures_dataset.dataset_path() / 'missing_ids_files.txt'}")
+            logger.info(f"\t\tMissing files saved to {structures_dataset.dataset_path() / 'missing_ids_files.txt'}")
         ids = wanted_files
 
     chunks = list(structures_dataset.chunk(ids))
@@ -110,7 +112,7 @@ def save_extracted_files(
 
     def collect(result):
         downloaded_pdbs, file_path = result
-        logging.info(f"Downloaded {len(downloaded_pdbs)} new files")
+        logger.info(f"Downloaded {len(downloaded_pdbs)} new files")
         new_files_index.update({k: file_path for k in downloaded_pdbs})
 
     compute_batches = ComputeBatches(
@@ -124,12 +126,12 @@ def save_extracted_files(
     factor = 20 if total_workers() > 2000 else factor
     compute_batches.compute(inputs, factor=factor)
 
-    logging.info("Adding new files to index")
+    logger.info("Adding new files to index")
 
     try:
         create_index(structures_dataset.dataset_index_file_path(), new_files_index)
     except Exception as e:
-        logging.error(f"Failed to update index: {e}")
+        logger.error(f"Failed to update index: {e}")
 
 
 def retrieve_protein_file_to_h5(
@@ -165,7 +167,7 @@ def retrieve_protein_file_to_h5(
 
         end_time = time.time()
         total_time = end_time - start_time
-        logging.info(f"Total processing time {path_for_batch.stem}: {total_time}")
+        logger.info(f"Total processing time {path_for_batch.stem}: {total_time}")
 
         return pdb_ids, h5_file_path
 
@@ -193,7 +195,7 @@ def aggregate_results(
 ) -> Tuple[List[str], List[str]]:
     end_time = time.time()
 
-    logging.info(f"Download time: {end_time - download_start_time}")
+    logger.info(f"Download time: {end_time - download_start_time}")
 
     all_res_pdbs = []
     all_contents = []

@@ -1,7 +1,9 @@
 import os
 import gzip
+
 import requests
 
+from toolbox.utlis.logging import logger
 
 def initialize():
     download_seqres()
@@ -18,7 +20,7 @@ def download_seqres():
         for chunk in response.iter_content(chunk_size=1024):
             file.write(chunk)
 
-    print(f"Downloaded {local_filename}")
+    logger.info(f"Downloaded {local_filename}")
 
     # Extract the contents
     with gzip.open(local_filename, "rb") as gz_file:
@@ -28,7 +30,7 @@ def download_seqres():
     with open(extracted_filename, "wb") as file:
         file.write(extracted_content)
 
-    print(f"Extracted contents to {extracted_filename}")
+    logger.info(f"Extracted contents to {extracted_filename}")
 
 
 if __name__ == "__main__":

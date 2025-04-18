@@ -1,6 +1,6 @@
 import argparse
 import pathlib
-import logging
+
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.collection_type import CollectionType
@@ -9,6 +9,8 @@ from toolbox.scripts.command_parser import CommandParser
 db_types = DatabaseType._member_names_
 collection_types = CollectionType._member_names_
 
+import logging
+from toolbox.utlis.logging import logger, set_config
 
 def add_common_arguments(parser):
     parser.add_argument("--slurm", action="store_true", help="Use SLURM job scheduler")
@@ -93,7 +95,7 @@ def configure_logging(verbose):
     """Configure logging based on verbose flag"""
     log_level = logging.DEBUG if verbose else logging.INFO
     log_format = '%(levelname)s %(message)s'
-    logging.basicConfig(level=log_level, format=log_format)
+    set_config(lambda logging_module: logging_module.basicConfig(level=log_level, format=log_format))
     
     # When verbose is false, filter out logs with (V) prefix unless they're errors
     if not verbose:
@@ -105,8 +107,7 @@ def configure_logging(verbose):
                 # Filter out messages with (V) prefix in non-verbose mode
                 return "(V)" not in record.getMessage()
                 
-        root_logger = logging.getLogger()
-        root_logger.addFilter(VerboseFilter())
+        logger.addFilter(VerboseFilter())
 
 
 def create_parser():
@@ -214,7 +215,7 @@ def main():
     configure_logging(args.verbose)
     
     # Log start of command execution
-    logging.info(f"Running command: {args.command}")
+    logger.info(f"Running command: {args.command}")
     
     CommandParser(args).run()
 

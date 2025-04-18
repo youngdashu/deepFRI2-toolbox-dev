@@ -1,19 +1,10 @@
 import os
-import glob
 import shutil
 import json
-import tempfile
 import pytest
-import textwrap 
 
-from os.path import join
 from tests.utils import compare_dicts, compare_pdb_contents, FileComparator
-from pathlib import Path
-from _pytest.monkeypatch import MonkeyPatch
-
-from toolbox.models.utils.create_client import create_client
-
-import dotenv
+from tests.paths import OUTPATH, EXPPATH
 
 # give 666 permissions to new files
 os.umask(0o002)
@@ -21,10 +12,6 @@ os.umask(0o002)
 # =====================================
 # Testing behaviour of dataset creation
 # =====================================
-
-# Default input and output paths
-OUTPATH = Path(__file__).parent / "data" / "dataset_generated"
-EXPPATH = Path(__file__).parent / "data" / "dataset_expected"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -37,27 +24,8 @@ def clean_generated_files(tmp_path_factory):
             f.unlink()
         elif f.is_dir():
             shutil.rmtree(f)
-    # Verify directory is empty
     assert not list(OUTPATH.iterdir())
     yield
-    # Cleanup after tests (optional)
-    # for f in OUTPATH.glob('*'):
-    #     if f.is_file():
-    #         f.unlink()
-    #     elif f.is_dir():
-    #         shutil.rmtree(f)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_main_path():
-    dotenv.load_dotenv()
-    # Create a manual MonkeyPatch instance
-    mp = MonkeyPatch()
-    mp.setenv("DATA_PATH", str(OUTPATH))
-
-    yield
-    # Undo environment variable changes after the session finishes
-    mp.undo()
     
 
 # PDB

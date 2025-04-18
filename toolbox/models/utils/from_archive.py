@@ -1,7 +1,10 @@
 from pathlib import Path
 from typing import List, Tuple
 
+
 from toolbox.models.manage_dataset.utils import cif_to_pdbs, compress_and_save_h5
+
+from toolbox.utlis.logging import logger
 
 
 def extract_batch_from_archive(batch_files: List[Path], batch_dir: Path) -> Tuple[List[str], str]:
@@ -22,12 +25,12 @@ def extract_batch_from_archive(batch_files: List[Path], batch_dir: Path) -> Tupl
                     all_contents.append(pdb_content)
                     
             except Exception as e:
-                print(f"Error processing {file.name}: {e}")
+                logger.error(f"Error processing {file.name}: {e}")
                 continue
         
         if all_pdbs:
             # Save batch to HDF5
             h5_path = compress_and_save_h5(batch_dir, (all_pdbs, all_contents, []))
-            print(f"Processed {len(all_pdbs)} structures")
+            logger.info(f"Extracted {len(all_pdbs)} structures")
             return all_pdbs, h5_path
         return [], ""

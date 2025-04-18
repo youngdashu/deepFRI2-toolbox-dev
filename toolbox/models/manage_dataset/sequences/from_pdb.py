@@ -1,5 +1,9 @@
 from toolbox.models.utils.cif2pdb import aa_dict
 
+
+
+from toolbox.utlis.logging import logger
+
 empty_chain_part_sign = "X"
 
 
@@ -43,9 +47,8 @@ def extract_sequence_from_pdb_string(
                         sequence.append(empty_chain_part_sign)
                         all_residue_indexes.append(None)
             except Exception as e:
-                # TODO logger
-                print(f"Error parsing line in {code}: {line}")
-                print(f"Error details: {e}")
+                logger.error(f"Error parsing line in {code}: {line}")
+                logger.error(f"Error details: {e}")
                 continue
 
     if ca_mask:

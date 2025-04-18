@@ -2,6 +2,7 @@ from argparse import Namespace
 from datetime import datetime
 import json
 import concurrent.futures
+
 from pathlib import Path
 
 from toolbox.models.chains.verify_chains import verify_chains
@@ -14,6 +15,8 @@ from toolbox.models.manage_dataset.structures_dataset import FatalDatasetError, 
 from toolbox.models.manage_dataset.utils import (read_pdbs_from_h5)
 from toolbox.models.utils.create_client import create_client
 from toolbox.scripts.archive import create_archive
+
+from toolbox.utlis.logging import logger
 
 
 class CommandParser:
@@ -32,7 +35,7 @@ class CommandParser:
                 path.read_text()
             )
         else:
-            print("Dataset path is not valid")
+            logger.error("Dataset path is not valid")
             raise FileNotFoundError
 
         self.structures_dataset._client = create_client(
@@ -63,13 +66,13 @@ class CommandParser:
         return dataset
 
     def embedding(self):
-        print("Not implemented")
+        logger.info("Not implemented")
         return
 
 
     def load(self):
         dataset = self._create_dataset_from_path_()
-        print(dataset)
+        logger.info(dataset)
 
     def generate_sequence(self):
         self._create_dataset_from_path_()
@@ -82,7 +85,7 @@ class CommandParser:
         generate_distograms(self.structures_dataset)
 
     def read_distograms(self):
-        print(read_distograms_from_file(self.args.file_path))
+        logger.info(read_distograms_from_file(self.args.file_path))
 
     def read_pdbs(self):
         read_pdbs(self.args.file_path, self.args.ids, self.args.to_directory, self.args.print)
@@ -97,26 +100,22 @@ class CommandParser:
 
     def input_generation(self):
         try:
-            print("Creating dataset")
             self.dataset()
         except FatalDatasetError as e:
-            print("Fatal error! Exiting...")
-            print(e)
+            logger.error("Fatal error! Exiting...")
+            logger.error(e)
             return
         except Exception as e:
             print_exc(e)
         try:
-            print("Generating sequences")
             self.structures_dataset.generate_sequence()
         except Exception as e:
             print_exc(e)
         try:
-            print("Generating distograms")
             generate_distograms(self.structures_dataset)
         except Exception as e:
             print_exc(e)
         try:
-            print("Generate embeddings")
             embedding = Embedding(self.structures_dataset)
             embedding.run()
         except Exception as e:
@@ -130,7 +129,7 @@ class CommandParser:
             raise ValueError(f"Unknown command - {self.args.command}")
 
 def print_exc(e):
-    print(f"Error ({type(e)}): {str(e)}")
+    logger.error(f"Error ({type(e)}): {str(e)}")
 
 def read_pdbs(file_path, ids, to_directory, is_print):
     if ids.exists():
@@ -139,12 +138,12 @@ def read_pdbs(file_path, ids, to_directory, is_print):
     pdbs_dict = read_pdbs_from_h5(file_path, ids)
 
     if is_print:
-        print(json.dumps(pdbs_dict))
+        logger.info(json.dumps(pdbs_dict))
     
     if to_directory:
         extract_dir: Path = to_directory
         if not extract_dir.exists() and not extract_dir.is_dir():
-            print("ERROR: Provided output path doesn't exist")
+            logger.error("ERROR: Provided output path doesn't exist")
             return
     else:
         extract_dir = file_path.parent / f"extracted_{file_path.stem}"
@@ -152,11 +151,11 @@ def read_pdbs(file_path, ids, to_directory, is_print):
 
     def save_pdb(pdb_code, pdb_file):
         file_name = f"{pdb_code}" if pdb_code.endswith(".pdb") else f"{pdb_code}.pdb"
-        print(f"Saving {file_name}")
+        logger.info(f"Saving {file_name}")
         with open(extract_dir / file_name, "w") as f:
             f.write(pdb_file)
 
-    print("Extracting PDB files")
+    logger.info("Extracting PDB files")
     for pdb_code, pdb_file in pdbs_dict.items():
         save_pdb(pdb_code, pdb_file)
-    print("Extraction complete")
+    logger.info("Extraction complete")

@@ -26,7 +26,6 @@ def check_sequence_consistency(smaller_seq, bigger_seq):
                 smaller_index += 1
                 bigger_index += 1
             else:
-                print("Debug")
                 print(smaller_index, smaller_seq[:smaller_index])
                 print((start, bigger_index), bigger_seq[start:bigger_index])
                 break
