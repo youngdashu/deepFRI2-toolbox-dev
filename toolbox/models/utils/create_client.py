@@ -32,7 +32,7 @@ def get_cluster_machines(client):
 def create_client(is_slurm_client: bool):
     # Get the total number of CPUs available on the machine
 
-    logger.info("Creating computation client")
+    logger.info("Creating Dask computation client")
 
     if is_slurm_client:
         client = Client(
