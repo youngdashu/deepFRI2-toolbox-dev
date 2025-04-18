@@ -30,7 +30,6 @@ class HandleIndexes:
 
     def __init__(self, structures_dataset: "StructuresDataset"):
         logger.debug(f"Initializing HandleIndexes with dataset type: {structures_dataset.db_type}")
-        logger.debug(f"ENVS: {os.environ}")
         self.structures_dataset = structures_dataset
         self.file_paths_storage = {}
 
@@ -97,7 +96,6 @@ class HandleIndexes:
                     file_paths[k] = v
         
         self.file_paths_storage[index_type] = file_paths
-        logger.info(f"Found {len(file_paths)} files of {index_type} type")
         logger.debug(f"Sample of file paths (up to 5): {list(file_paths.items())[:5]}")
 
     def find_present_and_missing_ids(
@@ -170,8 +168,8 @@ class HandleIndexes:
 
         present_file_paths = reduce(merge_dicts, present, {})
 
-        logger.info(f"Found {len(present_file_paths)} present {index_type} files")
-        logger.info(f"Found {len(missing_ids)} missing {index_type} ids")
+        logger.info("Present files: %s", len(present_file_paths))
+        logger.info("Missing files: %s", len(missing_ids))
         logger.debug(f"Sample of present files (up to 5): {list(present_file_paths.items())[:5]}")
         logger.debug(f"Sample of missing IDs (up to 5): {list(missing_ids)[:5]}")
 
@@ -200,9 +198,8 @@ class HandleIndexes:
     def full_handle(
         self, index_type: str, protein_index: Dict[str, str], overwrite: bool = False
     ) -> SearchIndexResult:
-        logger.debug(f"Starting full handle process for index type: {index_type}")
+        logger.info(f"{index_type.capitalize()} dataset size: {len(protein_index)}")
         logger.debug(f"Overwrite mode: {overwrite}")
-        logger.debug(f"Protein index size: {len(protein_index)}")
 
         self.read_indexes(index_type)
 
