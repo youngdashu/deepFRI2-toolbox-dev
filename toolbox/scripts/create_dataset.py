@@ -10,7 +10,7 @@ db_types = DatabaseType._member_names_
 collection_types = CollectionType._member_names_
 
 import logging
-from toolbox.utlis.logging import logger, set_config
+from toolbox.utlis.logging import logger, setup_colored_logging
 
 def add_common_arguments(parser):
     parser.add_argument("--slurm", action="store_true", help="Use SLURM job scheduler")
@@ -94,8 +94,10 @@ def add_dataset_parser_arguments(parser):
 def configure_logging(verbose):
     """Configure logging based on verbose flag"""
     log_level = logging.DEBUG if verbose else logging.INFO
-    log_format = '%(levelname)s %(message)s'
-    set_config(lambda logging_module: logging_module.basicConfig(level=log_level, format=log_format))
+    log_format = '%(asctime)s %(levelname)s %(message)s'
+    
+    # Set up colored logging with the specified level and format
+    setup_colored_logging(level=log_level, fmt=log_format)
     
     # When verbose is false, filter out logs with (V) prefix unless they're errors
     if not verbose:
