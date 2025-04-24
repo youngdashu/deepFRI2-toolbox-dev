@@ -255,7 +255,7 @@ def retrieve_pdb_chunk_to_h5(
     workers: List[str] = None,
 ) -> Tuple[List[str], str]:
     with worker_client() as client:
-        start_time = time.time()
+        # start_time = time.time()
 
         pdb_futures = client.map(
             retrieve_binary_cif if is_binary else retrieve_cif, pdb_ids, workers=workers
@@ -290,9 +290,9 @@ def retrieve_pdb_chunk_to_h5(
         # Compute the tasks
         pdb_ids, h5_file_path = client.gather([get_ids_task, h5_task])
 
-        end_time = time.time()
-        total_time = end_time - start_time
-        logger.info(f"Total processing time {path_for_batch.stem}: {format_time(total_time)}")
+        # end_time = time.time()
+        # total_time = end_time - start_time
+        # logger.info(f"Total processing time {path_for_batch.stem}: {format_time(total_time)}")
 
         return pdb_ids, h5_file_path
 
