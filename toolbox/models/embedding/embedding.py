@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from pathlib import Path
-from typing import Dict, List, ClassVar, re
+from typing import Dict, List, ClassVar
 
 import dask.bag as db
 
@@ -9,9 +9,12 @@ from toolbox.models.embedding import esm_embedding
 from toolbox.models.manage_dataset.paths import EMBEDDINGS_PATH
 from toolbox.models.manage_dataset.index.handle_index import create_index, read_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes, SearchIndexResult
-
+from toolbox.models.manage_dataset.utils import format_time
 
 import time
+
+from toolbox.utlis.logging import log_title
+from toolbox.utlis.logging import logger
 
 
 class Embedding:
@@ -35,7 +38,7 @@ class Embedding:
         """
         self.embeddings_index_path = embeddings_index_path
 
-        embeddings_path_obj = Path(EMBEDDINGS_PATH)
+        embeddings_path_obj = Path(EMBEDDINGS_PATH())
         if not embeddings_path_obj.exists():
             embeddings_path_obj.mkdir(exist_ok=True, parents=True)
 
@@ -47,6 +50,9 @@ class Embedding:
 
 
     def run(self):
+        start = time.time()
+        log_title("Getting embeddings")
+
         search_index_result = search_embedding_indexes(self.structures_dataset)
 
         missing_embeddings = search_index_result.missing_protein_files
@@ -63,6 +69,9 @@ class Embedding:
 
         create_index(self.embeddings_index_path, present_embeddings)
 
+        end = time.time()
+        logger.info(f"Total time: {format_time(end - start)}")
+
 
     def missing_ids_to_fasta(self, missing_ids: List[str]) -> Dict[str, str]:
         """
@@ -78,7 +87,7 @@ class Embedding:
         all_sequence_files = set(index.values())
 
         if not all_sequence_files:
-            print("No sequence files found.")
+            logger.warning("No sequence files found.")
             return {}
 
         # Read and merge all FASTA contents from the sequence files using Dask
@@ -111,22 +120,17 @@ class Embedding:
             sequences[current_id] = ''.join(current_seq)
 
         end_time = time.time()
-        print(f"Execution time for missing_ids_to_fasta: {end_time - start_time} seconds.")
+        logger.info(f"Extracting sequences for embeddings took: {format_time(end_time - start_time)}")
         return sequences
 
 
 def search_embedding_indexes(
     structures_dataset: "StructuresDataset",
 ) -> SearchIndexResult:
-    print("Searching embedding indexes")
     protein_index = read_index(structures_dataset.dataset_index_file_path())
-    print(f"\tIndex len {len(protein_index)}")
 
     handle_indexes: HandleIndexes = structures_dataset._handle_indexes
 
     search_index_result = handle_indexes.full_handle("embeddings", protein_index, structures_dataset.overwrite)
-
-    print("\tMissing embeddings")
-    print(f"\t\t{len(search_index_result.missing_protein_files)}")
 
     return search_index_result

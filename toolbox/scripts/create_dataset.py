@@ -1,6 +1,7 @@
 import argparse
 import pathlib
 
+
 from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.collection_type import CollectionType
 from toolbox.scripts.command_parser import CommandParser
@@ -8,10 +9,13 @@ from toolbox.scripts.command_parser import CommandParser
 db_types = DatabaseType._member_names_
 collection_types = CollectionType._member_names_
 
+import logging
+from toolbox.utlis.logging import logger, setup_colored_logging
 
 def add_common_arguments(parser):
     parser.add_argument("--slurm", action="store_true", help="Use SLURM job scheduler")
     parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
 
 
 def add_dataset_parser_arguments(parser):
@@ -41,7 +45,6 @@ def add_dataset_parser_arguments(parser):
         nargs="?",
     )
     parser.add_argument(
-        "-v",
         "--version",
         required=False,
         help="String to differentiate datasets; default: current date",
@@ -81,11 +84,37 @@ def add_dataset_parser_arguments(parser):
           type=pathlib.Path,
             help='Path to tar.gz archive containing structure files'
     )
+    parser.add_argument(
+        "-v", "--verbose", 
+        action="store_true", 
+        help="Enable verbose logging mode"
+    )
+
+
+def configure_logging(verbose):
+    """Configure logging based on verbose flag"""
+    log_level = logging.DEBUG if verbose else logging.INFO
+    log_format = '%(asctime)s %(levelname)s %(message)s'
+    
+    # Set up colored logging with the specified level and format
+    setup_colored_logging(level=log_level, fmt=log_format)
+    
+    # When verbose is false, filter out logs with (V) prefix unless they're errors
+    if not verbose:
+        class VerboseFilter(logging.Filter):
+            def filter(self, record):
+                # Still show ERROR or higher regardless of (V) tag
+                if record.levelno >= logging.ERROR:
+                    return True
+                # Filter out messages with (V) prefix in non-verbose mode
+                return "(V)" not in record.getMessage()
+                
+        logger.addFilter(VerboseFilter())
 
 
 def create_parser():
-
     parser = argparse.ArgumentParser(description="Create protein dataset")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
 
     subparsers = parser.add_subparsers(dest="command", help="Sub-command help")
 
@@ -173,6 +202,9 @@ def create_parser():
     create_archive_parser.add_argument(
         "-p", "--file-path", required=True, type=pathlib.Path
     )
+    create_archive_parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose logging"
+    )
 
     return parser
 
@@ -180,7 +212,13 @@ def create_parser():
 def main():
     parser = create_parser()
     args = parser.parse_args()
-
+    
+    # Configure logging based on verbose flag
+    configure_logging(args.verbose)
+    
+    # Log start of command execution
+    logger.info(f"Running command: {args.command}")
+    
     CommandParser(args).run()
 
 

@@ -1,3 +1,4 @@
+
 import os
 import os
 import time
@@ -32,16 +33,21 @@ from toolbox.models.manage_dataset.index.handle_index import (
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
 from toolbox.models.manage_dataset.paths import datasets_path, repo_path
 from toolbox.models.manage_dataset.sequences.sequence_retriever import SequenceRetriever
-from toolbox.models.manage_dataset.utils import chunk
 from toolbox.models.manage_dataset.utils import (
     foldcomp_download,
     mkdir_for_batches,
     retrieve_pdb_chunk_to_h5,
     alphafold_chunk_to_h5,
+    format_time,
+    chunk
 )
 from toolbox.models.utils.from_archive import extract_batch_from_archive
 from toolbox.models.utils.create_client import create_client, total_workers
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
+from toolbox.utlis.logging import log_title
+
+from toolbox.utlis.logging import logger
+
 dotenv.load_dotenv()
 SEPARATOR = os.getenv("SEPARATOR")
 
@@ -86,14 +92,14 @@ class StructuresDataset(BaseModel):
 
     def dataset_repo_path(self):
         return (
-            Path(repo_path)
+            Path(repo_path())
             / self.db_type.name
             / f"{self.collection_type.name}_{self.type_str}"
             / self.version
         )
 
     def dataset_path(self):
-        return Path(f"{datasets_path}/{self.dataset_dir_name()}")
+        return Path(f"{datasets_path()}/{self.dataset_dir_name()}")
 
     def structures_path(self):
         return self.dataset_repo_path() / "structures"
@@ -132,8 +138,9 @@ class StructuresDataset(BaseModel):
 
     def create_dataset(self):
 
+        log_title("Creating dataset")
+
         self.add_client()
-        print(str(datetime.now()))
 
         if self.collection_type == CollectionType.subset:
             if self.ids_file is None:
@@ -198,13 +205,13 @@ class StructuresDataset(BaseModel):
                 all_pdbs = map(lambda x: x.lower(), all_pdbs)
                 end_time = time.time()
                 elapsed_time = end_time - start_time
-                print(f"PDBList().get_all_entries time: {elapsed_time} seconds")
+                logger.debug(f"PDBList().get_all_entries time: {format_time(elapsed_time)}")
                 url = "http://files.wwpdb.org/pub/pdb/derived_data/pdb_entry_type.txt"
 
                 response = requests.get(url)
                 response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
                 res = filter_pdb_codes(response.text, all_pdbs)
-                print(f"After removing non protein codes {len(res)}")
+                logger.debug(f"After removing non protein codes {len(res)}")
             case DatabaseType.AFDB:
                 res = []
             case DatabaseType.ESMatlas:
@@ -220,7 +227,6 @@ class StructuresDataset(BaseModel):
                 save_extracted_files(self, extracted_path, ids)
             return
 
-        print("Downloading ids")
         match self.db_type:
             case DatabaseType.PDB:
                 self.handle_pdb(ids)
@@ -242,31 +248,29 @@ class StructuresDataset(BaseModel):
             case CollectionType.subset:
                 self._download_pdb_(ids)
 
-    def find_add_new_files_to_index(self):
-        self.dataset_path().mkdir(exist_ok=True, parents=True)
+    # def find_add_new_files_to_index(self):
+    #     self.dataset_path().mkdir(exist_ok=True, parents=True)
 
-        structures_path = self.structures_path()
+    #     structures_path = self.structures_path()
 
-        def process_directory(dir_path):
-            return [str(f) for f in Path(dir_path).glob("*.*") if f.is_file()]
+    #     def process_directory(dir_path):
+    #         return [str(f) for f in Path(dir_path).glob("*.*") if f.is_file()]
 
-        numbered_dirs = [
-            d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()
-        ]
+    #     numbered_dirs = [
+    #         d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()
+    #     ]
 
-        if len(numbered_dirs) == 0:
-            new_files = []
-        else:
-            dir_bag = db.from_sequence(numbered_dirs, npartitions=len(numbered_dirs))
-            new_files = dir_bag.map(process_directory).flatten().compute()
+    #     if len(numbered_dirs) == 0:
+    #         new_files = []
+    #     else:
+    #         dir_bag = db.from_sequence(numbered_dirs, npartitions=len(numbered_dirs))
+    #         new_files = dir_bag.map(process_directory).flatten().compute()
 
-        new_files_index = {str(i): v for i, v in enumerate(new_files)}
+    #     new_files_index = {str(i): v for i, v in enumerate(new_files)}
 
-        self.add_new_files_to_index(new_files_index)
+    #     self.add_new_files_to_index(new_files_index)
 
     def add_new_files_to_index(self, new_files_index):
-        print("Getting len ")
-        print(len(new_files_index))
         add_new_files_to_index(self.dataset_index_file_path(), new_files_index)
 
     def _download_pdb_(self, ids: List[str]):
@@ -276,7 +280,7 @@ class StructuresDataset(BaseModel):
 
         mkdir_for_batches(pdb_repo_path, len(chunks))
 
-        print(f"Downloading PDBs into {len(chunks)} chunks")
+        logger.info(f"Downloading {len(ids)} PDBs into {len(chunks)} chunks")
 
         new_files_index = {}
 
@@ -291,7 +295,7 @@ class StructuresDataset(BaseModel):
 
         def collect(result):
             downloaded_pdbs, file_path = result
-            print("Updating new_files_index", len(downloaded_pdbs))
+            logger.debug(f"Updating new_files_index with {len(downloaded_pdbs)} files")
             new_files_index.update({k: file_path for k in downloaded_pdbs})
 
         compute_batches = ComputeBatches(
@@ -311,13 +315,13 @@ class StructuresDataset(BaseModel):
         factor = 20 if total_workers() > 2000 else factor
         compute_batches.compute(inputs, factor=factor)
 
-        print("Adding new files to index")
+        logger.info("Adding new files to index")
 
         try:
+            logger.info(f"Extracted {len(new_files_index)} new protein chain(s)")
             self.add_new_files_to_index(new_files_index)
         except Exception as e:
-            print("Failed to update index")
-            print(e)
+            logger.error(f"Failed to update index: {e}")
 
     def foldcomp_decompress(self):
 
@@ -363,7 +367,7 @@ class StructuresDataset(BaseModel):
         for batch in as_completed(futures, with_results=True).batches():
             for _, single_batch_index in batch:
                 result_index.update(single_batch_index)
-                print(f"{i}/{total}")
+                logger.debug(f"Processing batch {i}/{total}")
                 i += 1
 
         create_index(self.dataset_index_file_path(), result_index)
@@ -451,11 +455,11 @@ class StructuresDataset(BaseModel):
             # Process batches
             compute_batches.compute(inputs)
             
-            print(f"Created {num_batches} batches with up to {self.batch_size} files each")
+            logger.info(f"Created {num_batches} batches with up to {self.batch_size} files each")
             
             # Update index
             if new_files_index:
-                print("Adding new files to index, len:", len(new_files_index))
+                logger.info(f"Adding new files to index, len: {len(new_files_index)}")
                 create_index(self.dataset_index_file_path(), new_files_index)
             
         finally:

@@ -1,15 +1,19 @@
 import threading
 import time
+
 from itertools import cycle
 from typing import Any, Callable, Generator, Optional, Tuple
 
-import dask.distributed
-from dask.distributed import Client, Semaphore, as_completed, Future, performance_report
+from toolbox.models.manage_dataset.utils import format_time
+
+from dask.distributed import Client, Semaphore, as_completed, Future
 from distributed import Variable
 
 from tqdm import tqdm
 
 from toolbox.models.utils.create_client import total_workers, get_cluster_machines
+
+from toolbox.utlis.logging import logger
 
 
 class ComputeBatches:
@@ -23,6 +27,8 @@ class ComputeBatches:
 
     def compute(self, inputs: Generator[Tuple[Any], Any, None], factor=1):
 
+        start = time.time()
+
         machines = get_cluster_machines(self.client)
         machines_c = cycle(machines)
 
@@ -30,7 +36,7 @@ class ComputeBatches:
         sem_name = "sem" + self.name
         semaphore = Semaphore(max_leases=max_workers, name=sem_name)
 
-        print(f"Max parallel workers {max_workers}")
+        logger.debug(f"Max parallel workers {max_workers}")
 
         var = Variable("stopping-criterion")
         var.set(False)
@@ -51,7 +57,7 @@ class ComputeBatches:
             if next_value is None:
                 break
 
-            print(i)
+            logger.debug(f"Processing batch {i}")
             i += 1
             future = self.run_f(next_value, next(machines_c))
             ac.add(future)
@@ -60,12 +66,23 @@ class ComputeBatches:
 
         collect_thread.join()
 
+        while semaphore.get_value() > 0:
+            semaphore.release()
+            time.sleep(0.1)
+        
+        semaphore.close()
+
+        end = time.time()
+
+        logger.info(f"Time taken {self.name}: {format_time(end - start)}")
+
     def _workers_num_(self):
         return total_workers()
 
 
 def collect(ac: as_completed, collect_f, semaphore: Semaphore, computation_name: str, inputs_len: Optional[int] = None):
-    dask.distributed.print("Collecting results")
+    logger.info("Collecting results")
+    logger.debug("Collecting Dask results collection started")
     total_time = 0
     stop_var = Variable("stopping-criterion")
     with tqdm(total=inputs_len) as pbar:
@@ -81,14 +98,20 @@ def collect(ac: as_completed, collect_f, semaphore: Semaphore, computation_name:
 
             future_c, result = next(ac)
             start_time = time.time()
-            collect_f(result)
-            end_time = time.time()
-            total_time += end_time - start_time
-            del future_c
-            pbar.update(1)
-            semaphore.release()
+            try:
+                collect_f(result)
+            except Exception as e:
+                logger.error(f"Error in collect_f: {e}")
+            finally:
+                end_time = time.time()
+                total_time += end_time - start_time
+                # Ensure release happens even if collect_f fails
+                del future_c
+                pbar.update(1)
+                semaphore.release()
 
             if ac.is_empty() and stop_var.get():
                 break
-            
-    print("Collect results time:", total_time)
+
+    logger.debug(f"Collect results time: {format_time(total_time)}")
+    logger.debug("Dask results collection finished")

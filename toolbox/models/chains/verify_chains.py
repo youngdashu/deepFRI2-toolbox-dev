@@ -1,9 +1,13 @@
 from typing import Dict
 
+
+
 from toolbox.models.manage_dataset.index.handle_index import read_index
 from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
 from toolbox.models.manage_dataset.utils import read_all_pdbs_from_h5
 from toolbox.models.utils.cif2pdb import aa_dict
+
+from toolbox.utlis.logging import logger
 
 
 def _parse_pdb_residue_(pdb_code, pdb_str):
@@ -21,9 +25,7 @@ def _parse_pdb_residue_(pdb_code, pdb_str):
                 short_acid = aa_dict[amino_acid]
                 results.append((residue_number, short_acid))
             except KeyError:
-                print(pdb_code)
-                print(line)
-                print(amino_acid)
+                logger.warning(f"{pdb_code} {line} {amino_acid}")
 
     return dict(results)
 
@@ -51,7 +53,7 @@ def verify_chains(structures_dataset: StructuresDataset, pdb_seqres_fasta_path):
             try:
                 seqres_sequence: str = fasta_index[code].seq
             except KeyError:
-                print(f"The pdb_seqres index hasn't entry for the code {code}.")
+                logger.warning(f"The pdb_seqres index hasn't entry for the code {code}.")
                 continue
 
             res: bool = _compare_from_pdb_vs_seqres_(
@@ -65,8 +67,8 @@ def verify_chains(structures_dataset: StructuresDataset, pdb_seqres_fasta_path):
 
             results.append(res)
 
-    print("Good results count:", good_count, float(good_count) / len(results))
-    print("Bad results count:", bad_count, float(bad_count) / len(results))
+    logger.info(f"Good results count: {good_count} ({float(good_count) / len(results)})")
+    logger.info(f"Bad results count: {bad_count} ({float(bad_count) / len(results)})")
 
 
 def _compare_from_pdb_vs_seqres_(
@@ -83,7 +85,7 @@ def _compare_from_pdb_vs_seqres_(
 
     for key in from_pdb.keys():
         if from_pdb[key] != sequence_dict[key]:
-            print(code, key, from_pdb[key], sequence_dict[key])
+            logger.warning(f"{code} {key} {from_pdb[key]} {sequence_dict[key]}")
             is_all_good = False
             if is_return_when_error:
                 return False

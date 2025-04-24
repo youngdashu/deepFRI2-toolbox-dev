@@ -1,4 +1,5 @@
 import json
+
 import traceback
 from pathlib import Path
 from typing import Dict, Union, List
@@ -6,6 +7,8 @@ from typing import Dict, Union, List
 from toolbox.models.manage_dataset.utils import groupby_dict_by_values
 
 from toolbox.models.manage_dataset.paths import get_pdir
+
+from toolbox.utlis.logging import logger
 
 
 def read_index(index_file_path: Path) -> Dict[str, str]:
@@ -19,8 +22,7 @@ def read_index(index_file_path: Path) -> Dict[str, str]:
                 index = {k: DATA_PATH + "/" + v for k, v in index.items()}
             return index
     except Exception as e:
-        print("Exception in read_index")
-        print(e)
+        logger.error("Exception in read_index", e)
         return {}
 
 
@@ -46,5 +48,4 @@ def add_new_files_to_index(dataset_index_file_path, new_files_index):
         current_index.update(new_files_index)
         create_index(dataset_index_file_path, current_index)
     except Exception as e:
-        print("Exception in add_new_files_to_index")
-        print(e)
+        logger.error("Exception in add_new_files_to_index", e)
