@@ -115,6 +115,12 @@ def configure_logging(verbose):
 def create_parser():
     parser = argparse.ArgumentParser(description="Create protein dataset")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument(
+        "--config",
+        type=pathlib.Path,
+        default=None,
+        help="Path to config JSON file (default: ./config.json in main directory)",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Sub-command help")
 
@@ -213,13 +219,20 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
     
+    # Load config and raise if not found
+    from toolbox.config import load_config
+    try:
+        config = load_config(args.config)
+    except FileNotFoundError as e:
+        raise e
+
     # Configure logging based on verbose flag
     configure_logging(args.verbose)
     
     # Log start of command execution
     logger.info(f"Running command: {args.command}")
     
-    CommandParser(args).run()
+    CommandParser(args, config).run()
 
 
 if __name__ == "__main__":

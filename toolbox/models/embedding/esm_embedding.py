@@ -4,11 +4,9 @@ import torch
 import tqdm  
 import h5py  
 import gc  # Added for garbage collection  
-from itertools import islice  
 from transformers import AutoTokenizer, AutoModelForMaskedLM  
 from multiprocessing import Process  
 
-from toolbox.models.manage_dataset.index.handle_index import create_index  
 
 # Parameters  
 device = 'cuda'  

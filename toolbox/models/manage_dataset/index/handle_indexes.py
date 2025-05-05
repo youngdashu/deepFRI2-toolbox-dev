@@ -9,7 +9,6 @@ import dotenv
 from pydantic import BaseModel
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
-from toolbox.models.manage_dataset.paths import datasets_path
 from toolbox.models.manage_dataset.utils import groupby_dict_by_values
 
 from toolbox.utlis.logging import logger
@@ -42,7 +41,7 @@ class HandleIndexes:
     def read_indexes(self, index_type: str):
         logger.debug(f"Reading indexes for type: {index_type}")
         db_type = self.structures_dataset.db_type
-        datasets_path_obj = Path(datasets_path())
+        datasets_path_obj = Path(self.structures_dataset.config.data_path) / "datasets"
         logger.debug(f"Using database type: {db_type}, datasets path: {datasets_path_obj}")
         
         if db_type == DatabaseType.other:
@@ -51,7 +50,11 @@ class HandleIndexes:
             logger.debug(f"Found {len(path)} index files for 'other' type")
         else:
             logger.debug(f"Processing {db_type.name} database type")
-            base_path = datasets_path_obj / f"{db_type.name}{SEPARATOR}*"
+            if self.structures_dataset.config:
+                sep = self.structures_dataset.config.separator
+            else:
+                raise ValueError("No config found")
+            base_path = datasets_path_obj / f"{db_type.name}{sep}*"
             dataset_dirs = list(base_path.parent.glob(base_path.name))
             logger.debug(f"Found {len(dataset_dirs)} dataset directories")
             

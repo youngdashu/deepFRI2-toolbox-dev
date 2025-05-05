@@ -61,10 +61,10 @@ def process_file(file_path, start_index, keys_to_get):
     ]
 
 
-def load_data(distograms_index_file):
+def load_data(distograms_index_file, data_path):
     client = create_client(False)  # Start a Dask client
 
-    index = read_index(Path(distograms_index_file))
+    index = read_index(Path(distograms_index_file), data_path)
     print("Found {} files".format(len(index)))
 
     # Count total number of keys across all files

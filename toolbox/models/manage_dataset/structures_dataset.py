@@ -1,4 +1,3 @@
-import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -6,7 +5,6 @@ from typing import List, Optional, Any
 from typing_extensions import Self
 
 import dask.bag as db
-import dotenv
 import requests
 from Bio.PDB import PDBList
 from dask.distributed import Client, as_completed
@@ -29,7 +27,6 @@ from toolbox.models.manage_dataset.index.handle_index import (
     read_index,
 )
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
-from toolbox.models.manage_dataset.paths import datasets_path, repo_path
 from toolbox.models.manage_dataset.sequences.sequence_retriever import SequenceRetriever
 from toolbox.models.manage_dataset.utils import (
     foldcomp_download,
@@ -46,9 +43,7 @@ from toolbox.models.utils.create_client import create_client, total_workers
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 from toolbox.utlis.logging import log_title
 from toolbox.utlis.logging import logger
-
-dotenv.load_dotenv()
-SEPARATOR = os.getenv("SEPARATOR")
+from toolbox.config import Config
 
 class FatalDatasetError(Exception):
     def __init__(self, message):
@@ -73,6 +68,7 @@ class StructuresDataset(BaseModel):
     _handle_indexes: Optional[HandleIndexes] = None
     _sequence_retriever: Optional[SequenceRetriever] = None
     created_at: Optional[str] = None
+    config: Optional[Config] = None
 
     @model_validator(mode="after")
     def validate_model(self) -> Self:
@@ -85,26 +81,31 @@ class StructuresDataset(BaseModel):
         return self
 
     def __init__(self, **data: Any):
+        config = data.pop('config', None)
         super().__init__(**data)
+        self.config = config
         self._handle_indexes = HandleIndexes(self)
         self._sequence_retriever = SequenceRetriever(self)
 
     def dataset_repo_path(self):
+        base_path = Path(self.config.data_path) if self.config else Path("/data")
         return (
-            Path(repo_path())
+            base_path / "structures"
             / self.db_type.name
             / f"{self.collection_type.name}_{self.type_str}"
             / self.version
         )
 
     def dataset_path(self):
-        return Path(f"{datasets_path()}/{self.dataset_dir_name()}")
+        base_path = Path(self.config.data_path) if self.config else Path("/data")
+        return base_path / "datasets" / self.dataset_dir_name()
 
     def structures_path(self):
         return self.dataset_repo_path() / "structures"
 
     def dataset_dir_name(self):
-        return f"{self.db_type.name}{SEPARATOR}{self.collection_type.name}{SEPARATOR}{self.type_str}{SEPARATOR}{self.version}"
+        sep = self.config.separator if self.config else "-"
+        return f"{self.db_type.name}{sep}{self.collection_type.name}{sep}{self.type_str}{sep}{self.version}"
 
     def dataset_index_file_path(self) -> Path:
         return self.dataset_path() / "dataset.idx"
@@ -168,7 +169,7 @@ class StructuresDataset(BaseModel):
                     )
                 )
 
-            create_index(self.dataset_index_file_path(), present_file_paths)
+            create_index(self.dataset_index_file_path(), present_file_paths, self.config.data_path)
 
             if (
                 self.db_type == DatabaseType.other
@@ -184,7 +185,7 @@ class StructuresDataset(BaseModel):
         else:
             self.download_ids(None)
         
-        index = read_index(self.dataset_index_file_path())
+        index = read_index(self.dataset_index_file_path(), self.config.data_path)
 
         if len(index.keys()) == 0:
             raise FatalDatasetError("No files found in dataset")
@@ -247,30 +248,9 @@ class StructuresDataset(BaseModel):
             case CollectionType.subset:
                 self._download_pdb_(ids)
 
-    # def find_add_new_files_to_index(self):
-    #     self.dataset_path().mkdir(exist_ok=True, parents=True)
-
-    #     structures_path = self.structures_path()
-
-    #     def process_directory(dir_path):
-    #         return [str(f) for f in Path(dir_path).glob("*.*") if f.is_file()]
-
-    #     numbered_dirs = [
-    #         d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()
-    #     ]
-
-    #     if len(numbered_dirs) == 0:
-    #         new_files = []
-    #     else:
-    #         dir_bag = db.from_sequence(numbered_dirs, npartitions=len(numbered_dirs))
-    #         new_files = dir_bag.map(process_directory).flatten().compute()
-
-    #     new_files_index = {str(i): v for i, v in enumerate(new_files)}
-
-    #     self.add_new_files_to_index(new_files_index)
 
     def add_new_files_to_index(self, new_files_index):
-        add_new_files_to_index(self.dataset_index_file_path(), new_files_index)
+        add_new_files_to_index(self.dataset_index_file_path(), new_files_index, self.config.data_path)
 
     def _download_pdb_(self, ids: List[str]):
         Path(self.structures_path()).mkdir(exist_ok=True, parents=True)
@@ -369,7 +349,7 @@ class StructuresDataset(BaseModel):
                 logger.debug(f"Processing batch {i}/{total}")
                 i += 1
 
-        create_index(self.dataset_index_file_path(), result_index)
+        create_index(self.dataset_index_file_path(), result_index, self.config.data_path)
 
     def handle_afdb(self):
         match self.collection_type:
@@ -459,7 +439,7 @@ class StructuresDataset(BaseModel):
             # Update index
             if new_files_index:
                 logger.info(f"Adding new files to index, len: {len(new_files_index)}")
-                create_index(self.dataset_index_file_path(), new_files_index)
+                create_index(self.dataset_index_file_path(), new_files_index, self.config.data_path)
             
         finally:
             # Cleanup

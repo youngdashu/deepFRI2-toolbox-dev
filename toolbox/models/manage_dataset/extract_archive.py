@@ -129,7 +129,7 @@ def save_extracted_files(
     logger.info("Adding new files to index")
 
     try:
-        create_index(structures_dataset.dataset_index_file_path(), new_files_index)
+        create_index(structures_dataset.dataset_index_file_path(), new_files_index, structures_dataset.config.data_path)
     except Exception as e:
         logger.error(f"Failed to update index: {e}")
 
