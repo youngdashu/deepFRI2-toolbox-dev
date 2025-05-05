@@ -29,7 +29,7 @@ class SequenceRetriever:
 
         structures_dataset = self.structures_dataset
 
-        protein_index = read_index(structures_dataset.dataset_index_file_path())
+        protein_index = read_index(structures_dataset.dataset_index_file_path(), structures_dataset.config.data_path)
         
         search_index_result = self.handle_indexes.full_handle(
             "sequences", protein_index, structures_dataset.overwrite
@@ -68,7 +68,7 @@ class SequenceRetriever:
         logger.info("Saving new sequences index")
         for id_ in missing_sequences:
             sequences_index[id_] = str(sequences_file_path)
-        create_index(structures_dataset.sequences_index_path(), sequences_index)
+        create_index(structures_dataset.sequences_index_path(), sequences_index, structures_dataset.config.data_path)
 
         end = time.time()
         logger.info(f"Total time: {format_time(end - start)}")

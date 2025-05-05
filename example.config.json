@@ -1,0 +1,8 @@
+{
+    "debug_mode": "warning",
+    "data_path": "/example/toolbox/data",
+    "disto_type": "CA",
+    "disto_thr": "inf",
+    "separator": "-",
+    "batch_size": 1000
+  }

@@ -5,6 +5,7 @@ import pytest
 
 from tests.utils import compare_dicts, compare_pdb_contents, FileComparator
 from tests.paths import OUTPATH, EXPPATH
+from toolbox.config import Config
 
 # give 666 permissions to new files
 os.umask(0o002)
@@ -107,8 +108,16 @@ def create_dataset(dataset_name, ids_file_path, overwrite=False):
     from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
     from toolbox.models.manage_dataset.collection_type import CollectionType
     from toolbox.models.manage_dataset.database_type import DatabaseType
-    from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms
-    from toolbox.models.embedding.embedding import Embedding
+
+    config = Config(
+        data_path=str(OUTPATH),
+        disto_type="CA",
+        disto_thr="inf",
+        separator="-",
+        batch_size=1000,
+    )
+
+    print(config.model_dump_json())
 
 
     dataset = StructuresDataset(
@@ -117,14 +126,13 @@ def create_dataset(dataset_name, ids_file_path, overwrite=False):
         version=dataset_name,
         ids_file=ids_file_path,
         overwrite=overwrite,
+        config=config,
     )
 
-    dataset.create_dataset()     # TODO: create_dataset(dataset)
-    dataset.generate_sequence()  # TODO: generate_sequence(dataset)
-    generate_distograms(dataset)
-
-    embedding = Embedding(dataset)  # TODO: generate_embeddings(dataset, embedding_type="ESM-2")
-    embedding.run()
+    dataset.create_dataset()     
+    dataset.generate_sequence()
+    dataset.generate_distograms()
+    dataset.generate_embeddings()
 
     dataset._client.close()
 

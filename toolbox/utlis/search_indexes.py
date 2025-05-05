@@ -11,8 +11,8 @@ from toolbox.models.manage_dataset.index.handle_index import read_index
 from toolbox.scripts.list_datasets import SEPARATOR
 
 
-def search_index(path: Path, ids_searched_for: List[str]):
-    index = read_index(path)
+def search_index(path: Path, ids_searched_for: List[str], data_path: str):
+    index = read_index(path, data_path)
 
     res = {}
 
@@ -37,7 +37,7 @@ def search_indexes(
     sequence_indexes = base_path.glob(glob_pattern)
 
     tasks = [
-        delayed(search_index)(file, batch)
+        delayed(search_index)(file, batch, structures_dataset.config.data_path)
         for batch in batched_ids
         for file in sequence_indexes
     ]

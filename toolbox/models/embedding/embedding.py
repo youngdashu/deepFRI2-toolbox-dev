@@ -67,7 +67,7 @@ class Embedding:
 
         present_embeddings.update(index_of_new_embeddings)
 
-        create_index(self.embeddings_index_path, present_embeddings)
+        create_index(self.embeddings_index_path, present_embeddings, self.structures_dataset.config.data_path)
 
         end = time.time()
         logger.info(f"Total time: {format_time(end - start)}")
@@ -83,7 +83,7 @@ class Embedding:
         """
         start_time = time.time()
 
-        index = read_index(self.structures_dataset.sequences_index_path())
+        index = read_index(self.structures_dataset.sequences_index_path(), self.structures_dataset.config.data_path)
         all_sequence_files = set(index.values())
 
         if not all_sequence_files:
@@ -127,7 +127,7 @@ class Embedding:
 def search_embedding_indexes(
     structures_dataset: "StructuresDataset",
 ) -> SearchIndexResult:
-    protein_index = read_index(structures_dataset.dataset_index_file_path())
+    protein_index = read_index(structures_dataset.dataset_index_file_path(), structures_dataset.config.data_path)
 
     handle_indexes: HandleIndexes = structures_dataset._handle_indexes
 

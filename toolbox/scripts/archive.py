@@ -27,7 +27,7 @@ def process_h5_file(h5_file, dataset_path, output_dir):
 
 def create_archive(structures_dataset: "StructuresDataset"):
     dataset_path = structures_dataset.dataset_path()
-    proteins_index = read_index(Path(dataset_path) / "dataset_reversed.idx")
+    proteins_index = read_index(Path(dataset_path) / "dataset_reversed.idx", structures_dataset.config.data_path)
     output_dir = Path(dataset_path) / "archives"
     output_dir.mkdir(exist_ok=True)
 

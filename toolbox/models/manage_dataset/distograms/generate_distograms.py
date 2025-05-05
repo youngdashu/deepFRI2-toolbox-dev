@@ -161,7 +161,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     start = time.time()
 
-    protein_index = read_index(structures_dataset.dataset_index_file_path())
+    protein_index = read_index(structures_dataset.dataset_index_file_path(), structures_dataset.config.data_path)
 
     handle_indexes: HandleIndexes = structures_dataset._handle_indexes
 
@@ -217,7 +217,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
     for protein_id in ids:
         distogram_index[protein_id.removesuffix(".pdb")] = distogram_index.pop(protein_id)
 
-    create_index(structures_dataset.distograms_index_path(), distogram_index)
+    create_index(structures_dataset.distograms_index_path(), distogram_index, structures_dataset.config.data_path)
 
     end = time.time()
     logger.info(f"Total time: {format_time(end - start)}")
