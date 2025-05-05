@@ -1,5 +1,3 @@
-
-import os
 import os
 import time
 from datetime import datetime
@@ -41,11 +39,12 @@ from toolbox.models.manage_dataset.utils import (
     format_time,
     chunk
 )
+from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms
+from toolbox.models.embedding.embedding import Embedding
 from toolbox.models.utils.from_archive import extract_batch_from_archive
 from toolbox.models.utils.create_client import create_client, total_workers
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 from toolbox.utlis.logging import log_title
-
 from toolbox.utlis.logging import logger
 
 dotenv.load_dotenv()
@@ -473,6 +472,15 @@ class StructuresDataset(BaseModel):
     def save_dataset_metadata(self):
         with (self.dataset_path() / "dataset.json").open("w+") as json_dataset_file:
             json_dataset_file.write(self.model_dump_json())
+
+    def generate_distograms(self):
+        """Generate distograms for the dataset."""
+        generate_distograms(self)
+
+    def generate_embeddings(self):
+        """Generate embeddings for the dataset."""
+        embedding = Embedding(self)
+        embedding.run()
 
 
 def create_subset():

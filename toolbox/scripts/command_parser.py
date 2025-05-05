@@ -1,14 +1,10 @@
 from argparse import Namespace
-from datetime import datetime
 import json
-import concurrent.futures
 
 from pathlib import Path
 
 from toolbox.models.chains.verify_chains import verify_chains
-from toolbox.models.embedding.embedding import Embedding
 from toolbox.models.manage_dataset.distograms.generate_distograms import (
-    generate_distograms,
     read_distograms_from_file,
 )
 from toolbox.models.manage_dataset.structures_dataset import FatalDatasetError, StructuresDataset
@@ -27,6 +23,8 @@ class CommandParser:
         self.args = args
 
     def _create_dataset_from_path_(self) -> StructuresDataset:
+        if self.structures_dataset is not None:
+            return self.structures_dataset
         path = self.args.file_path
         if path.is_dir() and (path / "dataset.json").exists():
             self.structures_dataset = StructuresDataset.model_validate_json(
@@ -71,9 +69,8 @@ class CommandParser:
         return dataset
 
     def embedding(self):
-        logger.info("Not implemented")
-        return
-
+        self._create_dataset_from_path_()
+        self.structures_dataset.generate_embeddings()
 
     def load(self):
         dataset = self._create_dataset_from_path_()
@@ -87,7 +84,7 @@ class CommandParser:
 
     def generate_distograms(self):
         self._create_dataset_from_path_()
-        generate_distograms(self.structures_dataset)
+        self.structures_dataset.generate_distograms()
 
     def read_distograms(self):
         logger.info(read_distograms_from_file(self.args.file_path))
@@ -117,12 +114,11 @@ class CommandParser:
         except Exception as e:
             print_exc(e)
         try:
-            generate_distograms(self.structures_dataset)
+            self.structures_dataset.generate_distograms()
         except Exception as e:
             print_exc(e)
         try:
-            embedding = Embedding(self.structures_dataset)
-            embedding.run()
+            self.structures_dataset.generate_embeddings()
         except Exception as e:
             print_exc(e)
 
