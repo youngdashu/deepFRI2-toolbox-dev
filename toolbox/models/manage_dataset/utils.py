@@ -186,7 +186,7 @@ def aggregate_results(
 
 
 def compress_and_save_h5(
-    path_for_batch: Path, results: Tuple[List[str], List[str], List[str]]
+    path_for_batch: Path, batch_index: int, results: Tuple[List[str], List[str], List[str]]
 ):
     start_time = time.time()
     pdbs_file = path_for_batch / "pdbs.h5"
@@ -250,6 +250,7 @@ def compress_and_save_experiment(
 
 def retrieve_pdb_chunk_to_h5(
     path_for_batch: Path,
+    batch_index: int,
     pdb_ids: Iterable[str],
     is_binary: bool,
     workers: List[str] = None,
@@ -277,6 +278,7 @@ def retrieve_pdb_chunk_to_h5(
         h5_task = client.submit(
             compress_and_save_h5,
             path_for_batch,
+            batch_index,
             aggregated,
             pure=False,
             workers=workers,

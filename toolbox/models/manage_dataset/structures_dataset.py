@@ -306,7 +306,7 @@ class StructuresDataset(BaseModel):
         )
 
         inputs = (
-            (pdb_repo_path / f"{i}", ids_chunk) for i, ids_chunk in enumerate(chunks)
+            (pdb_repo_path, i, ids_chunk) for i, ids_chunk in enumerate(chunks)
         )
 
         factor = 10

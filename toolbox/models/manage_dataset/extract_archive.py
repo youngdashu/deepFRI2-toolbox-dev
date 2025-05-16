@@ -135,7 +135,7 @@ def save_extracted_files(
 
 
 def retrieve_protein_file_to_h5(
-    path_for_batch: Path, pdb_ids: Iterable[str], workers: List[str] = None
+    path_for_batch: Path, batch_index: int, pdb_ids: Iterable[str], workers: List[str] = None
 ) -> Tuple[List[str], str]:
     with worker_client() as client:
         start_time = time.time()
@@ -154,6 +154,7 @@ def retrieve_protein_file_to_h5(
         h5_task = client.submit(
             compress_and_save_h5,
             path_for_batch,
+            batch_index,
             aggregated,
             pure=False,
             workers=workers,

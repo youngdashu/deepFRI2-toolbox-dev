@@ -184,8 +184,8 @@ def compare_generated_abstraction_with_expected(dataset_name):
     assert fasta_generated.exists(), f"Generated FASTA file does not exist: {fasta_generated}"
     FileComparator.compare_fasta_files(fasta_expected, fasta_generated)
 
-    pdb_files_expected = [EXPPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "structures" / "0" / "pdbs.h5"]
-    pdb_files_generated = [OUTPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "structures" / "0" / "pdbs.h5"]
+    pdb_files_expected = [EXPPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "structures" / "batch_0.h5"]
+    pdb_files_generated = [OUTPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "structures" / "batch_0.h5"]
 
     for expected_file, generated_file in zip(pdb_files_expected, pdb_files_generated):
         assert generated_file.exists(), f"Generated file does not exist: {generated_file}"

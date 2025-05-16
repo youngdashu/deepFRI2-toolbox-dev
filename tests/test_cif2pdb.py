@@ -165,7 +165,7 @@ def test_convert_pdb_2fjhL(setup_dataset):
     # Indirect testing of cif2pdb conversion
     # AUTHORS chain different from PDB
 
-    hdf5_files = [file for file in setup_dataset.structures_path().rglob('pdbs.h5')]
+    hdf5_files = [file for file in setup_dataset.structures_path().rglob('*.h5')]
     assert len(hdf5_files) > 0
     pdbs = read_pdbs_from_h5(hdf5_files[0], None)
     
