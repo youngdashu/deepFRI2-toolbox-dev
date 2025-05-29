@@ -2,6 +2,12 @@ import os
 import shutil
 import json
 import pytest
+import time
+from unittest.mock import patch
+from dask.distributed import Client, LocalCluster
+import logging
+import warnings
+import distributed
 
 from tests.utils import compare_dicts, compare_pdb_contents, FileComparator
 from tests.paths import OUTPATH, EXPPATH
@@ -9,6 +15,47 @@ from toolbox.config import Config
 
 # give 666 permissions to new files
 os.umask(0o002)
+
+n_cores = os.cpu_count()
+
+# Configure distributed logging to avoid conflicts
+distributed_logger = logging.getLogger('distributed')
+distributed_logger.setLevel(logging.WARNING)
+if not distributed_logger.handlers:
+    null_handler = logging.NullHandler()
+    distributed_logger.addHandler(null_handler)
+
+# Silence specific Dask warnings
+warnings.simplefilter("ignore", distributed.comm.core.CommClosedError)
+warnings.filterwarnings(
+    "ignore",
+    message=".*Creating scratch directories is taking a surprisingly long time.*",
+)
+
+cluster = LocalCluster(
+    n_workers=n_cores - 1,  # Use fewer workers for testing
+    threads_per_worker=1,
+    memory_limit="4 GiB",
+    silence_logs=logging.CRITICAL,
+    worker_dashboard_address=None,
+    dashboard_address="0.0.0.0:8990",  # Use different port to avoid conflicts
+)
+client = Client(cluster)
+
+# Cleanup function for the global client
+def cleanup_global_dask():
+    """Clean up the global Dask client and cluster"""
+    global client, cluster
+    try:
+        if client and client.status != "closed":
+            client.close()
+        if cluster:
+            cluster.close()
+    except Exception:
+        pass
+    finally:
+        client = None
+        cluster = None
 
 # =====================================
 # Testing behaviour of dataset creation
@@ -27,7 +74,9 @@ def clean_generated_files(tmp_path_factory):
             shutil.rmtree(f)
     assert not list(OUTPATH.iterdir())
     yield
-    
+    # Clean up the global Dask client and cluster
+    cleanup_global_dask()
+
 
 # PDB
 
@@ -119,7 +168,7 @@ def create_dataset(dataset_name, ids_file_path, overwrite=False):
 
     print(config.model_dump_json())
 
-
+    # Patch the create_client function with our test version
     dataset = StructuresDataset(
         db_type=DatabaseType.PDB,
         collection_type=CollectionType.subset,
@@ -128,13 +177,34 @@ def create_dataset(dataset_name, ids_file_path, overwrite=False):
         overwrite=overwrite,
         config=config,
     )
+    dataset._client = client
 
-    dataset.create_dataset()     
+    # Time each major operation
+    print(f"\n=== Starting dataset creation for {dataset_name} ===")
+    
+    start_time = time.time()
+    dataset.create_dataset()
+    create_time = time.time() - start_time
+    print(f"Dataset creation took {create_time:.2f} seconds")
+    
+    start_time = time.time()
     dataset.generate_sequence()
+    sequence_time = time.time() - start_time
+    print(f"Sequence generation took {sequence_time:.2f} seconds")
+    
+    start_time = time.time()
     dataset.generate_distograms()
+    distogram_time = time.time() - start_time
+    print(f"Distogram generation took {distogram_time:.2f} seconds")
+    
+    start_time = time.time()
     dataset.generate_embeddings()
-
-    dataset._client.close()
+    embedding_time = time.time() - start_time
+    print(f"Embedding generation took {embedding_time:.2f} seconds")
+    
+    total_time = create_time + sequence_time + distogram_time + embedding_time
+    print(f"Total processing time: {total_time:.2f} seconds")
+    print(f"=== Completed dataset creation for {dataset_name} ===\n")
 
 
 def compare_index_files(dataset_name):

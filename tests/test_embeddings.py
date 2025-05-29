@@ -3,6 +3,7 @@ import glob
 import pytest
 import textwrap 
 import numpy as np
+import shutil
 
 import h5py
 
@@ -32,13 +33,16 @@ def clean_generated_files(tmp_path_factory):
     OUTPATH.mkdir(parents=True, exist_ok=True)
     # Clean existing files
     for f in OUTPATH.glob('*'):
-        f.unlink()
+        if f.is_file():
+            f.unlink()
+        elif f.is_dir():
+            shutil.rmtree(f)
     # Verify directory is empty
     assert not list(OUTPATH.iterdir())
     yield
     # Cleanup after tests (optional)
-    for f in OUTPATH.glob('*'):
-        f.unlink()
+    # for f in OUTPATH.glob('*'):
+    #     f.unlink()
 
 
 # NOTE: Embeddings generated with different environments 
