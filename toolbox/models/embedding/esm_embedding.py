@@ -7,9 +7,9 @@ import gc  # Added for garbage collection
 from transformers import AutoTokenizer, AutoModelForMaskedLM  
 from multiprocessing import Process  
 
-
+from toolbox.utlis.logging import logger
 # Parameters  
-device = 'cuda'  
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 dtype = torch.float32  
 model_name = 'esm2_t33_650M_UR50D'  
 batch_size = 1000  
@@ -32,7 +32,9 @@ def embed(
 
     # Tokenizer and model  
     esm_tokenizer = AutoTokenizer.from_pretrained(f"facebook/{model_name}")  
-    esm_model = AutoModelForMaskedLM.from_pretrained(f"facebook/{model_name}").to(device).to(dtype=dtype)  
+    esm_model = AutoModelForMaskedLM.from_pretrained(f"facebook/{model_name}").to(device).to(dtype=dtype)
+
+    logger.info(f"Embeddigns are computed using {str(device).upper()}")
 
     try:  
         esm_model.eval()  
