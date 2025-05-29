@@ -1,6 +1,6 @@
 from argparse import Namespace
 import json
-
+import traceback
 from pathlib import Path
 
 from toolbox.models.chains.verify_chains import verify_chains
@@ -140,6 +140,7 @@ class CommandParser:
 
 def print_exc(e):
     logger.error(f"Error ({type(e)}): {str(e)}")
+    logger.error(traceback.format_exc())
 
 def read_pdbs(file_path, ids, to_directory, is_print):
     if ids.exists():
