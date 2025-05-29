@@ -6,7 +6,6 @@ from typing import Dict, List, ClassVar
 import dask.bag as db
 
 from toolbox.models.embedding import esm_embedding
-from toolbox.models.manage_dataset.paths import EMBEDDINGS_PATH
 from toolbox.models.manage_dataset.index.handle_index import create_index, read_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes, SearchIndexResult
 from toolbox.models.manage_dataset.utils import format_time
@@ -38,7 +37,7 @@ class Embedding:
         """
         self.embeddings_index_path = embeddings_index_path
 
-        embeddings_path_obj = Path(EMBEDDINGS_PATH())
+        embeddings_path_obj = Path(self.structures_dataset.config.data_path) / "embeddings"
         if not embeddings_path_obj.exists():
             embeddings_path_obj.mkdir(exist_ok=True, parents=True)
 
