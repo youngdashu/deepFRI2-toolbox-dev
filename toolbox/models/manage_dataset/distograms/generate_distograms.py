@@ -13,7 +13,6 @@ from scipy.spatial.distance import pdist, squareform
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
-from toolbox.models.manage_dataset.paths import DISTOGRAMS_PATH
 from toolbox.models.manage_dataset.utils import read_pdbs_from_h5, format_time
 from toolbox.utlis.logging import log_title
 
@@ -171,8 +170,11 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     client: Client = structures_dataset._client
 
-    path = Path(DISTOGRAMS_PATH()) / structures_dataset.dataset_dir_name()
-    Path(DISTOGRAMS_PATH()).mkdir(parents=True, exist_ok=True)
+    distograms_path_obj = Path(structures_dataset.config.data_path) / "distograms"
+    if not distograms_path_obj.exists():
+        distograms_path_obj.mkdir(exist_ok=True, parents=True)
+
+    path = distograms_path_obj / structures_dataset.dataset_dir_name()
     path.mkdir(exist_ok=True, parents=True)
 
     partial_result_data_q = Queue(name="partial_result_data_q")
