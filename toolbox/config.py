@@ -3,10 +3,12 @@ from typing import Union, Literal
 from pydantic import BaseModel, field_validator
 import json
 
+CarbonAtomType = Literal["CA", "CB"]
+
 class Config(BaseModel):
     debug_mode: Literal["debug", "warning", "error"] = "warning"
     data_path: str = "path/to/data/"
-    disto_type: Literal["CA", "CB"] = "CA"
+    disto_type: CarbonAtomType = "CA"
     disto_thr: Union[int, str] = "inf"
     separator: str = "-"
     batch_size: Union[int, str] = 1000
