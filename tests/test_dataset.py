@@ -188,7 +188,7 @@ def create_dataset(dataset_name, ids_file_path, overwrite=False):
     print(f"Dataset creation took {create_time:.2f} seconds")
     
     start_time = time.time()
-    dataset.generate_sequence()
+    dataset.extract_sequence_and_coordinates()
     sequence_time = time.time() - start_time
     print(f"Sequence generation took {sequence_time:.2f} seconds")
     

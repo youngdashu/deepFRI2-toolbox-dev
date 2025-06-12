@@ -34,6 +34,8 @@ def test_full():
     assert np.allclose(expected, result[0][1], rtol=RTOL, atol=ATOL)
 
 
+# TODO keep NaNs at the beggining of the distogram
+
 def test_cropped():
     # Missing residudes at the beginning (1-4)
     # Should be skipped in the distogram generation
@@ -44,7 +46,7 @@ def test_cropped():
 
     assert np.allclose(expected, result[0][1], rtol=RTOL, atol=ATOL)
 
-
+# TODO: albo CB (disto type)  !!!!!!
 def test_missing_CA():
     # Missing CA atom in residue (3)
     # 1aa6_AmisssingCA
