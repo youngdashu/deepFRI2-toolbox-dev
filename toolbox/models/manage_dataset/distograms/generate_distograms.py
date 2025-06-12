@@ -19,119 +19,82 @@ from toolbox.utlis.logging import log_title
 from toolbox.utlis.logging import logger
 
 
-def __extract_coordinates__(
-    file: str,
-) -> tuple[tuple[float, float, float], tuple[float | None, float | None, float | None]]:
-    ca_coords = []
-    coords_with_breaks = []
-    previous_residue_sequence_number = None
-    max_residue_number = 0  # Track the highest residue number encountered in the file
-
-    for line in file.splitlines():
-        if line.startswith("ATOM"):
-            atom_type = line[12:16].strip()
-            # Adjust indices for your specific PDB format if needed
-            current_residue_sequence_number = int(line[22:26].strip())
-            # Track the highest residue number encountered
-            if current_residue_sequence_number > max_residue_number:
-                max_residue_number = current_residue_sequence_number
-
-            if atom_type == "CA":
-                # If we have a previous residue and the current residue is not the immediate next,
-                # fill the gap with None
-                if (
-                    previous_residue_sequence_number is not None
-                    and current_residue_sequence_number
-                    > previous_residue_sequence_number + 1
-                ):
-                    for _ in range(
-                        previous_residue_sequence_number + 1,
-                        current_residue_sequence_number,
-                    ):
-                        coords_with_breaks.append((None, None, None))
-
-                x = float(line[30:38])
-                y = float(line[38:46])
-                z = float(line[46:54])
-
-                ca_coords.append((x, y, z))
-                coords_with_breaks.append((x, y, z))
-                previous_residue_sequence_number = current_residue_sequence_number
-
-    # After processing all lines, use the last encountered residue number as final_residue_number
-    # If the last CA residue number is not equal to the max_residue_number, fill with None
-    if (
-        previous_residue_sequence_number is not None
-        and max_residue_number > previous_residue_sequence_number
-    ):
-        for _ in range(previous_residue_sequence_number + 1, max_residue_number + 1):
-            coords_with_breaks.append((None, None, None))
-
-    return tuple(ca_coords), tuple(coords_with_breaks)
+def read_coordinates_from_h5(h5_file_path: str, protein_ids: List[str]) -> Dict[str, np.ndarray]:
+    """
+    Read coordinates from H5 file for specified protein IDs.
+    
+    Args:
+        h5_file_path: Path to the H5 file containing coordinates
+        protein_ids: List of protein IDs to read coordinates for
+        
+    Returns:
+        Dictionary mapping protein_id to coordinates array
+    """
+    coordinates = {}
+    
+    try:
+        with h5py.File(h5_file_path, 'r') as f:
+            for protein_id in protein_ids:
+                if protein_id in f:
+                    # Read coordinates from the 'coords' dataset
+                    coords_data = f[protein_id]['coords'][:]
+                    coordinates[protein_id] = coords_data
+                else:
+                    logger.warning(f"Protein {protein_id} not found in {h5_file_path}")
+    except Exception as e:
+        logger.error(f"Error reading coordinates from {h5_file_path}: {e}")
+    
+    return coordinates
 
 
-def improved_distances_calculation(coords, coords_with_breaks):
-    # Calculate base distances from coords without breaks
-    distances_1d = pdist(coords)
-    distances_base = squareform(distances_1d)  # 2d array
-
-    n = distances_base.shape[0]
-
-    # 2. Wyliczyć medianę z diagonali +1 (wartości distances_base[i, i+1])
-    # Sprawdzamy tylko elementy powyżej głównej przekątnej (pierwsza nadprzekątna).
-    if n > 1:
-        diag_plus_one = distances_base[np.arange(n - 1), np.arange(1, n)]
-        median_diag = np.nanmedian(diag_plus_one)
-    else:
-        # Jeżeli jest tylko jeden punkt, medianę ustawiamy np. na 0 lub np.nan
-        median_diag = 0.0
-
-    # Create array with NaNs for missing coordinates
-    n_full = len(coords_with_breaks)
-    distances_with_nans = np.full((n_full, n_full), np.nan)
-
-    # Create mask of valid coordinates
-    valid_indices = [
-        i for i, coord in enumerate(coords_with_breaks) if coord[0] is not None
-    ]
-
-    # Fill in distances for valid coordinates
-    for i, vi in enumerate(valid_indices):
-        for j, vj in enumerate(valid_indices):
-            distances_with_nans[vi, vj] = distances_base[i, j]
-
-    # Fill in median_diag values around NaN diagonal elements
-    for i in range(n_full):
-        if np.isnan(distances_with_nans[i, i]):
-            distances_with_nans[i, i] = 0.0  # Set diagonal to 0
-            # Set adjacent cells to median_diag if they exist
-            if i > 0:  # Left
-                distances_with_nans[i, i - 1] = median_diag
-                distances_with_nans[i - 1, i] = median_diag  # Symmetric
-            if i < n_full - 1:  # Right
-                distances_with_nans[i, i + 1] = median_diag
-                distances_with_nans[i + 1, i] = median_diag  # Symmetric
-
-    return distances_with_nans
-
-
-def __process_pdbs__(h5_file_path: str, codes: List[str]):
-    pdbs = read_pdbs_from_h5(h5_file_path, codes)
-
-    res = []
-    for code, content in pdbs.items():
+def __process_coordinates__(h5_files: List[str], protein_ids: List[str]) -> List[Tuple[str, np.ndarray]]:
+    """
+    Process coordinates from H5 files to generate distograms.
+    
+    Args:
+        h5_files: List of H5 file paths containing coordinates
+        protein_ids: List of protein IDs to process
+        
+    Returns:
+        List of tuples (protein_id, distogram)
+    """
+    results = []
+    
+    # Read coordinates from all H5 files
+    all_coordinates = {}
+    for h5_file in h5_files:
+        coords = read_coordinates_from_h5(h5_file, protein_ids)
+        all_coordinates.update(coords)
+    
+    for protein_id in protein_ids:
+        if protein_id not in all_coordinates:
+            logger.warning(f"No coordinates found for {protein_id}")
+            # Return a 1x1 array to indicate single/no coordinates
+            results.append((protein_id, np.array([[0]])))
+            continue
+            
+        coords = all_coordinates[protein_id]
+        
+        # Handle case where coordinates are empty or have only one point
+        if len(coords) <= 1:
+            logger.warning(f"Only one or no coordinates in {protein_id}.")
+            results.append((protein_id, np.array([[1]])))
+            continue
+        
+        # Calculate pairwise distances using scipy pdist
         try:
-            coords, coords_with_breaks = __extract_coordinates__(content)
-            if len(coords) == 0:
-                logger.warning(f"No CA found in {code}")
-                continue
-            distances = improved_distances_calculation(coords, coords_with_breaks)
-            distances = distances.astype(np.float16)
-            res.append((code, distances))
+            # pdist returns condensed distance matrix, we need to convert to square form
+            # NaN coordinates will result in NaN distances
+            distances = pdist(coords, metric='euclidean')
+            distogram = squareform(distances)
+            
+            results.append((protein_id, distogram))
+            
         except Exception as e:
-            logger.error(f"Exception extracting coordinates in {code}: {e}")
-
-    return res
+            logger.error(f"Error calculating distogram for {protein_id}: {e}")
+            results.append((protein_id, np.array([[0]])))
+    
+    return results
 
 
 def __save_result_batch_to_h5__(
@@ -170,6 +133,9 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     client: Client = structures_dataset._client
 
+    # Read coordinates index to get coordinate file paths
+    coordinates_index = read_index(structures_dataset.coordinates_index_path(), structures_dataset.config.data_path)
+
     distograms_path_obj = Path(structures_dataset.config.data_path) / "distograms"
     if not distograms_path_obj.exists():
         distograms_path_obj.mkdir(exist_ok=True, parents=True)
@@ -181,7 +147,7 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     def run(input_data, machine):
         i, input_data = input_data
-        data_f = client.submit(__process_pdbs__, *input_data, workers=machine)
+        data_f = client.submit(__process_coordinates_batch__, *input_data, coordinates_index, workers=machine)
         return client.submit(collect_parallel, data_f, i, workers=machine)
 
     def collect(result):
@@ -202,8 +168,10 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
         collect,
         f"distograms_{structures_dataset.db_type}",
     )
+    
+    # Group missing proteins for batch processing
     inputs = (
-        (i, item) for i, item in enumerate(search_index_result.grouped_missing_proteins.items())
+        (i, (protein_ids,)) for i, protein_ids in enumerate(search_index_result.grouped_missing_proteins.values())
     )
 
     compute_batches.compute(inputs, 5)
@@ -223,6 +191,36 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
 
     end = time.time()
     logger.info(f"Total time: {format_time(end - start)}")
+
+
+def __process_coordinates_batch__(protein_ids: List[str], coordinates_index: Dict[str, str]) -> List[Tuple[str, np.ndarray]]:
+    """
+    Process a batch of protein IDs to generate distograms from coordinates.
+    
+    Args:
+        protein_ids: List of protein IDs to process
+        coordinates_index: Index mapping protein IDs to coordinate file paths
+        
+    Returns:
+        List of tuples (protein_id, distogram)
+    """
+    # Get unique H5 files for this batch
+    h5_files = set()
+    batch_protein_ids = []
+    
+    for protein_id in protein_ids:
+        if protein_id in coordinates_index:
+            # coordinates_index stores comma-separated file paths
+            coord_files = coordinates_index[protein_id].split(',')
+            h5_files.update(coord_files)
+            batch_protein_ids.append(protein_id)
+        else:
+            logger.warning(f"Protein {protein_id} not found in coordinates index")
+    
+    if not batch_protein_ids:
+        return []
+    
+    return __process_coordinates__(list(h5_files), batch_protein_ids)
 
 
 def read_distograms_from_file(
@@ -248,13 +246,3 @@ def read_distograms_from_file(
     except IOError:
         logger.error(f"Error while reading the file {distograms_file}")
     return distograms
-
-
-if __name__ == "__main__":
-    distograms_file = "/Users/youngdashu/Downloads/distograms_-178652890355521777.h5"
-    limit_keys = 1
-    dists = read_distograms_from_file(
-        distograms_file, limit_keys
-    )
-
-    np.savetxt('dist_1.csv', list(dists.items())[0][1], delimiter=",")

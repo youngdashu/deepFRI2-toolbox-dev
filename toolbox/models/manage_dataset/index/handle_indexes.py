@@ -67,8 +67,8 @@ class HandleIndexes:
                     try:
                         with open(dataset_json) as f:
                             data = json.load(f)
-                            created_at = data.get("created_at", "")
-                            dir_dates.append((dir_path, int(created_at)))
+                            created_at = data.get("created_at", "-inf")
+                            dir_dates.append((dir_path, float(created_at)))
                             logger.debug(f"Added directory {dir_path} with creation date {created_at}")
                     except Exception as e:
                         logger.error(f"Error reading {dataset_json}: {e}")

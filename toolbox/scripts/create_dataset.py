@@ -138,16 +138,16 @@ def create_parser():
     load_dataset_parser = subparsers.add_parser("load", help="Load a dataset from json")
     add_common_arguments(load_dataset_parser)
 
-    generate_sequence_parser = subparsers.add_parser(
-        "generate_sequence", help="Generate sequences for "
+    extract_sequence_and_coordinates_parser = subparsers.add_parser(
+        "extract_sequence_and_coordinates", help="Generate sequences for "
     )
-    add_common_arguments(generate_sequence_parser)
-    generate_sequence_parser.add_argument(
+    add_common_arguments(extract_sequence_and_coordinates_parser)
+    extract_sequence_and_coordinates_parser.add_argument(
         "--ca_mask",
         action="store_true",
         help="Require a carbon alpha atom to include an amino acid in a sequence",
     )
-    generate_sequence_parser.add_argument(
+    extract_sequence_and_coordinates_parser.add_argument(
         "--no_substitution",
         action="store_false",
         help="Don't substitute non standard amino acids",

@@ -27,7 +27,7 @@ from toolbox.models.manage_dataset.index.handle_index import (
     read_index,
 )
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
-from toolbox.models.manage_dataset.sequences.sequence_retriever import SequenceRetriever
+from toolbox.models.manage_dataset.sequences.sequence_and_coordinates_retriever import SequenceAndCoordinatesRetriever
 from toolbox.models.manage_dataset.utils import (
     foldcomp_download,
     mkdir_for_batches,
@@ -66,7 +66,7 @@ class StructuresDataset(BaseModel):
     input_path: Optional[Path] = None
     _client: Optional[Client] = None
     _handle_indexes: Optional[HandleIndexes] = None
-    _sequence_retriever: Optional[SequenceRetriever] = None
+    _sequence_retriever: Optional[SequenceAndCoordinatesRetriever] = None
     created_at: Optional[str] = None
     config: Optional[Config] = None
 
@@ -85,7 +85,7 @@ class StructuresDataset(BaseModel):
         super().__init__(**data)
         self.config = config
         self._handle_indexes = HandleIndexes(self)
-        self._sequence_retriever = SequenceRetriever(self)
+        self._sequence_retriever = SequenceAndCoordinatesRetriever(self) # SequenceRetriever(self)
 
     def dataset_repo_path(self):
         base_path = Path(self.config.data_path) if self.config else Path("/data")
@@ -101,7 +101,7 @@ class StructuresDataset(BaseModel):
         return base_path / "datasets" / self.dataset_dir_name()
 
     def structures_path(self):
-        return self.dataset_repo_path() / "structures"
+        return self.dataset_repo_path()
 
     def dataset_dir_name(self):
         sep = self.config.separator if self.config else "-"
@@ -121,6 +121,9 @@ class StructuresDataset(BaseModel):
 
     def embeddings_index_path(self):
         return self.dataset_path() / "embeddings.idx"
+
+    def coordinates_index_path(self):
+        return self.dataset_path() / "coordinates.idx"
 
     def batches_count(self) -> int:
         return sum(1 for item in self.structures_path().iterdir() if item.is_dir())
@@ -195,10 +198,10 @@ class StructuresDataset(BaseModel):
 
         self.save_dataset_metadata()
 
-    def generate_sequence(
+    def extract_sequence_and_coordinates(
         self, ca_mask: bool = False, substitute_non_standard_aminoacids: bool = True
     ):
-        self._sequence_retriever.retrieve(ca_mask, substitute_non_standard_aminoacids)
+        self._sequence_retriever.retrieve(self.config.disto_type)
 
     def get_all_ids(self):
         match self.db_type:

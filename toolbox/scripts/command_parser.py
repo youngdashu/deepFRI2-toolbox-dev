@@ -81,7 +81,7 @@ class CommandParser:
 
     def generate_sequence(self):
         self._create_dataset_from_path_()
-        self.structures_dataset.generate_sequence(
+        self.structures_dataset.extract_sequence_and_coordinates(
             self.args.ca_mask, self.args.no_substitution
         )
 
@@ -113,7 +113,7 @@ class CommandParser:
         except Exception as e:
             print_exc(e)
         try:
-            self.structures_dataset.generate_sequence()
+            self.structures_dataset.extract_sequence_and_coordinates()
         except Exception as e:
             print_exc(e)
         try:
