@@ -1,7 +1,7 @@
 import pytest
 import textwrap
 from pathlib import Path
-from toolbox.models.manage_dataset.sequences.extract_sequences_and_coordinates import extract_sequences_and_coordinates, CarbonAtomType
+from toolbox.models.manage_dataset.sequences.sequence_and_coordinates_retriever import __extract_sequences_and_coordinates__
 
 
 # Test data paths
@@ -29,7 +29,7 @@ def generate_pdb_atom_line(atom_name, residue_name, residue_num, x, y, z, chain_
 class TestExtractSequencesAndCoordinates:
     def test_empty_input(self):
         pdb_string = """"""
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == ""
         assert coords == ()
         assert coords_with_breaks == ()
@@ -39,21 +39,21 @@ class TestExtractSequencesAndCoordinates:
             {generate_pdb_atom_line("N", "ALA", 1, 1.0, 2.0, 3.0)}
             {generate_pdb_atom_line("C", "ALA", 1, 4.0, 5.0, 6.0)}
         """)
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "A" # ALA residue should be A, even without CA/CB
         assert coords == ()     # No CA/CB atoms found for coords list
         assert coords_with_breaks == ((None, None, None),) # One residue, no CA/CB
 
     def test_single_residue_ca(self):
         pdb_string = generate_pdb_atom_line("CA", "ALA", 1, 1.0, 2.0, 3.0)
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "A"
         assert coords == ((1.0, 2.0, 3.0),)
         assert coords_with_breaks == ((1.0, 2.0, 3.0),)
 
     def test_single_residue_cb(self):
         pdb_string = generate_pdb_atom_line("CB", "GLY", 1, 1.0, 2.0, 3.0)
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CB")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CB")
         assert sequence == "G"
         assert coords == ((1.0, 2.0, 3.0),)
         assert coords_with_breaks == ((1.0, 2.0, 3.0),)
@@ -64,13 +64,13 @@ class TestExtractSequencesAndCoordinates:
             {generate_pdb_atom_line("CA", "ALA", 1, 1.0, 2.0, 3.0)}
         """)
         # Test with "CA"
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "A"
         assert coords == ((1.0, 2.0, 3.0),) # CA coordinate
         assert coords_with_breaks == ((1.0, 2.0, 3.0),)
 
         # Test with "CB" (should only pick up CB if CA is not the target type)
-        sequence_cb, (coords_cb, coords_with_breaks_cb) = extract_sequences_and_coordinates(pdb_string, "CB")
+        sequence_cb, (coords_cb, coords_with_breaks_cb) = __extract_sequences_and_coordinates__(pdb_string, "CB")
         assert sequence_cb == "A" # Sequence is independent of carbon_atom_type for selection
         assert coords_cb == ((10.0, 11.0, 12.0),) # CB coordinate
         assert coords_with_breaks_cb == ((10.0, 11.0, 12.0),) # CB coordinate in gapped list
@@ -81,7 +81,7 @@ class TestExtractSequencesAndCoordinates:
             {generate_pdb_atom_line("CA", "GLY", 2, 4.0, 5.0, 6.0)}
             {generate_pdb_atom_line("CA", "VAL", 3, 7.0, 8.0, 9.0)}
         """)
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "AGV"
         assert coords == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0))
         assert coords_with_breaks == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0))
@@ -92,7 +92,7 @@ class TestExtractSequencesAndCoordinates:
             {generate_pdb_atom_line("N", "PHE", 2, 0.0,0.0,0.0)} # Residue 2, but no CA/CB for CA type
             {generate_pdb_atom_line("CA", "VAL", 4, 7.0, 8.0, 9.0)}
         """)
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "AFXV" # ALA, PHE (no CA picked for coords), gap (X for res 3), VAL
         assert coords == ((1.0, 2.0, 3.0), (7.0, 8.0, 9.0)) # Only res 1 and 4 have CA
         assert len(coords_with_breaks) == 4
@@ -107,7 +107,7 @@ class TestExtractSequencesAndCoordinates:
             {generate_pdb_atom_line("CA", "UNK", 2, 4.0, 5.0, 6.0)} # Unknown residue
             {generate_pdb_atom_line("CA", "GLY", 3, 7.0, 8.0, 9.0)}
         """)
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "AXG"
         assert coords == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0))
         assert coords_with_breaks == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0))
@@ -118,7 +118,7 @@ class TestExtractSequencesAndCoordinates:
             {generate_pdb_atom_line("CB", "GLY", 2, 4.0, 5.0, 6.0)} # GLY has CB specified
             {generate_pdb_atom_line("CA", "VAL", 3, 7.0, 8.0, 9.0)}
         """)
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "AGV"
         assert coords == ((1.0, 2.0, 3.0), (7.0, 8.0, 9.0)) # Only ALA and VAL CA
         assert coords_with_breaks[0] == (1.0, 2.0, 3.0)    # ALA CA
@@ -132,7 +132,7 @@ class TestExtractSequencesAndCoordinates:
             {generate_pdb_atom_line("CA", "VAL", 3, 7.0, 8.0, 9.0)} # VAL has CA
             {generate_pdb_atom_line("CB", "VAL", 3, 7.7, 8.8, 9.9)} # VAL also has CB
         """)
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CB")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CB")
         assert sequence == "AGV" # Sequence should be the same
         assert coords == ((4.0, 5.0, 6.0), (7.7, 8.8, 9.9)) # Only GLY CB and VAL CB
         assert coords_with_breaks[0] == (None, None, None) # ALA no CB
@@ -145,7 +145,7 @@ class TestExtractSequencesAndCoordinates:
             {generate_pdb_atom_line("CA", "ALA", 2, 1.0, 2.0, 3.0)}
             {generate_pdb_atom_line("C", "LYS", 3, 0,0,0)} # LYS, no CA/CB
         """)
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "MAK"
         assert coords == ((1.0, 2.0, 3.0),)
         assert coords_with_breaks == ((None,None,None), (1.0,2.0,3.0), (None,None,None))
@@ -156,7 +156,7 @@ class TestExtractSequencesAndCoordinates:
             {generate_pdb_atom_line("CA", "ALA", 1, 1.0, 2.0, 3.0)}
             {generate_pdb_atom_line("CA", "GLY", 2, 4.0, 5.0, 6.0)}
         """)
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "AGV" # Sequence is min to max residue index
         # Coords are in file order of selected carbon atoms
         assert coords == ((7.0, 8.0, 9.0), (1.0, 2.0, 3.0), (4.0, 5.0, 6.0))
@@ -168,7 +168,7 @@ class TestExtractSequencesAndCoordinates:
             {generate_pdb_atom_line("N", "UNK", 1, 1.0, 2.0, 3.0)}
             {generate_pdb_atom_line("C", "XXX", 2, 4.0, 5.0, 6.0)}
         """)
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_string, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "XX"
         assert coords == ()
         assert coords_with_breaks == ((None, None, None), (None, None, None))
@@ -188,7 +188,7 @@ class TestExtractSequencesAndCoordinatesWithRealPDBFiles:
         with open(pdb_file_path, 'r') as f:
             pdb_content = f.read()
         
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_content, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_content, "CA")
         
         # Basic checks
         assert len(sequence) > 0, f"Sequence should not be empty for {pdb_file}"
@@ -217,7 +217,7 @@ class TestExtractSequencesAndCoordinatesWithRealPDBFiles:
         with open(pdb_file_path, 'r') as f:
             pdb_content = f.read()
         
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_content, "CB")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_content, "CB")
         
         # Basic checks
         assert len(sequence) > 0, f"Sequence should not be empty for {pdb_file}"
@@ -225,7 +225,7 @@ class TestExtractSequencesAndCoordinatesWithRealPDBFiles:
         assert len(coords_with_breaks) >= len(coords), f"coords_with_breaks should be at least as long as coords for {pdb_file}"
         
         # Sequence should be the same regardless of carbon type chosen
-        sequence_ca, _ = extract_sequences_and_coordinates(pdb_content, "CA")
+        sequence_ca, _ = __extract_sequences_and_coordinates__(pdb_content, "CA")
         assert sequence == sequence_ca, f"Sequence should be independent of carbon atom type for {pdb_file}"
 
     @pytest.mark.parametrize("pdb_file", ["5uyl_32.pdb", "1aa6_A.pdb", "2fjh_L.pdb"])
@@ -239,7 +239,7 @@ class TestExtractSequencesAndCoordinatesWithRealPDBFiles:
         with open(pdb_file_path, 'r') as f:
             pdb_content = f.read()
         
-        sequence, (coords, coords_with_breaks) = extract_sequences_and_coordinates(pdb_content, "CA")
+        sequence, (coords, coords_with_breaks) = __extract_sequences_and_coordinates__(pdb_content, "CA")
         
         # The sequence length should equal coords_with_breaks length
         assert len(sequence) == len(coords_with_breaks), \
@@ -262,7 +262,7 @@ class TestExtractSequencesAndCoordinatesWithRealPDBFiles:
         with open(pdb_file_path, 'r') as f:
             pdb_content = f.read()
         
-        sequence, _ = extract_sequences_and_coordinates(pdb_content, "CA")
+        sequence, _ = __extract_sequences_and_coordinates__(pdb_content, "CA")
         
         # Verify the extracted sequence matches the expected sequence
         assert sequence == sequence_1aa6_A, \
