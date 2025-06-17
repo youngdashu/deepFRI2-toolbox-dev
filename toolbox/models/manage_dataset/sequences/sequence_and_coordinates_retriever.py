@@ -223,36 +223,41 @@ class SequenceAndCoordinatesRetriever:
             carbon_atom_type: Type of carbon atom to extract coordinates for ("CA" or "CB")
             substitute_non_standard_aminoacids: Whether to substitute non-standard amino acids
         """
+        structures_dataset = self.structures_dataset
+        client: Client = structures_dataset._client
         
         log_title("Retrieving sequences and coordinates")
 
         start = time.time()
 
-        structures_dataset = self.structures_dataset
 
         protein_index = read_index(
             structures_dataset.dataset_index_file_path(), 
             structures_dataset.config.data_path
         )
-        
-        search_index_result = self.handle_indexes.full_handle(
+
+        # search sequences
+        search_sequences_index_result = self.handle_indexes.full_handle(
             "sequences", protein_index, structures_dataset.overwrite
         )
 
-        h5_file_to_codes = search_index_result.grouped_missing_proteins
-        missing_sequences = search_index_result.missing_protein_files.keys()
-        sequences_coords_index = search_index_result.present
+        h5_file_to_codes = search_sequences_index_result.grouped_missing_proteins
+        missing_sequences = search_sequences_index_result.missing_protein_files.keys()
+        sequences_coords_index = search_sequences_index_result.present
+
+        search_coordinates_index_result = self.handle_indexes.full_handle(
+            "coordinates", protein_index, structures_dataset.overwrite
+        )
+        coordinates_index = search_coordinates_index_result.present
 
         logger.info("Getting sequences and coordinates from stored PDBs")
-
-        client: Client = self.structures_dataset._client
 
         def run(input_data, workers):
             return client.submit(__get_sequences_and_coordinates_from_batch__, *input_data, workers=workers)
         
         # Create output directories
-        sequences_path_obj = Path(self.structures_dataset.config.data_path) / "sequences"
-        coordinates_path_obj = Path(self.structures_dataset.config.data_path) / "coordinates"
+        sequences_path_obj = Path(structures_dataset.config.data_path) / "sequences"
+        coordinates_path_obj = Path(structures_dataset.config.data_path) / "coordinates"
         
         for path_obj in [sequences_path_obj, coordinates_path_obj]:
             if not path_obj.exists():
@@ -265,11 +270,6 @@ class SequenceAndCoordinatesRetriever:
         sequences_file_name = f"{base_name}{atom_suffix}.fasta"
         sequences_file_path = sequences_path_obj / sequences_file_name
 
-        # Load existing coordinates index (if any) so that we can append new entries
-        coordinates_index = read_index(
-            structures_dataset.coordinates_index_path(),
-            structures_dataset.config.data_path,
-        )
 
         with open(sequences_file_path, "w") as f:
 
