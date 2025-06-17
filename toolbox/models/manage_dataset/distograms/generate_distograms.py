@@ -210,9 +210,7 @@ def __process_coordinates_batch__(protein_ids: List[str], coordinates_index: Dic
     
     for protein_id in protein_ids:
         if protein_id in coordinates_index:
-            # coordinates_index stores comma-separated file paths
-            coord_files = coordinates_index[protein_id].split(',')
-            h5_files.update(coord_files)
+            h5_files.add(coordinates_index[protein_id])
             batch_protein_ids.append(protein_id)
         else:
             logger.warning(f"Protein {protein_id} not found in coordinates index")
