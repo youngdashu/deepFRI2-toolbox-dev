@@ -257,13 +257,13 @@ def compare_generated_abstraction_with_expected(dataset_name):
     FileComparator.compare_h5_files(embedding_expected, embedding_generated, None, rtol=1e-5, atol=1e-8)
 
     # Compare FASTA files
-    fasta_expected = EXPPATH / "sequences" / f"PDB-subset--{dataset_name}.fasta"
-    fasta_generated = OUTPATH / "sequences" / f"PDB-subset--{dataset_name}.fasta"
+    fasta_expected = EXPPATH / "sequences" / f"PDB-subset--{dataset_name}_ca.fasta"
+    fasta_generated = OUTPATH / "sequences" / f"PDB-subset--{dataset_name}_ca.fasta"
     assert fasta_generated.exists(), f"Generated FASTA file does not exist: {fasta_generated}"
     FileComparator.compare_fasta_files(fasta_expected, fasta_generated)
 
-    pdb_files_expected = [EXPPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "structures" / "0" / "pdbs.h5"]
-    pdb_files_generated = [OUTPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "structures" / "0" / "pdbs.h5"]
+    pdb_files_expected = [EXPPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "0" / "pdbs.h5"]
+    pdb_files_generated = [OUTPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "0" / "pdbs.h5"]
 
     for expected_file, generated_file in zip(pdb_files_expected, pdb_files_generated):
         assert generated_file.exists(), f"Generated file does not exist: {generated_file}"
