@@ -86,6 +86,7 @@ def __process_coordinates__(h5_files: List[str], protein_ids: List[str]) -> List
             # pdist returns condensed distance matrix, we need to convert to square form
             # NaN coordinates will result in NaN distances
             distances = pdist(coords, metric='euclidean')
+            distances = distances.astype(np.float32)
             distogram = squareform(distances)
             
             results.append((protein_id, distogram))
