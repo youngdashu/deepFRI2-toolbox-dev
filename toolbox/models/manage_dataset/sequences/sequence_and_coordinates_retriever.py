@@ -16,16 +16,17 @@ from toolbox.utlis.logging import log_title, logger
 
 empty_chain_part_sign = "X"  # Added for sequence gaps/non-standard
 
+ResidueIndex = int
+
 def __extract_sequences_and_coordinates__(
     file: str,
     carbon_atom_type: CarbonAtomType,
 ) -> tuple[str, tuple[tuple[float, float, float], tuple[float | None, float | None, float | None]]]:
-    ca_coords = []  # Will preserve file order
-    coords_with_breaks = []
+    coords_with_gaps = []
     sequence_chars = [] # For building the sequence
 
-    # Dictionary to store coordinates by residue number (for coords_with_breaks)
-    residue_coords = {}
+    # Dictionary to store coordinates by residue number (for coords_with_gaps)
+    residue_coords: Dict[ResidueIndex, tuple[float, float, float]] = {}
     # Dictionary to store residue name by residue number (for sequence)
     residue_info = {}
     # Track all residue numbers that have any atoms (for determining range)
@@ -49,9 +50,7 @@ def __extract_sequences_and_coordinates__(
             return
 
         if current_residue_coord is not None:
-            # Add to ca_coords in FILE ORDER (as we process them)
-            ca_coords.append(current_residue_coord)
-            # Store in dictionary for building coords_with_breaks later
+            # Store in dictionary for building coords_with_gaps later
             residue_coords[current_residue_num] = current_residue_coord
         # Note: Sequence character is added based on residue_info later,
         # not in this helper, to ensure it aligns with min/max range.
@@ -89,7 +88,7 @@ def __extract_sequences_and_coordinates__(
     # Process the final residue's coordinates after the loop
     process_current_residue()
 
-    # Build sequence and coords_with_breaks only if we found any residues
+    # Build sequence and coords_with_gaps only if we found any residues
     if all_residue_numbers: # Check if any ATOM lines were processed
         actual_min = min(all_residue_numbers)
         actual_max = max(all_residue_numbers)
@@ -102,14 +101,14 @@ def __extract_sequences_and_coordinates__(
             else:
                 sequence_chars.append(empty_chain_part_sign)
 
-            # Build coords_with_breaks (includes gaps as None tuples, in residue number order)
+            # Build coords_with_gaps (includes gaps as None tuples, in residue number order)
             if res_idx in residue_coords:
-                coords_with_breaks.append(residue_coords[res_idx])
+                coords_with_gaps.append((res_idx, *residue_coords[res_idx]))
             else:
-                coords_with_breaks.append((None, None, None))
+                coords_with_gaps.append((res_idx, None, None, None))
     
     final_sequence = "".join(sequence_chars)
-    return final_sequence, (tuple(ca_coords), tuple(coords_with_breaks))
+    return final_sequence, tuple(coords_with_gaps)
 
 
 def __get_sequences_and_coordinates_from_batch__(
@@ -141,7 +140,7 @@ def __get_sequences_and_coordinates_from_batch__(
     
     for code, pdb_content in proteins.items():
         try:
-            sequence, (ca_coords, coords_with_breaks) = __extract_sequences_and_coordinates__(
+            sequence, coords_with_gaps = __extract_sequences_and_coordinates__(
                 pdb_content, carbon_atom_type
             )
             
@@ -151,7 +150,7 @@ def __get_sequences_and_coordinates_from_batch__(
             
             # Store only coordinates with breaks (aligned to sequence), rename to 'coords'
             coordinates_data[clean_code] = {
-                'coords': np.array(coords_with_breaks, dtype=np.float32)
+                'coords': np.array(coords_with_gaps, dtype=np.float32)
             }
             
         except Exception as e:
