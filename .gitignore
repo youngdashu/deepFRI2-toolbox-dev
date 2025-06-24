@@ -1,7 +1,10 @@
 .idea
 
+config.json
+
 tests/data/dataset_generated
 tests/data/distograms_pdbs
+tests/data/pdb_generated
 tests/data/data.info
 
 __pycache__/

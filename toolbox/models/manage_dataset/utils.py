@@ -378,7 +378,7 @@ def read_pdbs_from_h5(
                 all_pdbs = decompressed.split("|")
                 all_file_names_split = pdb_file_names.split(";")
 
-                if codes:
+                if codes is not None:
                     # Only include the codes that are in the 'codes' list
                     for code, pdb in zip(all_file_names_split, all_pdbs):
                         if code in codes:
