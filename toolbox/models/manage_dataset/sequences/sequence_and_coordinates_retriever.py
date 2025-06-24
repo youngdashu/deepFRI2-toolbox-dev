@@ -21,7 +21,12 @@ ResidueIndex = int
 def __extract_sequences_and_coordinates__(
     file: str,
     carbon_atom_type: CarbonAtomType,
-) -> tuple[str, tuple[tuple[float, float, float], tuple[float | None, float | None, float | None]]]:
+) -> tuple[
+    str, 
+    tuple[
+        tuple[ResidueIndex, float, float, float] | tuple[ResidueIndex, None, None, None]
+    ]
+]:
     coords_with_gaps = []
     sequence_chars = [] # For building the sequence
 

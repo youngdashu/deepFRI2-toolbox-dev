@@ -61,10 +61,10 @@ def __process_coordinates__(h5_files: List[str], protein_ids: List[str]) -> List
     results = []
     
     # Read coordinates from all H5 files
-    all_coordinates = {}
+    all_coordinates: Dict[str, np.ndarray] = {}
     for h5_file in h5_files:
-        coords = read_coordinates_from_h5(h5_file, protein_ids)
-        all_coordinates.update(coords)
+        read_coords = read_coordinates_from_h5(h5_file, protein_ids)
+        all_coordinates.update(read_coords)
     
     for protein_id in protein_ids:
         if protein_id not in all_coordinates:
@@ -72,8 +72,13 @@ def __process_coordinates__(h5_files: List[str], protein_ids: List[str]) -> List
             # Return a 1x1 array to indicate single/no coordinates
             results.append((protein_id, np.array([[0]])))
             continue
-            
-        coords = all_coordinates[protein_id]
+        
+        # remove first column (residue index)
+        coords = np.delete(
+            all_coordinates[protein_id],
+            0,
+            axis=1
+        )
         
         # Handle case where coordinates are empty or have only one point
         if len(coords) <= 1:
