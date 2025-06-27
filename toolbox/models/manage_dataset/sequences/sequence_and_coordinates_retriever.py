@@ -259,21 +259,21 @@ class SequenceAndCoordinatesRetriever:
         def run(input_data, workers):
             return client.submit(__get_sequences_and_coordinates_from_batch__, *input_data, workers=workers)
         
+        base_name = structures_dataset.dataset_dir_name()
+        
         # Create output directories
         sequences_path_obj = Path(structures_dataset.config.data_path) / "sequences"
-        coordinates_path_obj = Path(structures_dataset.config.data_path) / "coordinates"
+        coordinates_path_obj = Path(structures_dataset.config.data_path) / "coordinates" / base_name
         
         for path_obj in [sequences_path_obj, coordinates_path_obj]:
             if not path_obj.exists():
                 path_obj.mkdir(exist_ok=True, parents=True)
 
         # File names
-        base_name = structures_dataset.dataset_dir_name()
         atom_suffix = f"_{carbon_atom_type.lower()}"
         
         sequences_file_name = f"{base_name}{atom_suffix}.fasta"
         sequences_file_path = sequences_path_obj / sequences_file_name
-
 
         with open(sequences_file_path, "w") as f:
 
@@ -290,7 +290,7 @@ class SequenceAndCoordinatesRetriever:
                     file, 
                     codes, 
                     carbon_atom_type,
-                    str(coordinates_path_obj / f"{base_name}_batch_{i}_{carbon_atom_type.lower()}"),
+                    str(coordinates_path_obj / f"batch_{i}_{carbon_atom_type.lower()}"),
                 )
                 for i, (file, codes) in enumerate(h5_file_to_codes.items())
             )
