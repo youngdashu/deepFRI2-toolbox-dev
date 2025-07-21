@@ -4,10 +4,12 @@ import pathlib
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.collection_type import CollectionType
+from toolbox.models.embedding.embedder.embedder_type import EmbedderType
 from toolbox.scripts.command_parser import CommandParser
 
 db_types = DatabaseType._member_names_
 collection_types = CollectionType._member_names_
+embedder_types = [member.value for member in EmbedderType]
 
 import logging
 from toolbox.utlis.logging import logger, setup_colored_logging
@@ -91,6 +93,17 @@ def add_dataset_parser_arguments(parser):
     )
 
 
+def add_embedder_argument(parser):
+    parser.add_argument(
+        "-e",
+        "--embedder",
+        required=True,
+        choices=embedder_types,
+        metavar="name",
+        help=f"Embedder Types: {' '.join(embedder_types)}",
+    )
+
+
 def configure_logging(verbose):
     """Configure logging based on verbose flag"""
     log_level = logging.DEBUG if verbose else logging.INFO
@@ -129,11 +142,13 @@ def create_parser():
         "--slurm", action="store_true", help="Use SLURM job scheduler"
     )
     add_dataset_parser_arguments(parser_dataset)
+    add_embedder_argument(parser_dataset)
 
     embedding_parser = subparsers.add_parser(
         "embedding", help="Create embeddings from datasets"
     )
     add_common_arguments(embedding_parser)
+    add_embedder_argument(embedding_parser)
 
     load_dataset_parser = subparsers.add_parser("load", help="Load a dataset from json")
     add_common_arguments(load_dataset_parser)
@@ -198,6 +213,7 @@ def create_parser():
         "--slurm", action="store_true", help="Use SLURM job scheduler"
     )
     add_dataset_parser_arguments(input_generation_parser)
+    add_embedder_argument(input_generation_parser)
 
     create_archive_parser = subparsers.add_parser(
         "create_archive", help="Create PDB archive "

@@ -5,7 +5,7 @@ from typing import Dict, List, ClassVar
 
 import dask.bag as db
 
-from toolbox.models.embedding import esm_embedding
+from toolbox.models.embedding.embedder.embedder_type import EmbedderType
 from toolbox.models.manage_dataset.index.handle_index import create_index, read_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes, SearchIndexResult
 from toolbox.models.manage_dataset.utils import format_time
@@ -62,7 +62,15 @@ class Embedding:
 
         sequences = self.missing_ids_to_fasta(missing_embeddings.keys())
 
-        index_of_new_embeddings = esm_embedding.embed(sequences, self.outputs_dir)
+        # Use the embedder type from the dataset, default to ESM2 if not specified
+        if self.structures_dataset.embedder_type is None:
+            self.structures_dataset.embedder_type = EmbedderType.ESM2
+        
+        # Get the embedder class and create an instance
+        embedder_class = self.structures_dataset.embedder_type.embedder_class
+        
+        # Use the embedder to generate embeddings
+        index_of_new_embeddings = embedder_class().embed(sequences, self.outputs_dir)
 
         present_embeddings.update(index_of_new_embeddings)
 

@@ -11,6 +11,7 @@ from toolbox.models.manage_dataset.structures_dataset import FatalDatasetError, 
 from toolbox.models.manage_dataset.utils import (read_pdbs_from_h5, format_time)
 from toolbox.models.utils.create_client import create_client
 from toolbox.scripts.archive import create_archive
+from toolbox.models.embedding.embedder.embedder_type import EmbedderType
 
 import time
 
@@ -47,6 +48,15 @@ class CommandParser:
 
     def dataset(self):
         start = time.time()
+        
+        # Convert embedder string to EmbedderType enum if provided
+        embedder_type = None
+        if hasattr(self.args, 'embedder') and self.args.embedder:
+            for embedder_enum in EmbedderType:
+                if embedder_enum.value == self.args.embedder:
+                    embedder_type = embedder_enum
+                    break
+        
         dataset = StructuresDataset(
             db_type=self.args.db,
             collection_type=self.args.collection,
@@ -63,7 +73,8 @@ class CommandParser:
             is_hpc_cluster=self.args.slurm,
             input_path=self.args.input_path,
             verbose=self.args.verbose if hasattr(self.args, 'verbose') else False,
-            config=self.config
+            config=self.config,
+            embedder_type=embedder_type
         )
         self.structures_dataset = dataset
         dataset.create_dataset()
@@ -73,6 +84,14 @@ class CommandParser:
 
     def embedding(self):
         self._create_dataset_from_path_()
+        
+        # Set embedder type if provided
+        if hasattr(self.args, 'embedder') and self.args.embedder:
+            for embedder_enum in EmbedderType:
+                if embedder_enum.value == self.args.embedder:
+                    self.structures_dataset.embedder_type = embedder_enum
+                    break
+        
         self.structures_dataset.generate_embeddings()
 
     def load(self):
@@ -104,7 +123,7 @@ class CommandParser:
         create_archive(self.structures_dataset)
 
     def input_generation(self):
-        try:
+        try:            
             self.dataset()
         except FatalDatasetError as e:
             logger.error("Fatal error! Exiting...")
@@ -120,7 +139,7 @@ class CommandParser:
             self.structures_dataset.generate_distograms()
         except Exception as e:
             print_exc(e)
-        try:
+        try:            
             self.structures_dataset.generate_embeddings()
         except Exception as e:
             print_exc(e)

@@ -44,6 +44,7 @@ from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 from toolbox.utlis.logging import log_title
 from toolbox.utlis.logging import logger
 from toolbox.config import Config
+from toolbox.models.embedding.embedder.embedder_type import EmbedderType
 
 class FatalDatasetError(Exception):
     def __init__(self, message):
@@ -64,6 +65,7 @@ class StructuresDataset(BaseModel):
     binary_data_download: bool = False
     is_hpc_cluster: bool = False
     input_path: Optional[Path] = None
+    embedder_type: Optional[EmbedderType] = None
     _client: Optional[Client] = None
     _handle_indexes: Optional[HandleIndexes] = None
     _sequence_retriever: Optional[SequenceAndCoordinatesRetriever] = None
