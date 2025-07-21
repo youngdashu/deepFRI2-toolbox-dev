@@ -102,6 +102,10 @@ class StructuresDataset(BaseModel):
         base_path = Path(self.config.data_path) if self.config else Path("/data")
         return base_path / "datasets" / self.dataset_dir_name()
 
+    def log_file_path(self):
+        """Get the path for the log file in the dataset directory."""
+        return self.dataset_path() / "log.txt"
+
     def structures_path(self):
         return self.dataset_repo_path()
 

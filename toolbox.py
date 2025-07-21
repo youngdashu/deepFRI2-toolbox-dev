@@ -13,11 +13,13 @@ embedder_types = [member.value for member in EmbedderType]
 
 import logging
 from toolbox.utlis.logging import logger, setup_colored_logging
+from toolbox.utlis.colored_logging import setup_logging_with_file
 
 def add_common_arguments(parser):
     parser.add_argument("--slurm", action="store_true", help="Use SLURM job scheduler")
     parser.add_argument("-p", "--file-path", required=True, type=pathlib.Path)
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--log-file", type=pathlib.Path, help="Path to log file for file logging")
 
 
 def add_dataset_parser_arguments(parser):
@@ -104,13 +106,17 @@ def add_embedder_argument(parser):
     )
 
 
-def configure_logging(verbose):
-    """Configure logging based on verbose flag"""
+def configure_logging(verbose, log_file=None):
+    """Configure logging based on verbose flag and optional log file"""
     log_level = logging.DEBUG if verbose else logging.INFO
     log_format = '%(asctime)s %(levelname)s %(message)s'
     
-    # Set up colored logging with the specified level and format
-    setup_colored_logging(level=log_level, fmt=log_format)
+    # Set up logging with file support if log_file is provided
+    if log_file:
+        setup_logging_with_file(level=log_level, fmt=log_format, log_file=log_file)
+    else:
+        # Set up colored logging with the specified level and format
+        setup_colored_logging(level=log_level, fmt=log_format)
     
     # When verbose is false, filter out logs with (V) prefix unless they're errors
     if not verbose:
@@ -128,6 +134,7 @@ def configure_logging(verbose):
 def create_parser():
     parser = argparse.ArgumentParser(description="Create protein dataset")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--log-file", type=pathlib.Path, help="Path to log file for file logging")
     parser.add_argument(
         "--config",
         type=pathlib.Path,
@@ -215,18 +222,7 @@ def create_parser():
     add_dataset_parser_arguments(input_generation_parser)
     add_embedder_argument(input_generation_parser)
 
-    create_archive_parser = subparsers.add_parser(
-        "create_archive", help="Create PDB archive "
-    )
-    create_archive_parser.add_argument(
-        "--slurm", action="store_true", help="Use SLURM job scheduler"
-    )
-    create_archive_parser.add_argument(
-        "-p", "--file-path", required=True, type=pathlib.Path
-    )
-    create_archive_parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Enable verbose logging"
-    )
+
 
     return parser
 
@@ -242,8 +238,8 @@ def main():
     except FileNotFoundError as e:
         raise e
 
-    # Configure logging based on verbose flag
-    configure_logging(args.verbose)
+    # Configure logging based on verbose flag and log file
+    configure_logging(args.verbose, args.log_file)
     
     # Log start of command execution
     logger.info(f"Running command: {args.command}")

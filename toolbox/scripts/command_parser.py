@@ -1,6 +1,7 @@
 from argparse import Namespace
 import json
 import traceback
+import logging
 from pathlib import Path
 
 from toolbox.models.chains.verify_chains import verify_chains
@@ -46,6 +47,19 @@ class CommandParser:
         )
         return self.structures_dataset
 
+    def _configure_dataset_logging(self):
+        """Configure logging to dataset log file if not already specified."""
+        if not hasattr(self.args, 'log_file') or self.args.log_file is None:
+            from toolbox.utlis.colored_logging import setup_logging_with_file
+            log_level = logging.DEBUG if self.args.verbose else logging.INFO
+            log_format = '%(asctime)s %(levelname)s %(message)s'
+            setup_logging_with_file(
+                level=log_level, 
+                fmt=log_format, 
+                log_file=self.structures_dataset.log_file_path()
+            )
+            logger.info(f"Logging configured to: {self.structures_dataset.log_file_path()}")
+
     def dataset(self):
         start = time.time()
         
@@ -77,6 +91,10 @@ class CommandParser:
             embedder_type=embedder_type
         )
         self.structures_dataset = dataset
+        
+        # Configure logging to dataset log file if not already specified
+        self._configure_dataset_logging()
+        
         dataset.create_dataset()
         end = time.time()
         logger.info(f"Total time: {format_time(end - start)}")
@@ -84,6 +102,9 @@ class CommandParser:
 
     def embedding(self):
         self._create_dataset_from_path_()
+        
+        # Configure logging to dataset log file if not already specified
+        self._configure_dataset_logging()
         
         # Set embedder type if provided
         if hasattr(self.args, 'embedder') and self.args.embedder:
@@ -100,12 +121,20 @@ class CommandParser:
 
     def generate_sequence(self):
         self._create_dataset_from_path_()
+        
+        # Configure logging to dataset log file if not already specified
+        self._configure_dataset_logging()
+        
         self.structures_dataset.extract_sequence_and_coordinates(
             self.args.ca_mask, self.args.no_substitution
         )
 
     def generate_distograms(self):
         self._create_dataset_from_path_()
+        
+        # Configure logging to dataset log file if not already specified
+        self._configure_dataset_logging()
+        
         self.structures_dataset.generate_distograms()
 
     def read_distograms(self):
