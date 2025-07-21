@@ -1,4 +1,3 @@
-
 import os
 import shutil
 import time
@@ -7,10 +6,12 @@ import zipfile
 import tarfile
 from pathlib import Path
 
+from glob import iglob
+
 from tqdm import tqdm
 
 from dask.distributed import worker_client
-from toolbox.models.manage_dataset.index.handle_index import create_index
+from toolbox.models.manage_dataset.index.handle_index import add_new_files_to_index
 from toolbox.models.utils.create_client import total_workers
 
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
@@ -65,28 +66,38 @@ def is_archive(path):
 
 def save_extracted_files(
     structures_dataset: "StructuresDataset",
-    extracted_path,
+    extracted_path: Path,
     ids: Optional[List[str]] = None,
 ):
 
     Path(structures_dataset.structures_path()).mkdir(exist_ok=True, parents=True)
     pdb_repo_path = structures_dataset.structures_path()
 
-    files = list(extracted_path.glob("*.pdb")) + list(extracted_path.glob("*.cif"))
-    logger.debug("extracted files", files)
+    pdb_iterator = iglob(str(extracted_path) + "/**/*.pdb")
 
-    files_name_to_dir = {
-        file.name.replace(".pdb", "").replace(".cif", ""): str(file) for file in files
+    pdb_files_name_to_dir = {
+        Path(file).name.replace(".pdb", "").replace(".cif", ""): file for file in pdb_iterator
     }
-    present_files_set = set(files_name_to_dir.keys())
 
-    ids_set = set(ids)
+    cif_iterator = iglob(str(extracted_path) + "/**/*.cif")
+
+    cif_files_name_to_dir = {
+        Path(file).name.replace(".pdb", "").replace(".cif", ""): file for file in cif_iterator
+    }
+
+    files_name_to_dir = {**pdb_files_name_to_dir, **cif_files_name_to_dir}
+
+    logger.debug(f"extracted files: {len(files_name_to_dir)}")
+
+    present_files_set = set(files_name_to_dir.keys())
 
     if ids is None:
         files = list(files_name_to_dir.values())
         chunks = list(structures_dataset.chunk(files))
     else:
-        logger.info(f"Searching for requested files {len(ids)} in extracted files {len(files)}")
+        logger.info(f"Searching for requested files {len(ids)} in extracted files {len(present_files_set)}")
+
+        ids_set = set(ids)
 
         wanted_files = present_files_set & ids_set
         wanted_files = [files_name_to_dir[file] for file in wanted_files]
@@ -129,7 +140,7 @@ def save_extracted_files(
     logger.info("Adding new files to index")
 
     try:
-        create_index(structures_dataset.dataset_index_file_path(), new_files_index, structures_dataset.config.data_path)
+        add_new_files_to_index(structures_dataset.dataset_index_file_path(), new_files_index, structures_dataset.config.data_path)
     except Exception as e:
         logger.error(f"Failed to update index: {e}")
 
