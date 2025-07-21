@@ -93,7 +93,7 @@ def test1_initial_5():
 
     dataset_name = "initial_5"
 
-    create_dataset(
+    create_dataset_and_abstractions(
         dataset_name, 
         EXPPATH / "input_lists" / f"pdb_5.txt",
         overwrite=False,
@@ -106,7 +106,7 @@ def test2_second_5_with_overwrite():
 
     dataset_name = "second_5"
 
-    create_dataset(
+    create_dataset_and_abstractions(
         dataset_name, 
         EXPPATH / "input_lists" / f"pdb_5.txt",
         overwrite=True,
@@ -118,7 +118,7 @@ def test3_third_7():
 
     dataset_name = "third_7"
 
-    create_dataset(
+    create_dataset_and_abstractions(
         dataset_name, 
         EXPPATH / "input_lists" / f"pdb_7.txt",
         overwrite=False,
@@ -130,7 +130,7 @@ def test4_fourth_7():
 
     dataset_name = "fourth_7"
 
-    create_dataset(
+    create_dataset_and_abstractions(
         dataset_name, 
         EXPPATH / "input_lists" / f"pdb_7.txt",
         overwrite=True,
@@ -142,7 +142,7 @@ def test5_fifth_7():
 
     dataset_name = "fifth_7"
 
-    create_dataset(
+    create_dataset_and_abstractions(
         dataset_name, 
         EXPPATH / "input_lists" / f"pdb_7.txt",
         overwrite=False,
@@ -153,7 +153,7 @@ def test5_fifth_7():
 # AFDB
 
 
-def create_dataset(dataset_name, ids_file_path, overwrite=False):
+def create_dataset_and_abstractions(dataset_name, ids_file_path, overwrite=False):
     from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
     from toolbox.models.manage_dataset.collection_type import CollectionType
     from toolbox.models.manage_dataset.database_type import DatabaseType

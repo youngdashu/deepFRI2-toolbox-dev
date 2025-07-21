@@ -4,19 +4,22 @@ import logging
 import sys
 from _pytest.monkeypatch import MonkeyPatch
 from toolbox.utlis.logging import set_config
+import os
 
-
-from tests.paths import OUTPATH
+from tests.paths import OUTPATH, EXPPATH
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_main_path():
+def setup_main_path(request):
 
     sys._called_from_test = True
 
     dotenv.load_dotenv()
     mp = MonkeyPatch()
-    mp.setenv("DATA_PATH", str(OUTPATH))
+    if os.path.basename(request.module.__file__) == "test_handle_indexes.py":
+        mp.setenv("DATA_PATH", str(EXPPATH))
+    else:
+        mp.setenv("DATA_PATH", str(OUTPATH))
     
     def configure_logging(logging_module):
         # Enhanced logging configuration for performance monitoring
