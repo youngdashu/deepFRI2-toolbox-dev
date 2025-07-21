@@ -35,7 +35,7 @@ def create_index(index_file_path: Path, values: Union[Dict[str, str], List[str]]
         json.dump(values, f)
 
 
-def add_new_files_to_index(dataset_index_file_path, new_files_index, data_path):
+def add_new_files_to_index(dataset_index_file_path: Path, new_files_index: Dict, data_path: str):
     try:
         current_index = read_index(dataset_index_file_path, data_path)
         current_index.update(new_files_index)
