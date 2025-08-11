@@ -1,5 +1,6 @@
 import argparse
 import pathlib
+import sys
 
 
 from toolbox.models.manage_dataset.database_type import DatabaseType
@@ -75,6 +76,12 @@ def add_dataset_parser_arguments(parser):
     )
     parser.add_argument("-b", "--batch-size", type=str, default=None)
     parser.add_argument(
+        "--embedding-size", 
+        type=int, 
+        default=None,
+        help="Embedding size dimension for future reference (metadata only)"
+    )
+    parser.add_argument(
         "--binary", action="store_true", help="Download binary CIF in PDB db"
     )
     parser.add_argument(
@@ -95,11 +102,11 @@ def add_dataset_parser_arguments(parser):
     )
 
 
-def add_embedder_argument(parser):
+def add_embedder_argument(parser, required=True):
     parser.add_argument(
         "-e",
         "--embedder",
-        required=True,
+        required=required,
         choices=embedder_types,
         metavar="name",
         help=f"Embedder Types: {' '.join(embedder_types)}",
@@ -149,19 +156,25 @@ def create_parser():
         "--slurm", action="store_true", help="Use SLURM job scheduler"
     )
     add_dataset_parser_arguments(parser_dataset)
-    add_embedder_argument(parser_dataset)
+    add_embedder_argument(parser_dataset, required=False)
 
     embedding_parser = subparsers.add_parser(
         "embedding", help="Create embeddings from datasets"
     )
     add_common_arguments(embedding_parser)
-    add_embedder_argument(embedding_parser)
+    add_embedder_argument(embedding_parser, required=True)
+    embedding_parser.add_argument(
+        "--embedding-size", 
+        type=int, 
+        default=None,
+        help="Embedding size dimension for future reference (metadata only)"
+    )
 
     load_dataset_parser = subparsers.add_parser("load", help="Load a dataset from json")
     add_common_arguments(load_dataset_parser)
 
     extract_sequence_and_coordinates_parser = subparsers.add_parser(
-        "extract_sequence_and_coordinates", help="Generate sequences for "
+        "generate_sequence", help="Generate sequences for "
     )
     add_common_arguments(extract_sequence_and_coordinates_parser)
     extract_sequence_and_coordinates_parser.add_argument(
@@ -220,7 +233,7 @@ def create_parser():
         "--slurm", action="store_true", help="Use SLURM job scheduler"
     )
     add_dataset_parser_arguments(input_generation_parser)
-    add_embedder_argument(input_generation_parser)
+    add_embedder_argument(input_generation_parser, required=True)
 
 
 
@@ -241,8 +254,9 @@ def main():
     # Configure logging based on verbose flag and log file
     configure_logging(args.verbose, args.log_file)
     
-    # Log start of command execution
-    logger.info(f"Running command: {args.command}")
+    # Log the complete command line used to start the program
+    full_command = " ".join(sys.argv)
+    logger.info(f"Started with command: {full_command}")
     
     CommandParser(args, config).run()
 

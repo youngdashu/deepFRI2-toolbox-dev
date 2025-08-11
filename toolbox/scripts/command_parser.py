@@ -1,5 +1,6 @@
 from argparse import Namespace
 import json
+import sys
 import traceback
 import logging
 from pathlib import Path
@@ -47,6 +48,11 @@ class CommandParser:
         )
         return self.structures_dataset
 
+    def _log_command(self):
+        """Log the complete command line that started the program."""
+        full_command = " ".join(sys.argv)
+        logger.info(f"Started with command: {full_command}")
+    
     def _configure_dataset_logging(self):
         """Configure logging to dataset log file if not already specified."""
         if not hasattr(self.args, 'log_file') or self.args.log_file is None:
@@ -59,6 +65,8 @@ class CommandParser:
                 log_file=self.structures_dataset.log_file_path()
             )
             logger.info(f"Logging configured to: {self.structures_dataset.log_file_path()}")
+            # Log the complete command line for dataset operations
+            self._log_command()
 
     def dataset(self):
         start = time.time()
@@ -88,7 +96,8 @@ class CommandParser:
             input_path=self.args.input_path,
             verbose=self.args.verbose if hasattr(self.args, 'verbose') else False,
             config=self.config,
-            embedder_type=embedder_type
+            embedder_type=embedder_type,
+            embedding_size=getattr(self.args, 'embedding_size', None)
         )
         self.structures_dataset = dataset
         
@@ -96,6 +105,11 @@ class CommandParser:
         self._configure_dataset_logging()
         
         dataset.create_dataset()
+        
+        # Print dataset name in special format for shell script parsing
+        dataset_name = dataset.dataset_dir_name()
+        print(f"DATASET_NAME:{dataset_name}")
+        
         end = time.time()
         logger.info(f"Total time: {format_time(end - start)}")
         return dataset
@@ -112,6 +126,10 @@ class CommandParser:
                 if embedder_enum.value == self.args.embedder:
                     self.structures_dataset.embedder_type = embedder_enum
                     break
+        
+        # Set embedding size if provided
+        if hasattr(self.args, 'embedding_size') and self.args.embedding_size:
+            self.structures_dataset.embedding_size = self.args.embedding_size
         
         self.structures_dataset.generate_embeddings()
 

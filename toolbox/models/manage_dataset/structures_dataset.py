@@ -66,6 +66,7 @@ class StructuresDataset(BaseModel):
     is_hpc_cluster: bool = False
     input_path: Optional[Path] = None
     embedder_type: Optional[EmbedderType] = None
+    embedding_size: Optional[int] = None
     _client: Optional[Client] = None
     _handle_indexes: Optional[HandleIndexes] = None
     _sequence_retriever: Optional[SequenceAndCoordinatesRetriever] = None
@@ -85,7 +86,12 @@ class StructuresDataset(BaseModel):
     def __init__(self, **data: Any):
         config = data.pop('config', None)
         super().__init__(**data)
-        self.config = config
+        if isinstance(config, dict):
+            self.config = Config(**config)
+        elif isinstance(config, Config):
+            self.config = config
+        else:
+            raise ValueError("Invalid config")
         self._handle_indexes = HandleIndexes(self)
         self._sequence_retriever = SequenceAndCoordinatesRetriever(self) # SequenceRetriever(self)
 
