@@ -1,6 +1,7 @@
 import logging
 from typing import Any, Optional
 import pathlib
+from datetime import datetime
 
 # ANSI color codes
 COLORS = {
@@ -105,16 +106,23 @@ def setup_logging_with_file(
         # Ensure the log directory exists
         log_file.parent.mkdir(parents=True, exist_ok=True)
         
-        # Create file handler
-        file_handler = logging.FileHandler(log_file)
+        # Create file handler with append mode to reuse existing log files
+        file_handler = logging.FileHandler(log_file, mode='a')
         file_handler.setLevel(file_level)
         
-        # Create non-colored formatter for file (colors don't work in files)
-        file_formatter = ColoredFormatter(fmt, datefmt, use_colors=False)
+        # Create colored formatter for file (modern editors handle ANSI colors well)
+        file_formatter = ColoredFormatter(fmt, datefmt, use_colors=True)
         file_handler.setFormatter(file_formatter)
         
         # Add file handler to the logger
         logger.addHandler(file_handler)
+        
+        # Add colored session separator if file already exists to distinguish runs
+        if log_file.exists() and log_file.stat().st_size > 0:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            separator = f"\n{COLORS['INFO']}{'='*20} NEW SESSION {timestamp} {'='*20}{COLORS['RESET']}"
+            with open(log_file, 'a') as f:
+                f.write(separator + '\n')
 
 # Example usage:
 if __name__ == "__main__":
