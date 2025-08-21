@@ -76,12 +76,6 @@ def add_dataset_parser_arguments(parser):
     )
     parser.add_argument("-b", "--batch-size", type=str, default=None)
     parser.add_argument(
-        "--embedding-size", 
-        type=int, 
-        default=None,
-        help="Embedding size dimension for future reference (metadata only)"
-    )
-    parser.add_argument(
         "--binary", action="store_true", help="Download binary CIF in PDB db"
     )
     parser.add_argument(
@@ -163,12 +157,6 @@ def create_parser():
     )
     add_common_arguments(embedding_parser)
     add_embedder_argument(embedding_parser, required=True)
-    embedding_parser.add_argument(
-        "--embedding-size", 
-        type=int, 
-        default=None,
-        help="Embedding size dimension for future reference (metadata only)"
-    )
 
     load_dataset_parser = subparsers.add_parser("load", help="Load a dataset from json")
     add_common_arguments(load_dataset_parser)
