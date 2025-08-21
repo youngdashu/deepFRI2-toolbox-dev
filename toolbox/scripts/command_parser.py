@@ -96,8 +96,7 @@ class CommandParser:
             input_path=self.args.input_path,
             verbose=self.args.verbose if hasattr(self.args, 'verbose') else False,
             config=self.config,
-            embedder_type=embedder_type,
-            embedding_size=getattr(self.args, 'embedding_size', None)
+            embedder_type=embedder_type
         )
         self.structures_dataset = dataset
         
@@ -127,9 +126,6 @@ class CommandParser:
                     self.structures_dataset.embedder_type = embedder_enum
                     break
         
-        # Set embedding size if provided
-        if hasattr(self.args, 'embedding_size') and self.args.embedding_size:
-            self.structures_dataset.embedding_size = self.args.embedding_size
         
         self.structures_dataset.generate_embeddings()
 

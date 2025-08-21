@@ -64,7 +64,7 @@ class Embedding:
 
         # Use the embedder type from the dataset, default to ESM2 if not specified
         if self.structures_dataset.embedder_type is None:
-            self.structures_dataset.embedder_type = EmbedderType.ESM2
+            self.structures_dataset.embedder_type = EmbedderType.ESM2_T33_650M
         
         # Get the embedder class and create an instance
         embedder_class = self.structures_dataset.embedder_type.embedder_class

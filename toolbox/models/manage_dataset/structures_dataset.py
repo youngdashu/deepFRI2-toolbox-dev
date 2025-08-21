@@ -77,6 +77,10 @@ class StructuresDataset(BaseModel):
     def validate_model(self) -> Self:
         if self.version is None:
             self.version = datetime.now().strftime("%Y%m%d_%H%M")
+        
+        # Automatically set embedding_size from embedder_type if not provided
+        if self.embedder_type is not None and self.embedding_size is None:
+            self.embedding_size = self.embedder_type.embedding_size
         if self.batch_size is None:
             self.batch_size = 1000
         if self.created_at is None:
@@ -149,10 +153,58 @@ class StructuresDataset(BaseModel):
 
     def requested_ids(self) -> List[str]:
         if self.collection_type is CollectionType.subset:
-            with open(self.ids_file, "r") as f:
-                return f.read().splitlines()
+            if self.ids_file.suffix.lower() == '.csv':
+                from .csv_processor import CSVProcessor
+                csv_processor = CSVProcessor(self.ids_file)
+                # Detect if this is complex format by checking for double underscore or comma
+                if self._is_complex_csv_format():
+                    return csv_processor.extract_complex_protein_ids()
+                else:
+                    return csv_processor.extract_ids()
+            else:
+                with open(self.ids_file, "r") as f:
+                    return f.read().splitlines()
         else:
             return self.get_all_ids()
+    
+    def _is_complex_csv_format(self) -> bool:
+        """Detect if CSV file uses complex format with ranges and chains
+        
+        Returns:
+            True if complex format detected, False otherwise
+        """
+        if not self.ids_file.exists():
+            return False
+            
+        try:
+            with open(self.ids_file, 'r', encoding='utf-8') as file:
+                # Check first few lines for complex format indicators
+                for i, line in enumerate(file):
+                    if i >= 5:  # Check only first 5 lines for performance
+                        break
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # Look for complex format indicators: __ or , in the line
+                    if '__' in line or ',' in line:
+                        return True
+            return False
+        except Exception:
+            # If we can't read the file, assume simple format
+            return False
+    
+    def get_protein_entries_with_ranges(self):
+        """Get protein entries with range information for complex processing
+        
+        Returns:
+            List of ProteinEntry objects if CSV with ranges, None otherwise
+        """
+        if self.collection_type is CollectionType.subset and self.ids_file.suffix.lower() == '.csv':
+            if self._is_complex_csv_format():
+                from .csv_processor import CSVProcessor
+                csv_processor = CSVProcessor(self.ids_file)
+                return csv_processor.get_protein_entries()
+        return None
 
     def create_dataset(self):
 

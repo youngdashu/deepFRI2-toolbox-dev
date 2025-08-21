@@ -3,7 +3,7 @@ import time
 import h5py
 import numpy as np
 from distributed import Client
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
 from toolbox.models.manage_dataset.index.handle_index import read_index, create_index
@@ -18,9 +18,29 @@ empty_chain_part_sign = "X"  # Added for sequence gaps/non-standard
 
 ResidueIndex = int
 
+
+def _is_residue_in_ranges(residue_num: int, ranges: Optional[List[Tuple[int, int]]]) -> bool:
+    """Check if a residue number falls within any of the specified ranges
+    
+    Args:
+        residue_num: Residue number to check
+        ranges: List of (start, end) range tuples, or None for no filtering
+        
+    Returns:
+        True if residue is in ranges or ranges is None, False otherwise
+    """
+    if ranges is None:
+        return True
+    
+    for start, end in ranges:
+        if start <= residue_num <= end:
+            return True
+    return False
+
 def __extract_sequences_and_coordinates__(
     file: str,
     carbon_atom_type: CarbonAtomType,
+    residue_ranges: Optional[List[Tuple[int, int]]] = None,
 ) -> tuple[
     str, 
     tuple[
@@ -66,6 +86,10 @@ def __extract_sequences_and_coordinates__(
             atom_type = line[12:16].strip()
             residue_num_for_atom = int(line[22:26].strip()) # Renamed to avoid clash
             residue_name = line[17:20].strip()
+
+            # Skip residues not in specified ranges
+            if not _is_residue_in_ranges(residue_num_for_atom, residue_ranges):
+                continue
 
             # Track all residue numbers (for determining the range)
             all_residue_numbers.add(residue_num_for_atom)
@@ -121,6 +145,7 @@ def __get_sequences_and_coordinates_from_batch__(
     codes: List[str],
     carbon_atom_type: CarbonAtomType,
     batch_output_path: str,
+    protein_ranges: Optional[Dict[str, List[Tuple[int, int]]]] = None,
 ) -> Tuple[List[str], Dict[str, str]]:
     """
     Extract sequences and coordinates from a batch of PDB structures.
@@ -145,12 +170,25 @@ def __get_sequences_and_coordinates_from_batch__(
     
     for code, pdb_content in proteins.items():
         try:
+            # Get ranges for this protein if available
+            clean_code = code.removesuffix('.pdb')
+            ranges = None
+            if protein_ranges:
+                # Try exact match first
+                ranges = protein_ranges.get(clean_code)
+                if ranges is None:
+                    # Try converting single underscore to double underscore format
+                    # e.g., AF-A0A024B7W1-F1-model_v4_8cxi_C -> AF-A0A024B7W1-F1-model_v4__8cxi_C
+                    parts = clean_code.rsplit('_', 1)
+                    if len(parts) == 2:
+                        double_underscore_id = f"{parts[0]}__{parts[1]}"
+                        ranges = protein_ranges.get(double_underscore_id)
+            
             sequence, coords_with_gaps = __extract_sequences_and_coordinates__(
-                pdb_content, carbon_atom_type
+                pdb_content, carbon_atom_type, ranges
             )
             
             # Add sequence to FASTA format
-            clean_code = code.removesuffix('.pdb')
             sequence_lines.append(f">{clean_code}\n{sequence}\n")
             
             # Store only coordinates with breaks (aligned to sequence), rename to 'coords'
@@ -255,6 +293,14 @@ class SequenceAndCoordinatesRetriever:
         coordinates_index = search_coordinates_index_result.present
 
         logger.info("Getting sequences and coordinates from stored PDBs")
+        
+        # Get protein entries with range information if available
+        protein_entries = structures_dataset.get_protein_entries_with_ranges()
+        protein_ranges = {}
+        if protein_entries:
+            for entry in protein_entries:
+                if entry.ranges:
+                    protein_ranges[entry.full_id] = entry.ranges
 
         def run(input_data, workers):
             return client.submit(__get_sequences_and_coordinates_from_batch__, *input_data, workers=workers)
@@ -291,6 +337,7 @@ class SequenceAndCoordinatesRetriever:
                     codes, 
                     carbon_atom_type,
                     str(coordinates_path_obj / f"batch_{i}_{carbon_atom_type.lower()}"),
+                    protein_ranges,  # Pass the protein ranges to each batch
                 )
                 for i, (file, codes) in enumerate(h5_file_to_codes.items())
             )
