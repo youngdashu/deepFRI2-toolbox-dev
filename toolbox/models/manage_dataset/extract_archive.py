@@ -95,7 +95,7 @@ def save_extracted_files(
         files = list(files_name_to_dir.values())
         chunks = list(structures_dataset.chunk(files))
     else:
-        logger.info(f"Searching for requested files {len(ids)} in extracted files {len(present_files_set)}")
+        logger.info(f"Searching for {len(ids)} files in {len(present_files_set)} already extracted files")
 
         ids_set = set(ids)
 
