@@ -57,21 +57,21 @@ def cleanup_global_dask():
 
 
 def test_embeddings_for_esm2_ca_present():
-    found_items = perform_index_search("embeddings", EmbedderType.ESM2, "CA")
+    found_items = perform_index_search("embeddings", EmbedderType.ESM2_T33_650M, "CA")
     assert len(found_items) > 0
 
 def test_embeddings_for_esmc_ca_missing():
-    found_items = perform_index_search("embeddings", EmbedderType.ESMC, "CA")
+    found_items = perform_index_search("embeddings", EmbedderType.ESMC_600M, "CA")
 
     assert len(found_items) == 0
 
 def test_distograms_for_ca_present():
-    found_items = perform_index_search("distograms", EmbedderType.ESMC, "CA")
+    found_items = perform_index_search("distograms", EmbedderType.ESMC_600M, "CA")
 
     assert len(found_items) > 0
 
 def test_distograms_for_cb_missing():
-    found_items = perform_index_search("distograms", EmbedderType.ESMC, "CB")
+    found_items = perform_index_search("distograms", EmbedderType.ESMC_600M, "CB")
 
     assert len(found_items) == 0
 

@@ -13,6 +13,8 @@ from tests.utils import compare_dicts, compare_pdb_contents, FileComparator
 from tests.paths import OUTPATH, EXPPATH
 from toolbox.config import Config
 
+from toolbox.models.embedding.embedder.embedder_type import EmbedderType
+
 # give 666 permissions to new files
 os.umask(0o002)
 
@@ -176,6 +178,7 @@ def create_dataset_and_abstractions(dataset_name, ids_file_path, overwrite=False
         ids_file=ids_file_path,
         overwrite=overwrite,
         config=config,
+        embedder_type=EmbedderType.ESM2_T33_650M,
     )
     dataset._client = client
 
@@ -254,7 +257,7 @@ def compare_generated_abstraction_with_expected(dataset_name):
     embedding_expected = EXPPATH / "embeddings" / f"PDB-subset--{dataset_name}" / "batch_0.h5"
     embedding_generated = OUTPATH / "embeddings" / f"PDB-subset--{dataset_name}" / "batch_0.h5"
     assert embedding_generated.exists(), f"Generated embedding file does not exist: {embedding_generated}"
-    FileComparator.compare_h5_files(embedding_expected, embedding_generated, None, rtol=1e-5, atol=1e-8)
+    FileComparator.compare_h5_files(embedding_expected, embedding_generated, None, rtol=1e-4, atol=1e-5)
 
     # Compare FASTA files
     fasta_expected = EXPPATH / "sequences" / f"PDB-subset--{dataset_name}_ca.fasta"

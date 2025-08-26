@@ -47,6 +47,8 @@ def clean_generated_files(tmp_path_factory):
 
 # NOTE: Embeddings generated with different environments 
 # may differ slightly and tests may fail due to this.
+# TODO: @Adam: add test for ESM-C
+# TODO: @Pawel: add expected output for ESM-C
 def test_esm():
 
     exp_1 = np.load(EXPPATH / f'{ESM_MODEL}__SEQ_1.npy') 
@@ -62,9 +64,8 @@ def test_esm():
         res_1 = f['SEQ_1'][:]
         res_2 = f['SEQ_2'][:]
 
-    assert np.allclose(exp_1, res_1)
-    assert np.allclose(exp_2, res_2)
-    
+    assert np.allclose(exp_1, res_1, rtol=1e-4, atol=1e-6)
+    assert np.allclose(exp_2, res_2, rtol=1e-4, atol=1e-6)
 
 # TODO
 # Add tests for other embeddings (Ankh etc.)

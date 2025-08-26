@@ -40,19 +40,19 @@ class TestExtractSequencesAndCoordinates:
         """)
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "A" # ALA residue should be A, even without CA/CB
-        assert coords_with_gaps == ((None, None, None),) # One residue, no CA/CB
+        assert coords_with_gaps == ((1, None, None, None),) # One residue, no CA/CB
 
     def test_single_residue_ca(self):
         pdb_string = generate_pdb_atom_line("CA", "ALA", 1, 1.0, 2.0, 3.0)
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "A"
-        assert coords_with_gaps == ((1.0, 2.0, 3.0),)
+        assert coords_with_gaps == ((1, 1.0, 2.0, 3.0),)
 
     def test_single_residue_cb(self):
         pdb_string = generate_pdb_atom_line("CB", "GLY", 1, 1.0, 2.0, 3.0)
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CB")
         assert sequence == "G"
-        assert coords_with_gaps == ((1.0, 2.0, 3.0),)
+        assert coords_with_gaps == ((1, 1.0, 2.0, 3.0),)
 
     def test_ca_preferred_over_cb_for_coords(self):
         pdb_string = textwrap.dedent(f"""
@@ -62,12 +62,12 @@ class TestExtractSequencesAndCoordinates:
         # Test with "CA"
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "A"
-        assert coords_with_gaps == ((1.0, 2.0, 3.0),)
+        assert coords_with_gaps == ((1, 1.0, 2.0, 3.0),)
 
         # Test with "CB" (should only pick up CB if CA is not the target type)
         sequence_cb, coords_with_gaps_cb = __extract_sequences_and_coordinates__(pdb_string, "CB")
         assert sequence_cb == "A" # Sequence is independent of carbon_atom_type for selection
-        assert coords_with_gaps_cb == ((10.0, 11.0, 12.0),) # CB coordinate in gapped list
+        assert coords_with_gaps_cb == ((1, 10.0, 11.0, 12.0),) # CB coordinate in gapped list
 
     def test_multiple_residues_sequential_ca(self):
         pdb_string = textwrap.dedent(f"""
@@ -77,21 +77,21 @@ class TestExtractSequencesAndCoordinates:
         """)
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "AGV"
-        assert coords_with_gaps == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0))
+        assert coords_with_gaps == ((1, 1.0, 2.0, 3.0), (2, 4.0, 5.0, 6.0), (3, 7.0, 8.0, 9.0))
 
     def test_gap_in_numbering(self):
         pdb_string = textwrap.dedent(f"""
             {generate_pdb_atom_line("CA", "ALA", 1, 1.0, 2.0, 3.0)}
-            {generate_pdb_atom_line("N", "PHE", 2, 0.0,0.0,0.0)} # Residue 2, but no CA/CB for CA type
+            {generate_pdb_atom_line("N", "PHE", 2, 0.0, 0.0, 0.0)} # Residue 2, but no CA/CB for CA type
             {generate_pdb_atom_line("CA", "VAL", 4, 7.0, 8.0, 9.0)}
         """)
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "AFXV" # ALA, PHE (no CA picked for coords), gap (X for res 3), VAL
         assert len(coords_with_gaps) == 4
-        assert coords_with_gaps[0] == (1.0, 2.0, 3.0)  # Res 1 (ALA)
-        assert coords_with_gaps[1] == (None, None, None)   # Res 2 (PHE) - no CA found
-        assert coords_with_gaps[2] == (None, None, None)   # Res 3 (gap)
-        assert coords_with_gaps[3] == (7.0, 8.0, 9.0)  # Res 4 (VAL)
+        assert coords_with_gaps[0] == (1, 1.0, 2.0, 3.0)  # Res 1 (ALA)
+        assert coords_with_gaps[1] == (2, None, None, None)   # Res 2 (PHE) - no CA found
+        assert coords_with_gaps[2] == (3, None, None, None)   # Res 3 (gap)
+        assert coords_with_gaps[3] == (4, 7.0, 8.0, 9.0)  # Res 4 (VAL)
 
     def test_non_standard_amino_acid(self):
         pdb_string = textwrap.dedent(f"""
@@ -101,7 +101,7 @@ class TestExtractSequencesAndCoordinates:
         """)
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "AXG"
-        assert coords_with_gaps == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0))
+        assert coords_with_gaps == ((1, 1.0, 2.0, 3.0), (2, 4.0, 5.0, 6.0), (3, 7.0, 8.0, 9.0))
 
     def test_mixed_carbon_types_target_ca(self):
         pdb_string = textwrap.dedent(f"""
@@ -111,9 +111,9 @@ class TestExtractSequencesAndCoordinates:
         """)
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "AGV"
-        assert coords_with_gaps[0] == (1.0, 2.0, 3.0)    # ALA CA
-        assert coords_with_gaps[1] == (None, None, None) # GLY no CA
-        assert coords_with_gaps[2] == (7.0, 8.0, 9.0)    # VAL CA
+        assert coords_with_gaps[0] == (1, 1.0, 2.0, 3.0)    # ALA CA
+        assert coords_with_gaps[1] == (2, None, None, None) # GLY no CA
+        assert coords_with_gaps[2] == (3, 7.0, 8.0, 9.0)    # VAL CA
 
     def test_mixed_carbon_types_target_cb(self):
         pdb_string = textwrap.dedent(f"""
@@ -124,9 +124,9 @@ class TestExtractSequencesAndCoordinates:
         """)
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CB")
         assert sequence == "AGV" # Sequence should be the same
-        assert coords_with_gaps[0] == (None, None, None) # ALA no CB
-        assert coords_with_gaps[1] == (4.0, 5.0, 6.0)    # GLY CB
-        assert coords_with_gaps[2] == (7.7, 8.8, 9.9)    # VAL CB
+        assert coords_with_gaps[0] == (1, None, None, None) # ALA no CB
+        assert coords_with_gaps[1] == (2, 4.0, 5.0, 6.0)    # GLY CB
+        assert coords_with_gaps[2] == (3, 7.7, 8.8, 9.9)    # VAL CB
 
     def test_residues_at_start_and_end_missing_coords(self):
         pdb_string = textwrap.dedent(f"""
@@ -136,7 +136,7 @@ class TestExtractSequencesAndCoordinates:
         """)
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "MAK"
-        assert coords_with_gaps == ((None,None,None), (1.0,2.0,3.0), (None,None,None))
+        assert coords_with_gaps == ((1, None, None, None), (2, 1.0, 2.0, 3.0), (3, None, None, None))
 
     def test_file_order_vs_residue_order(self):
         pdb_string = textwrap.dedent(f"""
@@ -147,16 +147,17 @@ class TestExtractSequencesAndCoordinates:
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CA")
         assert sequence == "AGV" # Sequence is min to max residue index
         # Coords_with_breaks is in residue index order
-        assert coords_with_gaps == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0))
+        assert coords_with_gaps == ((1, 1.0, 2.0, 3.0), (2, 4.0, 5.0, 6.0), (3, 7.0, 8.0, 9.0))
 
     def test_all_residues_non_standard_or_no_coords(self):
         pdb_string = textwrap.dedent(f"""
-            {generate_pdb_atom_line("N", "UNK", 1, 1.0, 2.0, 3.0)}
-            {generate_pdb_atom_line("C", "XXX", 2, 4.0, 5.0, 6.0)}
+            {generate_pdb_atom_line("N", "UNK", 10, 1.0, 2.0, 3.0)}
+            {generate_pdb_atom_line("C", "XXX", 15, 4.0, 5.0, 6.0)}
         """)
         sequence, coords_with_gaps = __extract_sequences_and_coordinates__(pdb_string, "CA")
-        assert sequence == "XX"
-        assert coords_with_gaps == ((None, None, None), (None, None, None))
+        assert sequence == "XXXXXX"
+        assert coords_with_gaps == ((10, None, None, None), (11, None, None, None), (12, None, None, None),
+                                    (13, None, None, None), (14, None, None, None), (15, None, None, None))
 
 
 class TestExtractSequencesAndCoordinatesWithRealPDBFiles:
