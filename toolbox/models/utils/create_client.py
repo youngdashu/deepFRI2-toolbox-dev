@@ -1,5 +1,6 @@
 import os
 
+import dask
 from dask.distributed import LocalCluster, Client
 
 import warnings
@@ -8,6 +9,8 @@ import distributed
 import logging
 
 from toolbox.utlis.logging import logger
+
+dask.config.set({"distributed.scheduler.locks.lease-timeout": "10m"})
 
 
 def total_workers():

@@ -118,7 +118,7 @@ ATOM     10  CA  GLY A  10      19.000  29.000  39.000  1.00 50.00           C
         sequence, coords = __extract_sequences_and_coordinates__(pdb_content, "CA", ranges)
         
         # Should include residues 2-8 with gaps filled
-        assert sequence == "VLXXXXVL"
+        assert sequence == "VLXXXVL"
         assert len(coords) == 7  # From residue 2 to 8
         
         # Check specific coordinates

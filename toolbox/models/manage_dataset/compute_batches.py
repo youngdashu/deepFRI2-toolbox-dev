@@ -34,7 +34,7 @@ class ComputeBatches:
 
         max_workers = max(self._workers_num_() // factor, 1)
         sem_name = "sem" + self.name
-        semaphore = Semaphore(max_leases=max_workers, name=sem_name, lease_timeout='10m')
+        semaphore = Semaphore(max_leases=max_workers, name=sem_name)
 
         logger.debug(f"Max parallel workers {max_workers}")
 
