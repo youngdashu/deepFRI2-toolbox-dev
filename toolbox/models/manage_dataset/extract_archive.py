@@ -123,7 +123,6 @@ def save_extracted_files(
 
     def collect(result):
         downloaded_pdbs, file_path = result
-        logger.info(f"Downloaded {len(downloaded_pdbs)} new files")
         new_files_index.update({k: file_path for k in downloaded_pdbs})
 
     compute_batches = ComputeBatches(
