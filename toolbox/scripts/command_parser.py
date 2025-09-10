@@ -197,6 +197,9 @@ class CommandParser:
         
     def cleanup(self):
         if self.structures_dataset._client:
+            import warnings
+            import distributed
+            warnings.simplefilter("ignore", distributed.comm.core.CommClosedError)
             self.structures_dataset._client.close()
             self.structures_dataset._client = None
 
