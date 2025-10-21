@@ -28,7 +28,7 @@ class ESM2Embedder(BaseEmbedder):
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
         outputs = self.model(**inputs, output_hidden_states=True)
         embeddings = outputs.hidden_states[-1]
-        return embeddings[0,1:-1].to('cpu').detach().to(torch.float32).numpy()
+        return embeddings[0,:].to('cpu').detach().to(torch.float32).numpy()
 
 def embed(  
     sequences: Dict[str, str],  
@@ -57,7 +57,7 @@ def embed(
                 outputs = esm_model(**inputs, output_hidden_states=True)  
                 embeddings = outputs.hidden_states[-1]  
                 # Remove START / END positions and convert to numpy arrays  
-                embeddings_pure = embeddings[0,1:-1].to('cpu').detach().to(torch.float32).numpy()  
+                embeddings_pure = embeddings[0,:].to('cpu').detach().to(torch.float32).numpy()  
                 assert len(prot_seq) == embeddings_pure.shape[0], f'Invalid character in {prot_id}'  
 
                 embeddings_pure_batch.update({prot_id: embeddings_pure})  

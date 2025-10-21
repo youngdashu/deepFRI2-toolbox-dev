@@ -68,8 +68,6 @@ class Embedding:
         
         # Get the embedder class and create an instance
         embedder_class = self.structures_dataset.embedder_type.embedder_class
-        
-        # Use the embedder to generate embeddings
         index_of_new_embeddings = embedder_class().embed(sequences, self.outputs_dir)
 
         present_embeddings.update(index_of_new_embeddings)

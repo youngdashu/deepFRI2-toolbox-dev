@@ -24,7 +24,7 @@ class ESMCEmbedder(BaseEmbedder):
         logits_output = self.model.logits(
             protein_tensor, LogitsConfig(sequence=True, return_embeddings=True)
         )
-        return logits_output.embeddings[0,1:-1,:].to('cpu').detach().to(torch.float32).numpy()
+        return logits_output.embeddings[0,:,:].to('cpu').detach().to(torch.float32).numpy()
 
 def embed(
     sequences: Dict[str, str],  
@@ -45,7 +45,7 @@ def embed(
                 logits_output = model.logits(
                     protein_tensor, LogitsConfig(sequence=True, return_embeddings=True)
                 )
-                embeddings_pure = logits_output.embeddings[0,1:-1,:].to('cpu').detach().to(torch.float32).numpy()
+                embeddings_pure = logits_output.embeddings[0,:,:].to('cpu').detach().to(torch.float32).numpy()
                 assert len(prot_seq) == embeddings_pure.shape[0], f'Invalid character in {prot_id}'
                 embeddings_pure_batch[prot_id] = embeddings_pure
                 # Clear GPU memory after each iteration
