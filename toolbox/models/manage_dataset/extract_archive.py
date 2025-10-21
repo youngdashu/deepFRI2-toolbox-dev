@@ -103,11 +103,11 @@ def save_extracted_files(
         wanted_files = [files_name_to_dir[file] for file in wanted_files]
         missing_files = list(ids_set - present_files_set)
 
-        logger.info(f"\tFound {len(wanted_files)}, missing {len(missing_files)} out of {len(ids)} requested files")
+        logger.info(f"Found {len(wanted_files)}, missing {len(missing_files)} out of {len(ids)} requested files")
         with open(structures_dataset.dataset_path() / "missing_ids_files.txt", "w") as f:
             for file in missing_files:
                 f.write(file + "\n")
-            logger.info(f"\t\tMissing files saved to {structures_dataset.dataset_path() / 'missing_ids_files.txt'}")
+            logger.info(f"Missing files saved to {structures_dataset.dataset_path() / 'missing_ids_files.txt'}")
         ids = wanted_files
 
     chunks = list(structures_dataset.chunk(ids))
@@ -205,7 +205,7 @@ def aggregate_results(
 ) -> Tuple[List[str], List[str]]:
     end_time = time.time()
 
-    logger.info(f"Download time: {format_time(end_time - download_start_time)}")
+    logger.debug(f"Download time: {format_time(end_time - download_start_time)}")
 
     all_res_pdbs = []
     all_contents = []
