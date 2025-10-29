@@ -124,13 +124,3 @@ def setup_logging_with_file(
             with open(log_file, 'a') as f:
                 f.write(separator + '\n')
 
-# Example usage:
-if __name__ == "__main__":
-    setup_colored_logging()
-    logger = logging.getLogger(__name__)
-    
-    logger.debug("This is a debug message")
-    logger.info("This is an info message")
-    logger.warning("This is a warning message")
-    logger.error("This is an error message")
-    logger.critical("This is a critical message") 
