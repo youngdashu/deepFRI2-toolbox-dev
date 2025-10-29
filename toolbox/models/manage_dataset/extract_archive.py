@@ -1,4 +1,3 @@
-
 import os
 import shutil
 import time
@@ -7,10 +6,12 @@ import zipfile
 import tarfile
 from pathlib import Path
 
+from glob import iglob
+
 from tqdm import tqdm
 
 from dask.distributed import worker_client
-from toolbox.models.manage_dataset.index.handle_index import create_index
+from toolbox.models.manage_dataset.index.handle_index import add_new_files_to_index
 from toolbox.models.utils.create_client import total_workers
 
 from toolbox.models.manage_dataset.compute_batches import ComputeBatches
@@ -65,38 +66,48 @@ def is_archive(path):
 
 def save_extracted_files(
     structures_dataset: "StructuresDataset",
-    extracted_path,
+    extracted_path: Path,
     ids: Optional[List[str]] = None,
 ):
 
     Path(structures_dataset.structures_path()).mkdir(exist_ok=True, parents=True)
     pdb_repo_path = structures_dataset.structures_path()
 
-    files = list(extracted_path.glob("*.pdb")) + list(extracted_path.glob("*.cif"))
-    logger.debug("extracted files", files)
+    pdb_iterator = iglob(str(extracted_path) + "/**/*.pdb")
 
-    files_name_to_dir = {
-        file.name.replace(".pdb", "").replace(".cif", ""): str(file) for file in files
+    pdb_files_name_to_dir = {
+        Path(file).name.replace(".pdb", "").replace(".cif", ""): file for file in pdb_iterator
     }
-    present_files_set = set(files_name_to_dir.keys())
 
-    ids_set = set(ids)
+    cif_iterator = iglob(str(extracted_path) + "/**/*.cif")
+
+    cif_files_name_to_dir = {
+        Path(file).name.replace(".pdb", "").replace(".cif", ""): file for file in cif_iterator
+    }
+
+    files_name_to_dir = {**pdb_files_name_to_dir, **cif_files_name_to_dir}
+
+    logger.debug(f"extracted files: {len(files_name_to_dir)}")
+
+    present_files_set = set(files_name_to_dir.keys())
 
     if ids is None:
         files = list(files_name_to_dir.values())
         chunks = list(structures_dataset.chunk(files))
     else:
-        logger.info(f"Searching for requested files {len(ids)} in extracted files {len(files)}")
+        logger.info(f"Searching for {len(ids)} files in {len(present_files_set)} already extracted files")
+
+        ids_set = set(ids)
 
         wanted_files = present_files_set & ids_set
         wanted_files = [files_name_to_dir[file] for file in wanted_files]
         missing_files = list(ids_set - present_files_set)
 
-        logger.info(f"\tFound {len(wanted_files)}, missing {len(missing_files)} out of {len(ids)} requested files")
+        logger.info(f"Found {len(wanted_files)}, missing {len(missing_files)} out of {len(ids)} requested files")
         with open(structures_dataset.dataset_path() / "missing_ids_files.txt", "w") as f:
             for file in missing_files:
                 f.write(file + "\n")
-            logger.info(f"\t\tMissing files saved to {structures_dataset.dataset_path() / 'missing_ids_files.txt'}")
+            logger.info(f"Missing files saved to {structures_dataset.dataset_path() / 'missing_ids_files.txt'}")
         ids = wanted_files
 
     chunks = list(structures_dataset.chunk(ids))
@@ -112,7 +123,6 @@ def save_extracted_files(
 
     def collect(result):
         downloaded_pdbs, file_path = result
-        logger.info(f"Downloaded {len(downloaded_pdbs)} new files")
         new_files_index.update({k: file_path for k in downloaded_pdbs})
 
     compute_batches = ComputeBatches(
@@ -129,7 +139,7 @@ def save_extracted_files(
     logger.info("Adding new files to index")
 
     try:
-        create_index(structures_dataset.dataset_index_file_path(), new_files_index)
+        add_new_files_to_index(structures_dataset.dataset_index_file_path(), new_files_index, structures_dataset.config.data_path)
     except Exception as e:
         logger.error(f"Failed to update index: {e}")
 
@@ -195,7 +205,7 @@ def aggregate_results(
 ) -> Tuple[List[str], List[str]]:
     end_time = time.time()
 
-    logger.info(f"Download time: {format_time(end_time - download_start_time)}")
+    logger.debug(f"Download time: {format_time(end_time - download_start_time)}")
 
     all_res_pdbs = []
     all_contents = []

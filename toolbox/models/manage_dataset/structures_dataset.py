@@ -1,4 +1,3 @@
-import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -6,7 +5,6 @@ from typing import List, Optional, Any
 from typing_extensions import Self
 
 import dask.bag as db
-import dotenv
 import requests
 from Bio.PDB import PDBList
 from dask.distributed import Client, as_completed
@@ -29,8 +27,7 @@ from toolbox.models.manage_dataset.index.handle_index import (
     read_index,
 )
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes
-from toolbox.models.manage_dataset.paths import datasets_path, repo_path
-from toolbox.models.manage_dataset.sequences.sequence_retriever import SequenceRetriever
+from toolbox.models.manage_dataset.sequences.sequence_and_coordinates_retriever import SequenceAndCoordinatesRetriever
 from toolbox.models.manage_dataset.utils import (
     foldcomp_download,
     mkdir_for_batches,
@@ -46,9 +43,8 @@ from toolbox.models.utils.create_client import create_client, total_workers
 from toolbox.utlis.filter_pdb_codes import filter_pdb_codes
 from toolbox.utlis.logging import log_title
 from toolbox.utlis.logging import logger
-
-dotenv.load_dotenv()
-SEPARATOR = os.getenv("SEPARATOR")
+from toolbox.config import Config
+from toolbox.models.embedding.embedder.embedder_type import EmbedderType
 
 class FatalDatasetError(Exception):
     def __init__(self, message):
@@ -69,15 +65,22 @@ class StructuresDataset(BaseModel):
     binary_data_download: bool = False
     is_hpc_cluster: bool = False
     input_path: Optional[Path] = None
+    embedder_type: Optional[EmbedderType] = None
+    embedding_size: Optional[int] = None
     _client: Optional[Client] = None
     _handle_indexes: Optional[HandleIndexes] = None
-    _sequence_retriever: Optional[SequenceRetriever] = None
+    _sequence_retriever: Optional[SequenceAndCoordinatesRetriever] = None
     created_at: Optional[str] = None
+    config: Optional[Config] = None
 
     @model_validator(mode="after")
     def validate_model(self) -> Self:
         if self.version is None:
             self.version = datetime.now().strftime("%Y%m%d_%H%M")
+        
+        # Automatically set embedding_size from embedder_type if not provided
+        if self.embedder_type is not None and self.embedding_size is None:
+            self.embedding_size = self.embedder_type.embedding_size
         if self.batch_size is None:
             self.batch_size = 1000
         if self.created_at is None:
@@ -85,26 +88,40 @@ class StructuresDataset(BaseModel):
         return self
 
     def __init__(self, **data: Any):
+        config = data.pop('config', None)
         super().__init__(**data)
+        if isinstance(config, dict):
+            self.config = Config(**config)
+        elif isinstance(config, Config):
+            self.config = config
+        else:
+            raise ValueError("Invalid config")
         self._handle_indexes = HandleIndexes(self)
-        self._sequence_retriever = SequenceRetriever(self)
+        self._sequence_retriever = SequenceAndCoordinatesRetriever(self) # SequenceRetriever(self)
 
     def dataset_repo_path(self):
+        base_path = Path(self.config.data_path) if self.config else Path("/data")
         return (
-            Path(repo_path())
+            base_path / "structures"
             / self.db_type.name
             / f"{self.collection_type.name}_{self.type_str}"
             / self.version
         )
 
     def dataset_path(self):
-        return Path(f"{datasets_path()}/{self.dataset_dir_name()}")
+        base_path = Path(self.config.data_path) if self.config else Path("/data")
+        return base_path / "datasets" / self.dataset_dir_name()
+
+    def log_file_path(self):
+        """Get the path for the log file in the dataset directory."""
+        return self.dataset_path() / "log.txt"
 
     def structures_path(self):
-        return self.dataset_repo_path() / "structures"
+        return self.dataset_repo_path()
 
     def dataset_dir_name(self):
-        return f"{self.db_type.name}{SEPARATOR}{self.collection_type.name}{SEPARATOR}{self.type_str}{SEPARATOR}{self.version}"
+        sep = self.config.separator if self.config else "-"
+        return f"{self.db_type.name}{sep}{self.collection_type.name}{sep}{self.type_str}{sep}{self.version}"
 
     def dataset_index_file_path(self) -> Path:
         return self.dataset_path() / "dataset.idx"
@@ -121,19 +138,73 @@ class StructuresDataset(BaseModel):
     def embeddings_index_path(self):
         return self.dataset_path() / "embeddings.idx"
 
+    def coordinates_index_path(self):
+        return self.dataset_path() / "coordinates.idx"
+
     def batches_count(self) -> int:
         return sum(1 for item in self.structures_path().iterdir() if item.is_dir())
 
     def add_client(self):
         if self._client is None:
             self._client = create_client(self.is_hpc_cluster)
+            logger.debug(f"Client created: {self._client}")
+        else:
+            logger.info(f"Client already exists: {self._client}")
 
     def requested_ids(self) -> List[str]:
         if self.collection_type is CollectionType.subset:
-            with open(self.ids_file, "r") as f:
-                return f.read().splitlines()
+            if self.ids_file.suffix.lower() == '.csv':
+                from .csv_processor import CSVProcessor
+                csv_processor = CSVProcessor(self.ids_file)
+                # Detect if this is complex format by checking for double underscore or comma
+                if self._is_complex_csv_format():
+                    return csv_processor.extract_complex_protein_ids()
+                else:
+                    return csv_processor.extract_ids()
+            else:
+                with open(self.ids_file, "r") as f:
+                    return f.read().splitlines()
         else:
             return self.get_all_ids()
+    
+    def _is_complex_csv_format(self) -> bool:
+        """Detect if CSV file uses complex format with ranges and chains
+        
+        Returns:
+            True if complex format detected, False otherwise
+        """
+        if not self.ids_file.exists():
+            return False
+            
+        try:
+            with open(self.ids_file, 'r', encoding='utf-8') as file:
+                # Check first few lines for complex format indicators
+                for i, line in enumerate(file):
+                    if i >= 5:  # Check only first 5 lines for performance
+                        break
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # Look for complex format indicators: __ or , in the line
+                    if '__' in line or ',' in line:
+                        return True
+            return False
+        except Exception:
+            # If we can't read the file, assume simple format
+            return False
+    
+    def get_protein_entries_with_ranges(self):
+        """Get protein entries with range information for complex processing
+        
+        Returns:
+            List of ProteinEntry objects if CSV with ranges, None otherwise
+        """
+        if self.collection_type is CollectionType.subset and self.ids_file.suffix.lower() == '.csv':
+            if self._is_complex_csv_format():
+                from .csv_processor import CSVProcessor
+                csv_processor = CSVProcessor(self.ids_file)
+                return csv_processor.get_protein_entries()
+        return None
 
     def create_dataset(self):
 
@@ -168,7 +239,7 @@ class StructuresDataset(BaseModel):
                     )
                 )
 
-            create_index(self.dataset_index_file_path(), present_file_paths)
+            create_index(self.dataset_index_file_path(), present_file_paths, self.config.data_path)
 
             if (
                 self.db_type == DatabaseType.other
@@ -184,17 +255,17 @@ class StructuresDataset(BaseModel):
         else:
             self.download_ids(None)
         
-        index = read_index(self.dataset_index_file_path())
+        index = read_index(self.dataset_index_file_path(), self.config.data_path)
 
         if len(index.keys()) == 0:
             raise FatalDatasetError("No files found in dataset")
 
         self.save_dataset_metadata()
 
-    def generate_sequence(
+    def extract_sequence_and_coordinates(
         self, ca_mask: bool = False, substitute_non_standard_aminoacids: bool = True
     ):
-        self._sequence_retriever.retrieve(ca_mask, substitute_non_standard_aminoacids)
+        self._sequence_retriever.retrieve(self.config.disto_type)
 
     def get_all_ids(self):
         match self.db_type:
@@ -247,30 +318,9 @@ class StructuresDataset(BaseModel):
             case CollectionType.subset:
                 self._download_pdb_(ids)
 
-    # def find_add_new_files_to_index(self):
-    #     self.dataset_path().mkdir(exist_ok=True, parents=True)
-
-    #     structures_path = self.structures_path()
-
-    #     def process_directory(dir_path):
-    #         return [str(f) for f in Path(dir_path).glob("*.*") if f.is_file()]
-
-    #     numbered_dirs = [
-    #         d for d in structures_path.iterdir() if d.is_dir() and d.name.isdigit()
-    #     ]
-
-    #     if len(numbered_dirs) == 0:
-    #         new_files = []
-    #     else:
-    #         dir_bag = db.from_sequence(numbered_dirs, npartitions=len(numbered_dirs))
-    #         new_files = dir_bag.map(process_directory).flatten().compute()
-
-    #     new_files_index = {str(i): v for i, v in enumerate(new_files)}
-
-    #     self.add_new_files_to_index(new_files_index)
 
     def add_new_files_to_index(self, new_files_index):
-        add_new_files_to_index(self.dataset_index_file_path(), new_files_index)
+        add_new_files_to_index(self.dataset_index_file_path(), new_files_index, self.config.data_path)
 
     def _download_pdb_(self, ids: List[str]):
         Path(self.structures_path()).mkdir(exist_ok=True, parents=True)
@@ -369,7 +419,7 @@ class StructuresDataset(BaseModel):
                 logger.debug(f"Processing batch {i}/{total}")
                 i += 1
 
-        create_index(self.dataset_index_file_path(), result_index)
+        create_index(self.dataset_index_file_path(), result_index, self.config.data_path)
 
     def handle_afdb(self):
         match self.collection_type:
@@ -459,7 +509,7 @@ class StructuresDataset(BaseModel):
             # Update index
             if new_files_index:
                 logger.info(f"Adding new files to index, len: {len(new_files_index)}")
-                create_index(self.dataset_index_file_path(), new_files_index)
+                create_index(self.dataset_index_file_path(), new_files_index, self.config.data_path)
             
         finally:
             # Cleanup

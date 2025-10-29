@@ -5,8 +5,7 @@ from typing import Dict, List, ClassVar
 
 import dask.bag as db
 
-from toolbox.models.embedding import esm_embedding
-from toolbox.models.manage_dataset.paths import EMBEDDINGS_PATH
+from toolbox.models.embedding.embedder.embedder_type import EmbedderType
 from toolbox.models.manage_dataset.index.handle_index import create_index, read_index
 from toolbox.models.manage_dataset.index.handle_indexes import HandleIndexes, SearchIndexResult
 from toolbox.models.manage_dataset.utils import format_time
@@ -38,7 +37,7 @@ class Embedding:
         """
         self.embeddings_index_path = embeddings_index_path
 
-        embeddings_path_obj = Path(EMBEDDINGS_PATH())
+        embeddings_path_obj = Path(self.structures_dataset.config.data_path) / "embeddings"
         if not embeddings_path_obj.exists():
             embeddings_path_obj.mkdir(exist_ok=True, parents=True)
 
@@ -63,11 +62,17 @@ class Embedding:
 
         sequences = self.missing_ids_to_fasta(missing_embeddings.keys())
 
-        index_of_new_embeddings = esm_embedding.embed(sequences, self.outputs_dir)
+        # Use the embedder type from the dataset, default to ESM2 if not specified
+        if self.structures_dataset.embedder_type is None:
+            self.structures_dataset.embedder_type = EmbedderType.ESM2_T33_650M
+        
+        # Get the embedder class and create an instance
+        embedder_class = self.structures_dataset.embedder_type.embedder_class
+        index_of_new_embeddings = embedder_class().embed(sequences, self.outputs_dir)
 
         present_embeddings.update(index_of_new_embeddings)
 
-        create_index(self.embeddings_index_path, present_embeddings)
+        create_index(self.embeddings_index_path, present_embeddings, self.structures_dataset.config.data_path)
 
         end = time.time()
         logger.info(f"Total time: {format_time(end - start)}")
@@ -83,7 +88,7 @@ class Embedding:
         """
         start_time = time.time()
 
-        index = read_index(self.structures_dataset.sequences_index_path())
+        index = read_index(self.structures_dataset.sequences_index_path(), self.structures_dataset.config.data_path)
         all_sequence_files = set(index.values())
 
         if not all_sequence_files:
@@ -127,7 +132,7 @@ class Embedding:
 def search_embedding_indexes(
     structures_dataset: "StructuresDataset",
 ) -> SearchIndexResult:
-    protein_index = read_index(structures_dataset.dataset_index_file_path())
+    protein_index = read_index(structures_dataset.dataset_index_file_path(), structures_dataset.config.data_path)
 
     handle_indexes: HandleIndexes = structures_dataset._handle_indexes
 

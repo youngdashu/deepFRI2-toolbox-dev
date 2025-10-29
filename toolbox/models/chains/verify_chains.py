@@ -32,7 +32,8 @@ def _parse_pdb_residue_(pdb_code, pdb_str):
 
 def verify_chains(structures_dataset: StructuresDataset, pdb_seqres_fasta_path):
     proteins_index = read_index(
-        structures_dataset.dataset_path() / "dataset_reversed.idx"
+        structures_dataset.dataset_path() / "dataset_reversed.idx",
+        structures_dataset.config.data_path
     )
 
     from Bio import SeqIO
