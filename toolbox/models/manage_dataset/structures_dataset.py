@@ -147,7 +147,7 @@ class StructuresDataset(BaseModel):
     def add_client(self):
         if self._client is None:
             self._client = create_client(self.is_hpc_cluster)
-            logger.info(f"Client created: {self._client}")
+            logger.debug(f"Client created: {self._client}")
         else:
             logger.info(f"Client already exists: {self._client}")
 
