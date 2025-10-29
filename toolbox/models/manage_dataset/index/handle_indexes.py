@@ -47,7 +47,8 @@ class HandleIndexes:
 
         current_dataset_data = {
             "embedder_type": self.structures_dataset.embedder_type,
-            "config": {"disto_type": self.structures_dataset.config.disto_type}
+            "config": {"disto_type": self.structures_dataset.config.disto_type},
+            "input_path": str(self.structures_dataset.input_path)
         }
 
         def filter_paths(data: Dict[str, Any], action: Callable):
@@ -55,7 +56,7 @@ class HandleIndexes:
                 if embeddings_dataset_matches_current(current_dataset_data, data):
                         action()
             elif index_type in ["coordinates", "sequences", "distograms"]:
-                if carbon_dataset_matches_current(current_dataset_data, data):
+                if carbon_dataset_matches_current(current_dataset_data, data) and input_path_matches_current(current_dataset_data, data):
                     action()
             else:
                 action()
@@ -297,25 +298,36 @@ class HandleIndexes:
         logger.debug(f"Created SearchIndexResult with {len(present)} present and {len(missing_protein)} missing items")
         return result
 
-def embeddings_dataset_matches_current(current_dataset: Dict[str, Any], process_dataset_data: Dict[str, Any]) -> bool:
-    embedder_type = process_dataset_data.get("embedder_type", None)
-    carbon_type = process_dataset_data.get("config", {"disto_type": None}).get("disto_type", None)
+def normalize_none(value: Any) -> Any:
+    """Normalize string 'None' to actual None for comparison."""
+    if value == 'None' or value is None:
+        return None
+    return value
 
-    current_embedder_type = current_dataset.get("embedder_type", None)
-    current_carbon_type = current_dataset.get("config", {"disto_type": None}).get("disto_type", None)
+def embeddings_dataset_matches_current(current_dataset: Dict[str, Any], process_dataset_data: Dict[str, Any]) -> bool:
+    embedder_type = normalize_none(process_dataset_data.get("embedder_type", None))
+    carbon_type = normalize_none(process_dataset_data.get("config", {"disto_type": None}).get("disto_type", None))
+
+    current_embedder_type = normalize_none(current_dataset.get("embedder_type", None))
+    current_carbon_type = normalize_none(current_dataset.get("config", {"disto_type": None}).get("disto_type", None))
 
     if current_embedder_type is None and embedder_type is None and carbon_type is None and current_carbon_type is None:
         return True
-    elif current_embedder_type is not None and embedder_type == current_embedder_type.value and carbon_type == current_carbon_type:
-        return True 
+    elif current_embedder_type is not None and embedder_type == current_embedder_type.value and normalize_none(carbon_type) == normalize_none(current_carbon_type):
+        return True
     else:
         return False
     
 def carbon_dataset_matches_current(current_dataset: Dict[str, Any], process_dataset_data: Dict[str, Any]) -> bool:
-    carbon_type = process_dataset_data.get("config", {"disto_type": None}).get("disto_type", None)
-    current_carbon_type = current_dataset.get("config", {"disto_type": None}).get("disto_type", None)
+    carbon_type = normalize_none(process_dataset_data.get("config", {"disto_type": None}).get("disto_type", None))
+    current_carbon_type = normalize_none(current_dataset.get("config", {"disto_type": None}).get("disto_type", None))
 
     return carbon_type == current_carbon_type
+
+def input_path_matches_current(current_dataset: Dict[str, Any], process_dataset_data: Dict[str, Any]) -> bool:
+    input_path = normalize_none(process_dataset_data.get("input_path", None))
+    current_input_path = normalize_none(current_dataset.get("input_path", None))
+    return input_path == current_input_path
 
 def __splitter__(data):
     yes, no = [], []
