@@ -153,7 +153,7 @@ def create_parser():
     add_embedder_argument(parser_dataset, required=False)
 
     embedding_parser = subparsers.add_parser(
-        "embedding", help="Create embeddings from datasets"
+        "generate_embeddings", help="Create embeddings from datasets"
     )
     add_common_arguments(embedding_parser)
     add_embedder_argument(embedding_parser, required=True)
@@ -215,7 +215,7 @@ def create_parser():
     add_common_arguments(create_archive_parser)
 
     input_generation_parser = subparsers.add_parser(
-        "input_generation", help="Create dataset, generate sequences and distograms"
+        "input_generation", help="Create dataset, generate sequences distograms and embeddings"
     )
     input_generation_parser.add_argument(
         "--slurm", action="store_true", help="Use SLURM job scheduler"
