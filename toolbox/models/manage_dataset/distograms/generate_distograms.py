@@ -187,6 +187,9 @@ def generate_distograms(structures_dataset: "StructuresDataset"):
     distogram_pdbs_saved = client.gather(distogram_pdbs_saved_futures)
 
     for dict_id_to_h5_file in distogram_pdbs_saved:
+        if not hasattr(dict_id_to_h5_file, '__iter__'):
+            logger.warning(f"Non-iterable result: {dict_id_to_h5_file}")
+            continue
         distogram_index.update(dict_id_to_h5_file)
 
     ids = list(distogram_index.keys())
