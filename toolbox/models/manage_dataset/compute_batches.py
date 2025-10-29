@@ -74,8 +74,8 @@ class ComputeBatches:
 
         end = time.time()
 
-        logger.info(f"Time taken {self.name}: {format_time(end - start)}")
-
+        logger.debug(f"Time taken {self.name}: {format_time(end - start)}")
+        
     def _workers_num_(self):
         return total_workers()
 

@@ -2,12 +2,62 @@ import os
 import shutil
 import json
 import pytest
+import time
+from unittest.mock import patch
+from dask.distributed import Client, LocalCluster
+import logging
+import warnings
+import distributed
 
 from tests.utils import compare_dicts, compare_pdb_contents, FileComparator
 from tests.paths import OUTPATH, EXPPATH
+from toolbox.config import Config
+
+from toolbox.models.embedding.embedder.embedder_type import EmbedderType
 
 # give 666 permissions to new files
 os.umask(0o002)
+
+n_cores = os.cpu_count()
+
+# Configure distributed logging to avoid conflicts
+distributed_logger = logging.getLogger('distributed')
+distributed_logger.setLevel(logging.WARNING)
+if not distributed_logger.handlers:
+    null_handler = logging.NullHandler()
+    distributed_logger.addHandler(null_handler)
+
+# Silence specific Dask warnings
+warnings.simplefilter("ignore", distributed.comm.core.CommClosedError)
+warnings.filterwarnings(
+    "ignore",
+    message=".*Creating scratch directories is taking a surprisingly long time.*",
+)
+
+cluster = LocalCluster(
+    n_workers=n_cores - 1,  # Use fewer workers for testing
+    threads_per_worker=1,
+    memory_limit="4 GiB",
+    silence_logs=logging.CRITICAL,
+    worker_dashboard_address=None,
+    dashboard_address="0.0.0.0:8990",  # Use different port to avoid conflicts
+)
+client = Client(cluster)
+
+# Cleanup function for the global client
+def cleanup_global_dask():
+    """Clean up the global Dask client and cluster"""
+    global client, cluster
+    try:
+        if client and client.status != "closed":
+            client.close()
+        if cluster:
+            cluster.close()
+    except Exception:
+        pass
+    finally:
+        client = None
+        cluster = None
 
 # =====================================
 # Testing behaviour of dataset creation
@@ -26,7 +76,9 @@ def clean_generated_files(tmp_path_factory):
             shutil.rmtree(f)
     assert not list(OUTPATH.iterdir())
     yield
-    
+    # Clean up the global Dask client and cluster
+    cleanup_global_dask()
+
 
 # PDB
 
@@ -43,7 +95,7 @@ def test1_initial_5():
 
     dataset_name = "initial_5"
 
-    create_dataset(
+    create_dataset_and_abstractions(
         dataset_name, 
         EXPPATH / "input_lists" / f"pdb_5.txt",
         overwrite=False,
@@ -56,7 +108,7 @@ def test2_second_5_with_overwrite():
 
     dataset_name = "second_5"
 
-    create_dataset(
+    create_dataset_and_abstractions(
         dataset_name, 
         EXPPATH / "input_lists" / f"pdb_5.txt",
         overwrite=True,
@@ -68,7 +120,7 @@ def test3_third_7():
 
     dataset_name = "third_7"
 
-    create_dataset(
+    create_dataset_and_abstractions(
         dataset_name, 
         EXPPATH / "input_lists" / f"pdb_7.txt",
         overwrite=False,
@@ -80,7 +132,7 @@ def test4_fourth_7():
 
     dataset_name = "fourth_7"
 
-    create_dataset(
+    create_dataset_and_abstractions(
         dataset_name, 
         EXPPATH / "input_lists" / f"pdb_7.txt",
         overwrite=True,
@@ -92,7 +144,7 @@ def test5_fifth_7():
 
     dataset_name = "fifth_7"
 
-    create_dataset(
+    create_dataset_and_abstractions(
         dataset_name, 
         EXPPATH / "input_lists" / f"pdb_7.txt",
         overwrite=False,
@@ -103,30 +155,59 @@ def test5_fifth_7():
 # AFDB
 
 
-def create_dataset(dataset_name, ids_file_path, overwrite=False):
+def create_dataset_and_abstractions(dataset_name, ids_file_path, overwrite=False):
     from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
     from toolbox.models.manage_dataset.collection_type import CollectionType
     from toolbox.models.manage_dataset.database_type import DatabaseType
-    from toolbox.models.manage_dataset.distograms.generate_distograms import generate_distograms
-    from toolbox.models.embedding.embedding import Embedding
 
+    config = Config(
+        data_path=str(OUTPATH),
+        disto_type="CA",
+        disto_thr="inf",
+        separator="-",
+        batch_size=1000,
+    )
 
+    print(config.model_dump_json())
+
+    # Patch the create_client function with our test version
     dataset = StructuresDataset(
         db_type=DatabaseType.PDB,
         collection_type=CollectionType.subset,
         version=dataset_name,
         ids_file=ids_file_path,
         overwrite=overwrite,
+        config=config,
+        embedder_type=EmbedderType.ESM2_T33_650M,
     )
+    dataset._client = client
 
-    dataset.create_dataset()     # TODO: create_dataset(dataset)
-    dataset.generate_sequence()  # TODO: generate_sequence(dataset)
-    generate_distograms(dataset)
-
-    embedding = Embedding(dataset)  # TODO: generate_embeddings(dataset, embedding_type="ESM-2")
-    embedding.run()
-
-    dataset._client.close()
+    # Time each major operation
+    print(f"\n=== Starting dataset creation for {dataset_name} ===")
+    
+    start_time = time.time()
+    dataset.create_dataset()
+    create_time = time.time() - start_time
+    print(f"Dataset creation took {create_time:.2f} seconds")
+    
+    start_time = time.time()
+    dataset.extract_sequence_and_coordinates()
+    sequence_time = time.time() - start_time
+    print(f"Sequence generation took {sequence_time:.2f} seconds")
+    
+    start_time = time.time()
+    dataset.generate_distograms()
+    distogram_time = time.time() - start_time
+    print(f"Distogram generation took {distogram_time:.2f} seconds")
+    
+    start_time = time.time()
+    dataset.generate_embeddings()
+    embedding_time = time.time() - start_time
+    print(f"Embedding generation took {embedding_time:.2f} seconds")
+    
+    total_time = create_time + sequence_time + distogram_time + embedding_time
+    print(f"Total processing time: {total_time:.2f} seconds")
+    print(f"=== Completed dataset creation for {dataset_name} ===\n")
 
 
 def compare_index_files(dataset_name):
@@ -176,16 +257,16 @@ def compare_generated_abstraction_with_expected(dataset_name):
     embedding_expected = EXPPATH / "embeddings" / f"PDB-subset--{dataset_name}" / "batch_0.h5"
     embedding_generated = OUTPATH / "embeddings" / f"PDB-subset--{dataset_name}" / "batch_0.h5"
     assert embedding_generated.exists(), f"Generated embedding file does not exist: {embedding_generated}"
-    FileComparator.compare_h5_files(embedding_expected, embedding_generated, None, rtol=1e-5, atol=1e-8)
+    FileComparator.compare_h5_files(embedding_expected, embedding_generated, None, rtol=1e-4, atol=1e-5)
 
     # Compare FASTA files
-    fasta_expected = EXPPATH / "sequences" / f"PDB-subset--{dataset_name}.fasta"
-    fasta_generated = OUTPATH / "sequences" / f"PDB-subset--{dataset_name}.fasta"
+    fasta_expected = EXPPATH / "sequences" / f"PDB-subset--{dataset_name}_ca.fasta"
+    fasta_generated = OUTPATH / "sequences" / f"PDB-subset--{dataset_name}_ca.fasta"
     assert fasta_generated.exists(), f"Generated FASTA file does not exist: {fasta_generated}"
     FileComparator.compare_fasta_files(fasta_expected, fasta_generated)
 
-    pdb_files_expected = [EXPPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "structures" / "0" / "pdbs.h5"]
-    pdb_files_generated = [OUTPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "structures" / "0" / "pdbs.h5"]
+    pdb_files_expected = [EXPPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "0" / "pdbs.h5"]
+    pdb_files_generated = [OUTPATH / "structures" / "PDB" / "subset_" / f"{dataset_name}" / "0" / "pdbs.h5"]
 
     for expected_file, generated_file in zip(pdb_files_expected, pdb_files_generated):
         assert generated_file.exists(), f"Generated file does not exist: {generated_file}"

@@ -8,6 +8,7 @@ from toolbox.models.manage_dataset.database_type import DatabaseType
 from toolbox.models.manage_dataset.structures_dataset import StructuresDataset
 from toolbox.models.manage_dataset.utils import read_pdbs_from_h5
 from toolbox.models.utils.cif2pdb import cif_to_pdb
+from toolbox.config import Config
 from tests.utils import compare_pdb_files, create_temp_txt_file
 from pathlib import Path
 
@@ -60,26 +61,56 @@ def clean_generated_files(tmp_path_factory):
     OUTPATH.mkdir(parents=True, exist_ok=True)
     # Clean existing files
     for f in OUTPATH.glob('*'):
-        f.unlink()
+        if f.is_file():
+            f.unlink()
+        elif f.is_dir():
+            shutil.rmtree(f)
     # Verify directory is empty
     assert not list(OUTPATH.iterdir())
     yield
     # # Cleanup after tests (optional)
-    for f in OUTPATH.glob('*'):
-        f.unlink()
+    # for f in OUTPATH.glob('*'):
+    #     if f.is_file():
+    #         f.unlink()
+    #     elif f.is_dir():
+    #         shutil.rmtree(f)
 
 
 @pytest.fixture
 def setup_dataset():
 
+    config = Config(
+        data_path=str(OUTPATH),
+        disto_type="CA",
+        disto_thr="inf",
+        separator="-",
+        batch_size=1000,
+    )
+
     dataset = StructuresDataset(
         db_type=DatabaseType.PDB,
         collection_type=CollectionType.subset,
         ids_file=create_temp_txt_file(['2fjh', ]),
-        overwrite=True
+        overwrite=True,
+        config=config
     )
     dataset.create_dataset()
     yield dataset
+    
+    # Properly close the Dask client and cluster before cleanup
+    if dataset._client is not None:
+        try:
+            # Close client first
+            dataset._client.close()
+            # Try to close the cluster if it exists
+            if hasattr(dataset._client, 'cluster') and dataset._client.cluster is not None:
+                dataset._client.cluster.close()
+        except Exception:
+            # Ignore any cleanup errors
+            pass
+        finally:
+            dataset._client = None
+    
     shutil.rmtree(dataset.dataset_repo_path())
     shutil.rmtree(dataset.dataset_path())
 

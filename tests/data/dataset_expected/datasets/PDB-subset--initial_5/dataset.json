@@ -1,1 +1,25 @@
-{"db_type":"PDB","collection_type":"subset","type_str":"","version":"initial_5","ids_file":"/mnt/vdb2/var/storage/deepfri2/toolbox/deepFRI2-toolbox-dev/tests/data/dataset_expected/input_lists/pdb_5.txt","seqres_file":null,"archive_path":null,"overwrite":false,"batch_size":1000,"binary_data_download":false,"is_hpc_cluster":false,"input_path":null,"created_at":"1740142018595384"}
+{
+  "db_type": "PDB",
+  "collection_type": "subset",
+  "type_str": "",
+  "version": "initial_5",
+  "ids_file": "/mnt/vdb2/var/storage/deepfri2/toolbox/deepFRI2-toolbox-dev/tests/data/dataset_expected/input_lists/pdb_5.txt",
+  "seqres_file": null,
+  "archive_path": null,
+  "overwrite": false,
+  "batch_size": 1000,
+  "binary_data_download": false,
+  "is_hpc_cluster": false,
+  "input_path": null,
+  "embedder_type": "esm2_t33_650M_UR50D",
+  "embedding_size": 1280,
+  "created_at": "1761587170501065",
+  "config": {
+    "debug_mode": "warning",
+    "data_path": "/mnt/vdb2/var/storage/deepfri2/toolbox/deepFRI2-toolbox-dev/tests/data/dataset_generated",
+    "disto_type": "CA",
+    "disto_thr": "inf",
+    "separator": "-",
+    "batch_size": 1000
+  }
+}

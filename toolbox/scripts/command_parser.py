@@ -1,32 +1,35 @@
 from argparse import Namespace
-from datetime import datetime
 import json
-import concurrent.futures
-
+import sys
+import traceback
+import logging
 from pathlib import Path
 
 from toolbox.models.chains.verify_chains import verify_chains
-from toolbox.models.embedding.embedding import Embedding
 from toolbox.models.manage_dataset.distograms.generate_distograms import (
-    generate_distograms,
     read_distograms_from_file,
 )
 from toolbox.models.manage_dataset.structures_dataset import FatalDatasetError, StructuresDataset
 from toolbox.models.manage_dataset.utils import (read_pdbs_from_h5, format_time)
 from toolbox.models.utils.create_client import create_client
 from toolbox.scripts.archive import create_archive
+from toolbox.models.embedding.embedder.embedder_type import EmbedderType
 
 import time
 
 from toolbox.utlis.logging import logger
+from toolbox.config import Config
 
 
 class CommandParser:
-    def __init__(self, args: Namespace):
+    def __init__(self, args: Namespace, config: Config):
         self.structures_dataset = None
         self.args = args
+        self.config = config
 
     def _create_dataset_from_path_(self) -> StructuresDataset:
+        if self.structures_dataset is not None:
+            return self.structures_dataset
         path = self.args.file_path
         if path.is_dir() and (path / "dataset.json").exists():
             self.structures_dataset = StructuresDataset.model_validate_json(
@@ -45,8 +48,37 @@ class CommandParser:
         )
         return self.structures_dataset
 
+    def _log_command(self):
+        """Log the complete command line that started the program."""
+        full_command = " ".join(sys.argv)
+        logger.info(f"Started with command: {full_command}")
+    
+    def _configure_dataset_logging(self):
+        """Configure logging to dataset log file if not already specified."""
+        if not hasattr(self.args, 'log_file') or self.args.log_file is None:
+            from toolbox.utlis.colored_logging import setup_logging_with_file
+            log_level = logging.DEBUG if self.args.verbose else logging.INFO
+            log_format = '%(asctime)s %(levelname)s %(message)s'
+            setup_logging_with_file(
+                level=log_level, 
+                fmt=log_format, 
+                log_file=self.structures_dataset.log_file_path()
+            )
+            logger.info(f"Logging configured to: {self.structures_dataset.log_file_path()}")
+            # Log the complete command line for dataset operations
+            self._log_command()
+
     def dataset(self):
         start = time.time()
+        
+        # Convert embedder string to EmbedderType enum if provided
+        embedder_type = None
+        if hasattr(self.args, 'embedder') and self.args.embedder:
+            for embedder_enum in EmbedderType:
+                if embedder_enum.value == self.args.embedder:
+                    embedder_type = embedder_enum
+                    break
+        
         dataset = StructuresDataset(
             db_type=self.args.db,
             collection_type=self.args.collection,
@@ -63,17 +95,39 @@ class CommandParser:
             is_hpc_cluster=self.args.slurm,
             input_path=self.args.input_path,
             verbose=self.args.verbose if hasattr(self.args, 'verbose') else False,
+            config=self.config,
+            embedder_type=embedder_type
         )
         self.structures_dataset = dataset
+        
+        # Configure logging to dataset log file if not already specified
+        self._configure_dataset_logging()
+        
         dataset.create_dataset()
+        
+        # Print dataset name in special format for shell script parsing
+        dataset_name = dataset.dataset_dir_name()
+        print(f"DATASET_NAME:{dataset_name}")
+        
         end = time.time()
         logger.info(f"Total time: {format_time(end - start)}")
         return dataset
 
     def embedding(self):
-        logger.info("Not implemented")
-        return
-
+        self._create_dataset_from_path_()
+        
+        # Configure logging to dataset log file if not already specified
+        self._configure_dataset_logging()
+        
+        # Set embedder type if provided
+        if hasattr(self.args, 'embedder') and self.args.embedder:
+            for embedder_enum in EmbedderType:
+                if embedder_enum.value == self.args.embedder:
+                    self.structures_dataset.embedder_type = embedder_enum
+                    break
+        
+        
+        self.structures_dataset.generate_embeddings()
 
     def load(self):
         dataset = self._create_dataset_from_path_()
@@ -81,13 +135,21 @@ class CommandParser:
 
     def generate_sequence(self):
         self._create_dataset_from_path_()
-        self.structures_dataset.generate_sequence(
+        
+        # Configure logging to dataset log file if not already specified
+        self._configure_dataset_logging()
+        
+        self.structures_dataset.extract_sequence_and_coordinates(
             self.args.ca_mask, self.args.no_substitution
         )
 
     def generate_distograms(self):
         self._create_dataset_from_path_()
-        generate_distograms(self.structures_dataset)
+        
+        # Configure logging to dataset log file if not already specified
+        self._configure_dataset_logging()
+        
+        self.structures_dataset.generate_distograms()
 
     def read_distograms(self):
         logger.info(read_distograms_from_file(self.args.file_path))
@@ -104,7 +166,7 @@ class CommandParser:
         create_archive(self.structures_dataset)
 
     def input_generation(self):
-        try:
+        try:            
             self.dataset()
         except FatalDatasetError as e:
             logger.error("Fatal error! Exiting...")
@@ -113,16 +175,15 @@ class CommandParser:
         except Exception as e:
             print_exc(e)
         try:
-            self.structures_dataset.generate_sequence()
+            self.structures_dataset.extract_sequence_and_coordinates()
         except Exception as e:
             print_exc(e)
         try:
-            generate_distograms(self.structures_dataset)
+            self.structures_dataset.generate_distograms()
         except Exception as e:
             print_exc(e)
-        try:
-            embedding = Embedding(self.structures_dataset)
-            embedding.run()
+        try:            
+            self.structures_dataset.generate_embeddings()
         except Exception as e:
             print_exc(e)
 
@@ -136,11 +197,15 @@ class CommandParser:
         
     def cleanup(self):
         if self.structures_dataset._client:
+            import warnings
+            import distributed
+            warnings.simplefilter("ignore", distributed.comm.core.CommClosedError)
             self.structures_dataset._client.close()
             self.structures_dataset._client = None
 
 def print_exc(e):
     logger.error(f"Error ({type(e)}): {str(e)}")
+    logger.error(traceback.format_exc())
 
 def read_pdbs(file_path, ids, to_directory, is_print):
     if ids.exists():
