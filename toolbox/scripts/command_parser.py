@@ -113,7 +113,7 @@ class CommandParser:
         logger.info(f"Total time: {format_time(end - start)}")
         return dataset
 
-    def embedding(self):
+    def generate_embeddings(self):
         self._create_dataset_from_path_()
         
         # Configure logging to dataset log file if not already specified
@@ -166,6 +166,8 @@ class CommandParser:
         create_archive(self.structures_dataset)
 
     def input_generation(self):
+        total_time = time.time()
+        is_error = False
         try:            
             self.dataset()
         except FatalDatasetError as e:
@@ -174,18 +176,28 @@ class CommandParser:
             return
         except Exception as e:
             print_exc(e)
+            is_error = True
         try:
             self.structures_dataset.extract_sequence_and_coordinates()
         except Exception as e:
             print_exc(e)
+            is_error = True
         try:
             self.structures_dataset.generate_distograms()
         except Exception as e:
             print_exc(e)
+            is_error = True
         try:            
             self.structures_dataset.generate_embeddings()
         except Exception as e:
             print_exc(e)
+            is_error = True
+        end_time = time.time()
+        logger.info(f"Total time for all steps: {format_time(end_time - total_time)}")
+        if is_error:
+            logger.info("Error! Exiting...")
+        else:
+            logger.info("Computation successfully completed!")
 
     def run(self):
         command_method = getattr(self, self.args.command)
@@ -196,12 +208,14 @@ class CommandParser:
             raise ValueError(f"Unknown command - {self.args.command}")
         
     def cleanup(self):
-        if self.structures_dataset._client:
+        ds = getattr(self, 'structures_dataset', None)
+        client = getattr(ds, '_client', None) if ds is not None else None
+        if client:
             import warnings
             import distributed
             warnings.simplefilter("ignore", distributed.comm.core.CommClosedError)
-            self.structures_dataset._client.close()
-            self.structures_dataset._client = None
+            client.close()
+            ds._client = None
 
 def print_exc(e):
     logger.error(f"Error ({type(e)}): {str(e)}")
