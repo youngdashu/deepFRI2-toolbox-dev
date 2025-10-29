@@ -6,6 +6,7 @@ tests/data/dataset_generated
 tests/data/distograms_pdbs
 tests/data/pdb_generated
 tests/data/data.info
+tests/data/dataset_expected_backup/*
 
 __pycache__/
 */__pycache__/
