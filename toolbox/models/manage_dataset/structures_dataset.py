@@ -32,6 +32,7 @@ from toolbox.models.manage_dataset.utils import (
     foldcomp_download,
     mkdir_for_batches,
     retrieve_pdb_chunk_to_h5,
+    retrieve_afdb_chunk_to_h5,
     alphafold_chunk_to_h5,
     format_time,
     chunk
@@ -55,7 +56,7 @@ class FatalDatasetError(Exception):
 class StructuresDataset(BaseModel):
     db_type: DatabaseType
     collection_type: CollectionType
-    type_str: str = ""
+    proteome: str = ""
     version: Optional[str] = None
     ids_file: Optional[Path] = None
     seqres_file: Optional[Path] = None
@@ -104,7 +105,7 @@ class StructuresDataset(BaseModel):
         return (
             base_path / "structures"
             / self.db_type.name
-            / f"{self.collection_type.name}_{self.type_str}"
+            / f"{self.collection_type.name}_{self.proteome}"
             / self.version
         )
 
@@ -121,7 +122,7 @@ class StructuresDataset(BaseModel):
 
     def dataset_dir_name(self):
         sep = self.config.separator if self.config else "-"
-        return f"{self.db_type.name}{sep}{self.collection_type.name}{sep}{self.type_str}{sep}{self.version}"
+        return f"{self.db_type.name}{sep}{self.collection_type.name}{sep}{self.proteome}{sep}{self.version}"
 
     def dataset_index_file_path(self) -> Path:
         return self.dataset_path() / "dataset.idx"
@@ -142,7 +143,15 @@ class StructuresDataset(BaseModel):
         return self.dataset_path() / "coordinates.idx"
 
     def batches_count(self) -> int:
-        return sum(1 for item in self.structures_path().iterdir() if item.is_dir())
+        """Count the number of batch directories (numeric directories only)."""
+        structures_path = self.structures_path()
+        if not structures_path.exists():
+            return 0
+        count = 0
+        for item in structures_path.iterdir():
+            if item.is_dir() and item.name.isdigit():
+                count += 1
+        return count
 
     def add_client(self):
         if self._client is None:
@@ -294,14 +303,18 @@ class StructuresDataset(BaseModel):
         if self.input_path is not None:
             extracted_path = extract_archive(self.input_path, self)
             if extracted_path is not None:
-                save_extracted_files(self, extracted_path, ids)
-            return
+                missing_ids = save_extracted_files(self, extracted_path, ids)
+                # Update ids to only contain the ones that need to be downloaded
+                ids = missing_ids if missing_ids is not None else []
+            else:
+                # If extraction fails, we should not proceed
+                return
 
         match self.db_type:
             case DatabaseType.PDB:
                 self.handle_pdb(ids)
             case DatabaseType.AFDB:
-                self.handle_afdb()
+                self.handle_afdb(ids)
             case DatabaseType.ESMatlas:
                 self.handle_esma()
             case DatabaseType.other:
@@ -325,11 +338,15 @@ class StructuresDataset(BaseModel):
     def _download_pdb_(self, ids: List[str]):
         Path(self.structures_path()).mkdir(exist_ok=True, parents=True)
         pdb_repo_path = self.structures_path()
+        
+        # Get the number of existing batch directories to use as an offset
+        batch_offset = self.batches_count()
+        
         chunks = list(self.chunk(ids))
 
-        mkdir_for_batches(pdb_repo_path, len(chunks))
+        mkdir_for_batches(pdb_repo_path, len(chunks), offset=batch_offset)
 
-        logger.info(f"Downloading {len(ids)} PDBs into {len(chunks)} chunks")
+        logger.info(f"Downloading {len(ids)} PDBs into {len(chunks)} new chunks (offset by {batch_offset})")
 
         new_files_index = {}
 
@@ -356,7 +373,131 @@ class StructuresDataset(BaseModel):
         )
 
         inputs = (
-            (pdb_repo_path / f"{i}", ids_chunk) for i, ids_chunk in enumerate(chunks)
+            (pdb_repo_path / f"{i + batch_offset}", ids_chunk) for i, ids_chunk in enumerate(chunks)
+        )
+
+        factor = 10
+        factor = 15 if total_workers() > 1500 else factor
+        factor = 20 if total_workers() > 2000 else factor
+        compute_batches.compute(inputs, factor=factor)
+
+        logger.info("Adding new files to index")
+
+        try:
+            logger.info(f"Extracted {len(new_files_index)} new protein chain(s)")
+            self.add_new_files_to_index(new_files_index)
+        except Exception as e:
+            logger.error(f"Failed to update index: {e}")
+
+    def _download_afdb_(self, ids: List[str]):
+        # Convert AFDB IDs from format "AF-A0A009IHW8-F1-model_v4" to "A0A009IHW8"
+        # Handle IDs that may come in either format
+        processed_ids = []
+        for file_id in ids:
+            # Remove "AF-" prefix if present and "-F1-model_v4" suffix if present
+            processed_id = file_id.removeprefix("AF-").removesuffix("-F1-model_v4")
+            processed_ids.append(processed_id)
+        
+        ids = processed_ids
+        logger.info(f"Processed {len(ids)} AFDB IDs for download")
+        
+        Path(self.structures_path()).mkdir(exist_ok=True, parents=True)
+        afdb_repo_path = self.structures_path()
+        
+        # Get the number of existing batch directories to use as an offset
+        batch_offset = self.batches_count()
+        
+        chunks = list(self.chunk(ids))
+
+        mkdir_for_batches(afdb_repo_path, len(chunks), offset=batch_offset)
+
+        logger.info(f"Downloading {len(ids)} AFDB structures into {len(chunks)} new chunks (offset by {batch_offset})")
+
+        new_files_index = {}
+
+        def run(input_data, machine):
+            return self._client.submit(
+                retrieve_afdb_chunk_to_h5,
+                *input_data,
+                [machine],
+                workers=[machine],
+            )
+
+        def collect(result):
+            downloaded_ids, file_path = result
+            logger.debug(f"Updating new_files_index with {len(downloaded_ids)} files")
+            new_files_index.update({k: file_path for k in downloaded_ids})
+
+        compute_batches = ComputeBatches(
+            self._client,
+            run,
+            collect,
+            "afdb",
+            len(chunks)
+        )
+
+        inputs = (
+            (afdb_repo_path / f"{i + batch_offset}", ids_chunk) for i, ids_chunk in enumerate(chunks)
+        )
+
+        factor = 10
+        factor = 15 if total_workers() > 1500 else factor
+        factor = 20 if total_workers() > 2000 else factor
+        compute_batches.compute(inputs, factor=factor)
+
+        logger.info("Adding new files to index")
+
+        try:
+            logger.info(f"Extracted {len(new_files_index)} new protein chain(s)")
+            self.add_new_files_to_index(new_files_index)
+        except Exception as e:
+            logger.error(f"Failed to update index: {e}")
+
+    def _download_afdb_(self, ids: List[str]):
+        # Convert AFDB IDs from format "AF-A0A009IHW8-F1-model_v4" to "A0A009IHW8"
+        # Handle IDs that may come in either format
+        processed_ids = []
+        for file_id in ids:
+            # Remove "AF-" prefix if present and "-F1-model_v4" suffix if present
+            processed_id = file_id.removeprefix("AF-").removesuffix("-F1-model_v4")
+            processed_ids.append(processed_id)
+        
+        ids = processed_ids
+        logger.info(f"Processed {len(ids)} AFDB IDs for download")
+        
+        Path(self.structures_path()).mkdir(exist_ok=True, parents=True)
+        afdb_repo_path = self.structures_path()
+        chunks = list(self.chunk(ids))
+
+        mkdir_for_batches(afdb_repo_path, len(chunks))
+
+        logger.info(f"Downloading {len(ids)} AFDB structures into {len(chunks)} chunks")
+
+        new_files_index = {}
+
+        def run(input_data, machine):
+            return self._client.submit(
+                retrieve_afdb_chunk_to_h5,
+                *input_data,
+                [machine],
+                workers=[machine],
+            )
+
+        def collect(result):
+            downloaded_ids, file_path = result
+            logger.debug(f"Updating new_files_index with {len(downloaded_ids)} files")
+            new_files_index.update({k: file_path for k in downloaded_ids})
+
+        compute_batches = ComputeBatches(
+            self._client,
+            run,
+            collect,
+            "afdb",
+            len(chunks)
+        )
+
+        inputs = (
+            (afdb_repo_path / f"{i}", ids_chunk) for i, ids_chunk in enumerate(chunks)
         )
 
         factor = 10
@@ -374,10 +515,10 @@ class StructuresDataset(BaseModel):
 
     def foldcomp_decompress(self):
 
-        db_path = str(self.dataset_repo_path() / self.type_str)
+        db_path = str(self.dataset_repo_path() / self.proteome)
 
         ids = (
-            db.read_text(f"{self.dataset_repo_path()}/{self.type_str}.lookup")
+            db.read_text(f"{self.dataset_repo_path()}/{self.proteome}.lookup")
             .filter(
                 lambda line: (
                     ".pdb" in line if (".pdb" in line or ".cif" in line) else True
@@ -421,19 +562,21 @@ class StructuresDataset(BaseModel):
 
         create_index(self.dataset_index_file_path(), result_index, self.config.data_path)
 
-    def handle_afdb(self):
+    def handle_afdb(self, ids: List[str]):
         match self.collection_type:
             case CollectionType.all:
                 pass
             case CollectionType.part:
-                foldcomp_download(self.type_str, str(self.dataset_repo_path()))
+                foldcomp_download(self.proteome, str(self.dataset_repo_path()))
                 self.foldcomp_decompress()
             case CollectionType.clust:
-                foldcomp_download(self.type_str, str(self.dataset_repo_path()))
+                foldcomp_download(self.proteome, str(self.dataset_repo_path()))
                 self.foldcomp_decompress()
             case CollectionType.subset:
-                # TODO handle file from disk
-                pass
+                if ids:
+                    self._download_afdb_(ids)
+                else:
+                    logger.info("No missing IDs to download for AFDB subset")
 
     def handle_esma(self):
         match self.collection_type:
@@ -442,7 +585,7 @@ class StructuresDataset(BaseModel):
             case CollectionType.part:
                 pass
             case CollectionType.clust:
-                foldcomp_download(self.type_str, str(self.dataset_repo_path()))
+                foldcomp_download(self.proteome, str(self.dataset_repo_path()))
                 self.foldcomp_decompress()
             case CollectionType.subset:
                 pass
@@ -545,7 +688,7 @@ def create_e_coli():
     StructuresDataset(
         db_type=DatabaseType.AFDB,
         collection_type=CollectionType.part,
-        type_str="e_coli",
+        proteome="e_coli",
     ).create_dataset()
 
 
@@ -553,7 +696,7 @@ def create_swissprot():
     StructuresDataset(
         db_type=DatabaseType.AFDB,
         collection_type=CollectionType.part,
-        type_str="afdb_swissprot_v4",
+        proteome="afdb_swissprot_v4",
     ).create_dataset()
 
 

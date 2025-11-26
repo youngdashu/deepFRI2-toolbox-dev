@@ -1,5 +1,7 @@
 import asyncio
 import os
+import shutil
+import tempfile
 import time
 import traceback
 import zlib
@@ -11,6 +13,7 @@ from typing import List, Tuple, Optional, Dict, Iterable
 
 import biotite.database
 import biotite.database.rcsb
+import biotite.database.afdb
 import dask
 import h5py
 import numpy as np
@@ -297,9 +300,122 @@ def retrieve_pdb_chunk_to_h5(
         return pdb_ids, h5_file_path
 
 
-def mkdir_for_batches(base_path: Path, batch_count: int):
+def retrieve_afdb_chunk_to_h5(
+    path_for_batch: Path,
+    uniprot_ids: Iterable[str],
+    workers: List[str] = None,
+) -> Tuple[List[str], str]:
+    """
+    Download AFDB structures for a chunk of UniProt IDs, convert to PDB format,
+    and save to HDF5 file.
+    
+    Args:
+        path_for_batch: Path where the HDF5 file will be saved
+        uniprot_ids: Iterable of UniProt IDs to download
+        workers: Optional list of worker names for dask
+    
+    Returns:
+        Tuple of (list of successfully processed IDs, path to HDF5 file)
+    """
+    chunk_ids = list(uniprot_ids)
+    if not chunk_ids:
+        return [], ""
+    
+    temp_dir = None
+    try:
+        # Create temporary directory for downloading CIF files
+        temp_dir = Path(tempfile.mkdtemp())
+        
+        # Download CIF files from AFDB one by one for better error handling
+        logger.debug(f"Downloading {len(chunk_ids)} AFDB structures to {temp_dir}")
+        successful_downloads = []
+        failed_downloads = []
+        
+        for uniprot_id in chunk_ids:
+            try:
+                biotite.database.afdb.fetch(ids=[uniprot_id], format='cif', target_path=str(temp_dir))
+                successful_downloads.append(uniprot_id)
+                logger.debug(f"Successfully downloaded AFDB structure for ID {uniprot_id}")
+            except Exception as e:
+                logger.error(f"Failed to download AFDB structure for ID {uniprot_id}: {e}")
+                failed_downloads.append(uniprot_id)
+                # Continue to the next ID
+                continue
+        
+        if not successful_downloads:
+            logger.warning(f"No AFDB structures were successfully downloaded for chunk (all {len(chunk_ids)} IDs failed)")
+            return [], ""
+        
+        if failed_downloads:
+            logger.warning(f"Failed to download {len(failed_downloads)} out of {len(chunk_ids)} IDs: {failed_downloads}")
+        
+        logger.info(f"Successfully downloaded {len(successful_downloads)} out of {len(chunk_ids)} AFDB structures")
+        
+        # Process downloaded CIF files
+        all_res_pdbs = []
+        all_contents = []
+        
+        # Get all downloaded CIF files
+        cif_files = list(temp_dir.glob("*.cif"))
+        
+        if not cif_files:
+            logger.warning(f"No CIF files found in temp directory after download")
+            return [], ""
+        
+        # Process each CIF file
+        for cif_file in cif_files:
+            try:
+                # Read CIF file content
+                with open(cif_file, 'r') as f:
+                    cif_content = f.read()
+                
+                # Extract UniProt ID from filename (format: AF-{uniprot_id}-F1-model_v4.cif)
+                filename = cif_file.stem
+                # Remove AF- prefix and -F1-model_v4 suffix (same pattern as alphafold_chunk_to_h5)
+                uniprot_id = filename.removesuffix("-F1-model_v4").removeprefix("AF-")
+                
+                # Convert CIF to PDB format
+                converted = cif_to_pdb(cif_content, uniprot_id)
+                
+                if converted is None or len(converted) == 0:
+                    logger.warning(f"Failed to convert {uniprot_id} from CIF to PDB")
+                    continue
+                
+                # Add all chains to results
+                for chain_id, pdb_content in converted.items():
+                    all_res_pdbs.append(chain_id)
+                    all_contents.append(pdb_content)
+                    
+            except Exception as e:
+                logger.error(f"Error processing {cif_file}: {e}")
+                traceback.print_exc()
+                continue
+        
+        # Save to HDF5
+        if len(all_res_pdbs) == 0 or len(all_contents) == 0:
+            logger.warning("No PDB structures to save")
+            return [], ""
+        
+        results = (all_res_pdbs, all_contents, [])
+        h5_file_path = compress_and_save_h5(path_for_batch, results)
+        
+        if h5_file_path is None:
+            return [], ""
+        
+        return all_res_pdbs, h5_file_path
+        
+    finally:
+        # Cleanup temporary directory
+        if temp_dir and temp_dir.exists():
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception as e:
+                logger.warning(f"Error cleaning up temp directory {temp_dir}: {e}")
+
+
+def mkdir_for_batches(base_path: Path, batch_count: int, offset: int = 0):
     for i in range(batch_count):
-        (base_path / f"{i}").mkdir(exist_ok=True, parents=True)
+        (base_path / f"{i + offset}").mkdir(exist_ok=True, parents=True)
 
 
 def alphafold_chunk_to_h5(db_path: str, structures_path_for_batch: str, ids: List[str]):

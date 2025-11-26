@@ -68,32 +68,48 @@ def save_extracted_files(
     structures_dataset: "StructuresDataset",
     extracted_path: Path,
     ids: Optional[List[str]] = None,
-):
-
+) -> Optional[List[str]]:
+    """
+    Process extracted files from archive and return missing IDs.
+    
+    Returns:
+        List of missing IDs (processed for AFDB if needed), or None if ids was None
+    """
     Path(structures_dataset.structures_path()).mkdir(exist_ok=True, parents=True)
     pdb_repo_path = structures_dataset.structures_path()
 
     pdb_iterator = iglob(str(extracted_path) + "/**/*.pdb")
+    direct_pdb_iterator = iglob(str(extracted_path) + "/*.pdb")
 
     pdb_files_name_to_dir = {
         Path(file).name.replace(".pdb", "").replace(".cif", ""): file for file in pdb_iterator
     }
 
+    direct_pdb_files_name_to_dir = {
+        Path(file).name.replace(".pdb", "").replace(".cif", ""): file for file in direct_pdb_iterator
+    }
+
     cif_iterator = iglob(str(extracted_path) + "/**/*.cif")
+    direct_cif_iterator = iglob(str(extracted_path) + "/*.cif")
 
     cif_files_name_to_dir = {
         Path(file).name.replace(".pdb", "").replace(".cif", ""): file for file in cif_iterator
     }
+    direct_cif_files_name_to_dir = {
+        Path(file).name.replace(".pdb", "").replace(".cif", ""): file for file in direct_cif_iterator
+    }
 
-    files_name_to_dir = {**pdb_files_name_to_dir, **cif_files_name_to_dir}
+    files_name_to_dir = {**pdb_files_name_to_dir, **direct_pdb_files_name_to_dir, **cif_files_name_to_dir, **direct_cif_files_name_to_dir}
 
     logger.debug(f"extracted files: {len(files_name_to_dir)}")
 
     present_files_set = set(files_name_to_dir.keys())
 
+
     if ids is None:
         files = list(files_name_to_dir.values())
         chunks = list(structures_dataset.chunk(files))
+        missing_files = None
     else:
         logger.info(f"Searching for {len(ids)} files in {len(present_files_set)} already extracted files")
 
@@ -104,10 +120,13 @@ def save_extracted_files(
         missing_files = list(ids_set - present_files_set)
 
         logger.info(f"Found {len(wanted_files)}, missing {len(missing_files)} out of {len(ids)} requested files")
+        
+        # Save missing files to disk for reference
         with open(structures_dataset.dataset_path() / "missing_ids_files.txt", "w") as f:
             for file in missing_files:
                 f.write(file + "\n")
             logger.info(f"Missing files saved to {structures_dataset.dataset_path() / 'missing_ids_files.txt'}")
+        
         ids = wanted_files
 
     chunks = list(structures_dataset.chunk(ids))
@@ -142,6 +161,8 @@ def save_extracted_files(
         add_new_files_to_index(structures_dataset.dataset_index_file_path(), new_files_index, structures_dataset.config.data_path)
     except Exception as e:
         logger.error(f"Failed to update index: {e}")
+    
+    return missing_files
 
 
 def retrieve_protein_file_to_h5(
