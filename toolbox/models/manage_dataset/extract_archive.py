@@ -23,6 +23,7 @@ from toolbox.models.manage_dataset.utils import (
 from toolbox.models.utils.cif2pdb import cif_to_pdb
 
 from toolbox.utlis.logging import logger
+import re
 
 
 def extract_archive(
@@ -159,6 +160,14 @@ def save_extracted_files(
     compute_batches.compute(inputs, factor=factor)
 
     logger.info("Adding new files to index")
+
+    for cif_file_name in cif_files_name_to_dir.keys():
+        match = re.match(r'^AF-(.+?)-F1-model_v\d+$', cif_file_name)
+        if match:
+            pdb_id = match.group(1)
+            chain_id = list(file_to_pdb(retrieve_single_file(cif_files_name_to_dir[cif_file_name])).keys())[0].split('_')[-1]
+            files_name_to_dir[pdb_id + "_" + chain_id] = files_name_to_dir[cif_file_name]
+            del files_name_to_dir[cif_file_name]
 
     try:
         add_new_files_to_index(structures_dataset.dataset_index_file_path(), new_files_index, structures_dataset.config.data_path)
