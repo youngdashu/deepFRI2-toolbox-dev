@@ -19,6 +19,7 @@ import time
 
 from toolbox.utlis.logging import logger
 from toolbox.config import Config
+from toolbox.viewer.export_index_html import export_index_view
 
 
 class CommandParser:
@@ -82,7 +83,7 @@ class CommandParser:
         dataset = StructuresDataset(
             db_type=self.args.db,
             collection_type=self.args.collection,
-            type_str=self.args.type,
+            proteome=self.args.proteome,
             version=self.args.version,
             ids_file=self.args.ids,
             seqres_file=self.args.seqres,
@@ -164,6 +165,23 @@ class CommandParser:
     def create_archive(self):
         self._create_dataset_from_path_()
         create_archive(self.structures_dataset)
+
+    def export_index_view(self):
+        # CLI handler for export-index-view
+        # Uses global config from args/config loaded in toolbox.py
+        index_types = None
+        if hasattr(self.args, 'index_types') and self.args.index_types and self.args.index_types != 'all':
+            index_types = [s.strip() for s in self.args.index_types.split(',') if s.strip()]
+
+        out_path = export_index_view(
+            config=self.config,
+            dataset=getattr(self.args, 'dataset', None),
+            dataset_slug=getattr(self.args, 'dataset_slug', None),
+            root=getattr(self.args, 'root', None),
+            index_types=index_types,
+            output_dir=getattr(self.args, 'output_dir', None),
+        )
+        logger.info(f"Report generated: {out_path}")
 
     def input_generation(self):
         total_time = time.time()

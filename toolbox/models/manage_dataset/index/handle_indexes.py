@@ -58,6 +58,9 @@ class HandleIndexes:
             elif index_type in ["coordinates", "sequences", "distograms"]:
                 if carbon_dataset_matches_current(current_dataset_data, data) and input_path_matches_current(current_dataset_data, data):
                     action()
+            elif index_type == "dataset":
+                if input_path_matches_current(current_dataset_data, data):
+                    action()
             else:
                 action()
         
@@ -306,17 +309,16 @@ def normalize_none(value: Any) -> Any:
 
 def embeddings_dataset_matches_current(current_dataset: Dict[str, Any], process_dataset_data: Dict[str, Any]) -> bool:
     embedder_type = normalize_none(process_dataset_data.get("embedder_type", None))
-    carbon_type = normalize_none(process_dataset_data.get("config", {"disto_type": None}).get("disto_type", None))
-
     current_embedder_type = normalize_none(current_dataset.get("embedder_type", None))
-    current_carbon_type = normalize_none(current_dataset.get("config", {"disto_type": None}).get("disto_type", None))
+    compare_embedder_type = current_embedder_type is None and embedder_type is None
+    
+    compare_carbon_type = carbon_dataset_matches_current(current_dataset, process_dataset_data)
+    compare_input_path = input_path_matches_current(current_dataset, process_dataset_data)
 
-    if current_embedder_type is None and embedder_type is None and carbon_type is None and current_carbon_type is None:
-        return True
-    elif current_embedder_type is not None and embedder_type == current_embedder_type.value and normalize_none(carbon_type) == normalize_none(current_carbon_type):
-        return True
-    else:
-        return False
+    return (
+        (compare_embedder_type and compare_carbon_type and compare_input_path) or
+        (current_embedder_type is not None and embedder_type == current_embedder_type.value and compare_carbon_type and compare_input_path) 
+    )
     
 def carbon_dataset_matches_current(current_dataset: Dict[str, Any], process_dataset_data: Dict[str, Any]) -> bool:
     carbon_type = normalize_none(process_dataset_data.get("config", {"disto_type": None}).get("disto_type", None))

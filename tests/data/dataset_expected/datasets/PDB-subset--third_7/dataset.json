@@ -1,7 +1,7 @@
 {
   "db_type": "PDB",
   "collection_type": "subset",
-  "type_str": "",
+  "proteome": "",
   "version": "third_7",
   "ids_file": "/mnt/vdb2/var/storage/deepfri2/toolbox/deepFRI2-toolbox-dev/tests/data/dataset_expected/input_lists/pdb_7.txt",
   "seqres_file": null,

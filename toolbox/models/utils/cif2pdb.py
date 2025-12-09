@@ -354,7 +354,7 @@ def _create_pdb_atoms_from_cif(
     idx_occ = cif_fields[KEY_OCC]
     idx_tfactor = cif_fields[KEY_TFACTOR]
     idx_symbol = cif_fields[KEY_SYMBOL]
-    idx_charge = cif_fields[KEY_CHARGE]
+    # idx_charge = cif_fields[KEY_CHARGE]
 
     # Below we save only atoms belonging to the first
     # encountered conformation (if exists)
@@ -369,8 +369,8 @@ def _create_pdb_atoms_from_cif(
 
         if elements[idx_icode] == "?":
             elements[idx_icode] = ""
-        if elements[idx_charge] == "?":
-            elements[idx_charge] = ""
+        # if elements[idx_charge] == "?":
+        #     elements[idx_charge] = ""
         elements[idx_atom] = elements[idx_atom] \
             .replace('\'', "").replace('\"', "")
 
@@ -417,7 +417,7 @@ def _create_pdb_atoms_from_cif(
             f"{elements[idx_tfactor][:6]:>6}"
             f"          "
             f"{elements[idx_symbol]:>2}"
-            f"{elements[idx_charge]:>1}"
+            f" "# f"{elements[idx_charge]:>1}"
             f"\n"
         )
         pdb_atoms.append(line)
