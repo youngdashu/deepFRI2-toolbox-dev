@@ -82,7 +82,7 @@ class CommandParser:
         dataset = StructuresDataset(
             db_type=self.args.db,
             collection_type=self.args.collection,
-            type_str=self.args.type,
+            proteome=self.args.proteome,
             version=self.args.version,
             ids_file=self.args.ids,
             seqres_file=self.args.seqres,

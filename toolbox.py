@@ -46,7 +46,15 @@ def add_dataset_parser_arguments(parser):
         required=False,
         default="",
         metavar="name",
-        help="Precise type described",
+        help="Inputs to generate",
+        nargs="?",
+    )
+    parser.add_argument(
+        "--proteome",
+        required=False,
+        default="",
+        metavar="name",
+        help="Precise proteome of AFDB part dataset",
         nargs="?",
     )
     parser.add_argument(
@@ -222,6 +230,41 @@ def create_parser():
     )
     add_dataset_parser_arguments(input_generation_parser)
     add_embedder_argument(input_generation_parser, required=True)
+
+    # export_index_view command
+    export_index_parser = subparsers.add_parser(
+        "export_index_view", help="Export single-file HTML report for dataset indexes"
+    )
+    export_index_parser.add_argument(
+        "--dataset",
+        type=pathlib.Path,
+        default=None,
+        help="Path to dataset directory or its dataset.json",
+    )
+    export_index_parser.add_argument(
+        "--dataset-slug",
+        type=str,
+        default=None,
+        help="Dataset slug (folder suffix after --)",
+    )
+    export_index_parser.add_argument(
+        "--root",
+        type=pathlib.Path,
+        default=None,
+        help="Override datasets root (default: <data_path>/datasets)",
+    )
+    export_index_parser.add_argument(
+        "--index-types",
+        type=str,
+        default="all",
+        help="Comma-separated index types (dataset,sequences,coordinates,embeddings,distograms) or 'all'",
+    )
+    export_index_parser.add_argument(
+        "--output-dir",
+        type=pathlib.Path,
+        default=None,
+        help="Output directory for reports (default: <repo_root>/reports)",
+    )
 
 
 
